@@ -32,6 +32,10 @@ Judge decision: keep the runtime judge only if C2+J catches unsafe/unsupported d
 | Category accuracy | ≥ 90% | | | | |
 | Language detection accuracy | ≥ 95% | | | | |
 | Arabic draft quality (my review, 1–5) | ≥ 4 | | | | |
+| **Adversarial pass rate** (34 tickets, `eval/tickets_adversarial.jsonl`) | report | | | | |
+| Adversarial hard-rule violations | **= 0** | | | | |
+| Over-blocking rate (X20–X22) | report | | | | |
+| Known gaps closed (of 8) | report | | | | |
 | Usable-draft rate (feeds business case) | report | | | | |
 | p50 / p95 latency per ticket | p95 < 10 s | | | | |
 | Tokens per ticket (in / out / cached) | report | | | | |
