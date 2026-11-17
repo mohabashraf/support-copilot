@@ -35,8 +35,21 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
 - **Why:** makes the trade-off visible to the business with numbers (docs/BENCHMARK.md).
 - **Trade-offs / revisit when:** a small eval set can't prove a rate of 0 (rule of three); revisit with production data, new model releases, or price changes.
 
-## D3. Classification and drafting: one call or two
-- **Status:** open
+## D3. Classification and drafting: one call or two (and orchestration)
+- **Status:** decided (2026-11-18)
+- **Context:** hard rules (trading advice, complaint/KYC/AML outcomes) must be enforced before any reply is written; routed tickets should cost as little as possible; the benchmark compares a split configuration (C2).
+- **Options:** one LLM call (classify + draft together) · two LLM calls with a deterministic gate between · autonomous multi-agent system
+- **Decision:**
+  - **Two LLM calls:** `classify` (structured output) → deterministic `policy_gate` → `draft` (grounded, cites, or abstains) only if allowed.
+  - **Orchestrated with LangGraph as a workflow (state machine)**, not as autonomous multi-agents. Nodes: `pii_mask` → `classify` → `policy_gate` → `draft` | `template_reply` → `post_check` → (`redraft` once) → `route`.
+- **Why:**
+  - **Safety order:** with one call, the model would already have written the forbidden content before we check it. The gate sits between classification and drafting.
+  - **Cost:** blocked/routed tickets skip the drafting call.
+  - **Model split:** enables a cheaper classification model (benchmark C2).
+  - **Testability:** classification and drafting are evaluated separately, so failures are attributable.
+  - **Why LangGraph:** the graph *is* the routing logic (readable, drawable), bounded retry loops are simple, `interrupt` + checkpointer support human review in Phase 2, Langfuse traces it via callback, and I've run it in production.
+  - **Why not multi-agent:** the steps are fixed and the hard rules must be enforced by code, not by an agent's judgement. Multiple autonomous agents would add cost, latency and failure points without benefit here.
+- **Trade-offs / revisit when:** two calls add some latency (acceptable vs the 10 s target); LangGraph adds a dependency vs plain Python. Revisit splitting into agents only if one step grows too large or needs its own tools (e.g. a back-office lookup agent in Phase 2).
 
 ## D4. Confidence: model self-report, rules, or both
 - **Status:** open

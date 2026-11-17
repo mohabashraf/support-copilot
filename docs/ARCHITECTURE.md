@@ -18,44 +18,63 @@ Throughput is not the problem; **reliability and safety are**. No Kafka. Phase 1
 
 ## Phase 1: ship ASAP
 
-```
- tickets.jsonl  ──►  ┌───────────────────┐
- (or one ticket      │ Helpdesk adapter  │  mock: reads JSONL / CLI input
-  via CLI)           │ (file)            │  → standard Ticket model
-                     └─────────┬─────────┘
-                               ▼
- ┌─────────────────────────────────────────────────────────────────────┐
- │ CO-PILOT CORE                                                       │
- │                                                                     │
- │  1. Pre-checks (deterministic)                                      │
- │     - PII masking (card / document numbers)                         │
- │     - rule flags: trading-advice words, KYC/AML/complaint keywords  │
- │     - ticket text wrapped as DATA (prompt-injection defence)        │
- │                               ▼                                     │
- │  2. Classify (LLM, structured JSON, schema-validated)               │
- │     category · urgency · language · sentiment · confidence          │
- │                               ▼                                     │
- │  3. Policy gate (deterministic)                                     │
- │     trading advice  → polite decline template + route               │
- │     complaint / KYC / AML → neutral acknowledgement + route         │
- │                               ▼                                     │
- │  4. Draft (LLM, grounded in KB, cites pages, or ABSTAINS)    ◄── KB │
- │                               ▼                              (4 pages,
- │  5. Post-checks (deterministic)                               cleaned,
- │     - every claim has a citation                              deduped,
- │     - no number / fee / timeline that is not in the cited text conflicts
- │     - no advice language                                      flagged)
- │                               ▼                                     │
- │  6. Route: auto_draft_ok | human_required (+ reason codes)          │
- │     destination: support_agent · senior_support · compliance       │
- └───────────────────────────────┬─────────────────────────────────────┘
-                                 ▼
-                  results.jsonl + CLI view (+ optional web page)
-                  + audit log (prompt/KB version, model, sources, cost)
+The co-pilot core is a **LangGraph workflow (state machine)**, not autonomous multi-agents: two LLM nodes, deterministic nodes around them, conditional edges for routing (decision D3).
 
- Offline:  eval/tickets_labelled.jsonl ──► eval runner ──► metrics report
+```
+ tickets.jsonl / CLI ──► Helpdesk adapter (file mock) ──► Ticket model
+                                                              │
+ ┌────────────────────────── LangGraph: CO-PILOT CORE ────────┼──────────────────────────────┐
+ │                                                            ▼                              │
+ │                                               ┌────────────────────────┐                  │
+ │                                               │ pii_mask        (code) │ typed            │
+ │                                               │ + rule flags, ticket   │ placeholders     │
+ │                                               │ wrapped as DATA        │ [CARD_1]...      │
+ │                                               └───────────┬────────────┘                  │
+ │                                                           ▼                               │
+ │                                               ┌────────────────────────┐                  │
+ │                                               │ classify    (LLM #1)   │ structured JSON: │
+ │                                               │ schema-validated       │ category, urgency│
+ │                                               │                        │ language, senti- │
+ │                                               └───────────┬────────────┘ ment, confidence │
+ │                                                           ▼                               │
+ │                                               ┌────────────────────────┐                  │
+ │                                               │ policy_gate     (code) │                  │
+ │                                               └─────┬────────────┬─────┘                  │
+ │                             blocked: trading advice,│            │allowed                 │
+ │                             complaint, KYC/AML      ▼            ▼                        │
+ │                                 ┌────────────────────┐   ┌────────────────────────┐       │
+ │                                 │ template_reply     │   │ draft       (LLM #2)   │◄── KB │
+ │                                 │ (code): decline /  │   │ grounded, cites chunk  │ whole │
+ │                                 │ neutral acknowledge│   │ IDs, or ABSTAINS       │ KB in │
+ │                                 └─────────┬──────────┘   └───────────┬────────────┘ prompt│
+ │                                           │                          ▼              + emb.│
+ │                                           │              ┌────────────────────────┐ scores│
+ │                                           │              │ post_check      (code) │       │
+ │                                           │              │ citations exist? every │       │
+ │                                           │              │ number in cited text?  │       │
+ │                                           │              │ no advice language?    │       │
+ │                                           │              └──┬──────────────────┬──┘       │
+ │                                           │          pass   │   fail (1st) ────┘          │
+ │                                           │                 │   → redraft once            │
+ │                                           │                 │   fail (2nd) → route        │
+ │                                           ▼                 ▼                             │
+ │                                 ┌──────────────────────────────────────────┐              │
+ │                                 │ route (code): auto_draft_ok |            │              │
+ │                                 │ human_required + reason codes;           │              │
+ │                                 │ support_agent · senior_support ·         │              │
+ │                                 │ compliance                               │              │
+ │                                 └────────────────────┬─────────────────────┘              │
+ └──────────────────────────────────────────────────────┼────────────────────────────────────┘
+                                                        ▼
+                    results.jsonl + CLI view + KB explorer web page (FR-9)
+                    + audit log (draft AND final, prompt/KB versions, model, sources, cost)
+                    + optional Langfuse trace (one span per node)
+
+ Offline:  eval/tickets_labelled.jsonl ──► eval runner ──► docs/BENCHMARK.md
            (release gate: hard-rule violations must be 0)
 ```
+
+**Graph state** (one object passed between nodes): `ticket`, `masked_text`, `pii_map` (never sent to the LLM), `rule_flags`, `classification`, `gate_decision`, `retrieval_scores`, `draft`, `citations`, `abstained`, `post_check_results`, `attempts`, `route`, `reason_codes`, `usage` (tokens, cost, latency).
 
 ---
 
