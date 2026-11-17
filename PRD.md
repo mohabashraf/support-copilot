@@ -71,12 +71,13 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 - FR-2.6 Each classification has a **confidence**; below threshold → route.
 
 ### FR-3 Grounded reply drafting
-- FR-3.1 Answer **only** from the knowledge base. Every factual claim cites the page(s) used (URL + section/FAQ title).
+- FR-3.1 Answer **only** from the knowledge base. Every factual claim cites the **page used**: page title + **page URL** (e.g. `How to deposit — https://valetax.com/how-to-deposit/`) + section/FAQ title. Internal chunk IDs (e.g. `deposit#min-deposit`) are kept alongside for the post-check and the audit log, but the citation shown to the agent always includes the page URL.
 - FR-3.2 **Abstain** when the KB does not cover the question (e.g. fees, payment methods, withdrawal limits): draft a holding reply that says the information is being checked, and route. The holding reply **must not promise any timeline** (e.g. "within 24 hours"), because that would be an invented timeline (FR-4.3). Approved wording: "A member of our team is reviewing your request and will reply as soon as possible."
 - FR-3.2b **Partial coverage:** answer the covered part with citations and flag the uncovered part to the agent; never guess the missing part.
 - FR-3.3 When KB pages **conflict** (e.g. "instant" vs "within 60 minutes"), use the more conservative/specific statement and flag the conflict to the agent.
-- FR-3.4 Do **not** use known-defective content (the withdraw page's steps are copy-pasted from deposit).
-- FR-3.5 Deduplicate the FAQ that appears on both the deposit and withdraw pages, so citations stay clean.
+- FR-3.3b **KB used as it is:** the four pages are ingested **unchanged** (no rewriting or "fixing" of the text). Gaps, overlaps and inconsistencies are **detected and flagged**, and the co-pilot's *handling* of them is a documented choice (FR-3.3–3.5), never an edit of the source.
+- FR-3.4 **Flag** known-defective content and do not rely on it for answers (the withdraw page's steps are copy-pasted from deposit: "amount to deposit", "Start Trading!"). The chunk stays in the KB, marked `defective`, visible in the explorer.
+- FR-3.5 The FAQ that appears on both the deposit and withdraw pages is stored once with **both page URLs** as sources, so citations stay clean and remain traceable to each page.
 - FR-3.6 Tone: polite, short, professional; matches the customer's language.
 
 ### FR-4 Hard rules (guardrails)
@@ -108,7 +109,7 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 - FR-5.3 Route destination: `support_agent`, `senior_support`, `compliance`.
 
 ### FR-6 Output
-- FR-6.1 One JSON record per ticket: classification, draft, citations, abstained flag, routing decision + reasons, KB conflicts flagged, latency, tokens, cost.
+- FR-6.1 One JSON record per ticket: classification, draft, citations (**page title + page URL + section**, plus internal chunk ID), abstained flag, routing decision + reasons, KB conflicts flagged, latency, tokens, cost.
 - FR-6.2 Human-readable view in CLI / web page.
 
 ### FR-7 Evaluation
@@ -174,12 +175,14 @@ The tracing tool is **not** the audit log: it is for debugging, may have limited
 
 ## 7. Phases
 
-### Phase 1: Ship ASAP
-- Simplest design that meets the hard rules: small KB loaded directly (decision open, see §10), one structured classification call, one grounded drafting call, deterministic guardrails before and after the LLM.
-- CLI + optional minimal web page.
-- Evaluation set + scoring script.
+Both phases are **built**, not only designed. Phase 1 is tagged in git (`v1-ship`) so reviewers can see the "ship ASAP" version on its own; Phase 2 builds on it.
 
-### Phase 2: Scale up (~10,000 tickets/month, growing KB and SOPs)
+### Phase 1: Ship ASAP (git tag `v1-ship`)
+- Whole KB in the prompt + multilingual embeddings for scoring (D1); LangGraph workflow with two LLM calls and deterministic gates (D3).
+- CLI + web app (ticket view, KB explorer, search playground) (D5).
+- Evaluation set + benchmark (docs/BENCHMARK.md).
+
+### Phase 2: Scale up (~10,000 tickets/month, growing KB and SOPs) (git tag `v2-scale`)
 - Retrieval over a larger KB (hybrid search + reranking, metadata, versioning).
 - Async queue/worker processing, retries, dead-letter queue, idempotency.
 - Caching of repeated questions; cheaper model for classification, stronger model only where needed.
