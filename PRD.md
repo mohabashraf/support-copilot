@@ -63,7 +63,9 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
   - Detection: deterministic patterns (regex + Luhn check for cards) in Phase 1; a PII-detection library/model in Phase 2.
 
 ### FR-2 Classification
-- FR-2.1 **Category** (one of): `deposit`, `withdrawal`, `account_opening`, `verification_kyc`, `complaint`, `trading_advice_request`, `aml_compliance`, `other`.
+- FR-2.1 **Category = the topic** (one of): `deposit`, `withdrawal`, `account_opening`, `verification`, `complaint`, `trading_advice_request`, `aml_compliance`, `other`. Jurisdiction/eligibility questions ("I live in X, can I open an account?") are `aml_compliance`.
+- FR-2.1b **Decision requested** (separate from the topic): `decision_requested`: `none` | `complaint` | `kyc` | `aml`. Set when the customer asks us to decide an outcome ("approve my verification", "refund me now", "unfreeze my account"). A process question about verification ("how long does it take?") has `decision_requested = none` and is answerable. Maps directly to the brief's rule: never decide a complaint, KYC or AML outcome.
+- FR-2.1c **No-question tickets** (e.g. a thank-you): short polite draft, no citation required, not counted as a citation failure.
 - FR-2.2 **Urgency**: `low` / `medium` / `high` / `critical`, with defined rules (e.g. missing funds > 24 h, account blocked, legal threat → high/critical).
 - FR-2.3 **Language**: ISO code (e.g. `en`, `ar`, `ru`, `es`). Reply drafted in the customer's language.
 - FR-2.4 **Sentiment**: `positive` / `neutral` / `negative` / `angry`.
@@ -82,7 +84,7 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 
 ### FR-4 Hard rules (guardrails)
 - FR-4.1 **Never give trading advice**: no buy/sell recommendations, signals, price targets or leverage suggestions. Detect these requests and **decline politely**. Stating a documented fact (e.g. "maximum leverage is up to 1:2000 depending on account type") is allowed; recommending a setting is not.
-- FR-4.2 **Never decide a complaint, KYC or AML outcome.** Draft a neutral acknowledgement and route to a person.
+- FR-4.2 **Never decide a complaint, KYC or AML outcome.** Triggered by `decision_requested != none` (FR-2.1b) or topic `complaint` / `aml_compliance`. Draft a neutral acknowledgement and route to a person.
 - FR-4.3 **Never invent policy, fees or timelines.** Cite the KB or say it is unknown.
 - FR-4.4 Guardrails are enforced in **two layers**: deterministic checks (rules/regex/allowlists) **and** LLM classification; a **post-generation check** scans the draft for advice language, unsupported numbers (any number/fee/timeline not present in the cited KB text) and missing citations.
 - FR-4.5 Treat ticket text as **untrusted input** (prompt-injection defence): instructions inside a ticket are never followed.
@@ -101,12 +103,19 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
   | `angry_urgent` | angry sentiment + high/critical urgency | rules on classification |
   | `technical_failure` | invalid JSON after one retry, LLM timeout/error | schema validation, error handling |
   | `low_resource_language` | ticket language where model quality is weak (initially ckb, sw; configurable) or translation confidence is low | language detection + config list + confidence |
+  | `account_action_required` | KB covers the guidance but resolving the ticket needs the customer's account checked or changed (e.g. approved withdrawal not received, deposit failed) | classification flag `needs_account_action` + rules |
 
   For `low_resource_language`, the agent receives the classification and an **English draft** with citations instead of a possibly poor translation of a financial answer.
 
   Model confidence is never trusted alone (models are overconfident); deterministic checks back it up.
 - FR-5.2 Output a routing decision: `auto_draft_ok` (agent reviews and sends) or `human_required` with **reason codes**.
 - FR-5.3 Route destination: `support_agent`, `senior_support`, `compliance`.
+
+### FR-5b Human-in-the-loop for account actions (LangGraph interrupt)
+- FR-5b.1 When `account_action_required` fires, the workflow **pauses** (LangGraph `interrupt`, state saved by a checkpointer) and asks the agent for the missing account facts (e.g. "withdrawal W-123 sent on 17 Nov, ref ABC").
+- FR-5b.2 Phase 1: the back-office lookup is a **stub** that returns "not available", so the agent always supplies the facts. Phase 2: a read-only back-office API is tried first; the interrupt happens only if it can't answer.
+- FR-5b.3 When the agent submits the facts, the workflow **resumes** from the saved state and drafts the reply grounded in the KB **plus the agent-provided facts**, which are cited as `agent-provided` (not as KB) and logged in the audit record with the agent's ID.
+- FR-5b.4 If no facts arrive (agent skips), the ticket stays `human_required` with the holding reply; nothing is invented.
 
 ### FR-6 Output
 - FR-6.1 One JSON record per ticket: classification, draft, citations (**page title + page URL + section**, plus internal chunk ID), abstained flag, routing decision + reasons, KB conflicts flagged, latency, tokens, cost.

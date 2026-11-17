@@ -138,6 +138,40 @@ flowchart TD
     ROUTE --> OUT([result + audit record])
 ```
 
+### Human-in-the-loop for account actions (LangGraph `interrupt`)
+
+When a ticket needs the customer's account checked (`account_action_required`, e.g. "my approved withdrawal never arrived"), the workflow **pauses**, saves its state, waits for the agent, then **resumes** where it stopped.
+
+```mermaid
+flowchart TD
+    GATE["policy_gate<br/>(code)"] -->|needs_account_action| LOOK["account_lookup<br/>(code)<br/>Phase 1: stub → not available<br/>Phase 2: read-only back-office API"]
+    LOOK -->|facts found| DRAFT{{"draft<br/>(LLM #2)<br/>KB + account facts"}}
+    LOOK -->|not available| INT[/"interrupt<br/>(LangGraph)<br/>state saved by checkpointer<br/>agent asked for facts"/]
+    INT -->|"agent submits facts<br/>e.g. sent 17 Nov, ref ABC"| RES["resume<br/>(same thread ID)"]
+    RES --> DRAFT
+    INT -->|agent skips| HOLD["holding reply<br/>human_required"]
+    DRAFT --> POST["post_check<br/>agent facts cited as<br/>'agent-provided', not KB"]
+    POST --> ROUTE["route"]
+```
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant G as LangGraph workflow
+    participant C as Checkpointer
+    participant Ag as Agent (web page)
+    participant L as Claude API
+    G->>G: classify: withdrawal, needs_account_action = true
+    G->>G: account_lookup (stub): not available
+    G->>C: save state (thread T-1005)
+    G-->>Ag: interrupt: "Please add the transaction status"
+    Ag->>G: resume(T-1005, "Sent 17 Nov via bank transfer, ref ABC123")
+    C-->>G: restore state
+    G->>L: draft(KB + agent-provided facts)
+    L-->>G: reply citing KB page + "agent-provided"
+    G->>G: post_check, route, audit (agent ID + facts logged)
+```
+
 **Graph state** (one object passed between nodes):
 
 ```mermaid
@@ -149,6 +183,8 @@ classDiagram
         list rule_flags
         Classification classification
         GateDecision gate_decision
+        dict account_facts
+        str agent_id
         list retrieval_scores
         str draft
         list citations
@@ -164,6 +200,8 @@ classDiagram
         str urgency
         str language
         str sentiment
+        str decision_requested
+        bool needs_account_action
         float confidence
     }
     class Citation {
@@ -227,7 +265,7 @@ Any trigger fires → `human_required` with its reason code (PRD FR-5.1).
 
 ```mermaid
 flowchart TD
-    S([after workflow]) --> T1{"hard-rule topic?<br/>trading advice / complaint / KYC / AML"}
+    S([after workflow]) --> T1{"hard-rule topic?<br/>trading advice · complaint · AML ·<br/>decision_requested ≠ none"}
     T1 -->|yes| H1["human_required<br/>hard_rule_topic<br/>→ senior_support / compliance"]
     T1 -->|no| T8{"technical failure?"}
     T8 -->|yes| H8["human_required<br/>technical_failure"]
@@ -243,7 +281,9 @@ flowchart TD
     T6 -->|yes| H6["human_required<br/>kb_conflict"]
     T6 -->|no| T7{"angry + high urgency?<br/>low-resource language?"}
     T7 -->|yes| H7["human_required<br/>angry_urgent /<br/>low_resource_language"]
-    T7 -->|no| OK["auto_draft_ok<br/>→ support_agent reviews and sends"]
+    T7 -->|no| T9{"needs account action<br/>and no agent facts yet?"}
+    T9 -->|yes| H9["human_required<br/>account_action_required<br/>→ interrupt, agent adds facts"]
+    T9 -->|no| OK["auto_draft_ok<br/>→ support_agent reviews and sends"]
 ```
 
 In code, all triggers are evaluated and **every** reason code that fires is recorded (not only the first), so metrics count each cause.
