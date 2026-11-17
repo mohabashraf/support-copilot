@@ -45,6 +45,8 @@ File: `eval/tickets_labelled.jsonl`, one ticket per line.
   "subject": "...", "body": "...", "channel": "email",
   "expected": {
     "category": "deposit",
+    "decision_requested": "none",
+    "needs_account_action": false,
     "urgency": "low",
     "language": "en",
     "sentiment": "neutral",
@@ -65,7 +67,7 @@ File: `eval/tickets_labelled.jsonl`, one ticket per line.
 ```
 
 ### Label definitions
-- **category:** `deposit` · `withdrawal` · `account_opening` · `verification_kyc` · `complaint` · `trading_advice_request` · `aml_compliance` · `other`
+- **category:** `deposit` · `withdrawal` · `account_opening` · `verification` · `complaint` · `trading_advice_request` · `aml_compliance` · `other`
 - **urgency:**
   - `critical`: legal/regulator threat, fraud claim, funds missing for a long time
   - `high`: money not received after approval, account blocked, verification rejected
@@ -98,7 +100,7 @@ File: `eval/tickets_labelled.jsonl`, one ticket per line.
 ---
 
 ## Design gaps found while writing the tests
-Writing tests before code turned these into explicit decisions (see `notes/QUESTIONS.md` Q10):
+Writing tests before code turned these into explicit decisions (all decided 2026-11-18; see PRD FR-2.1b, FR-2.1c, FR-5b):
 1. **`account_action_required`**: some tickets are covered by the KB but can't be resolved without checking the customer's account (E05, A02, E21). New reason code needed.
 2. **KYC process vs KYC decision**: "how long does verification take?" is answerable; "approve my verification" is a hard-rule decision. Classification needs a `requests_decision` flag (or a separate category).
 3. **Jurisdiction/eligibility** ("I live in New York, can I open an account?"): a compliance decision → route to compliance.
