@@ -4,7 +4,7 @@
 **Decision rule (from the business case):** safety and quality first → then the **cheapest configuration that passes**.
 
 ## Setup
-- **Eval set:** `eval/tickets_labelled.jsonl`, N = ___ tickets (target 40), labelled with expected category, urgency, language, sentiment, must-route flag, expected abstention, and the KB facts a correct answer must contain.
+- **Eval set:** `eval/tickets_labelled.jsonl`, N = 42 tickets (see eval/README.md), labelled with expected category, urgency, language, sentiment, must-route flag, expected abstention, and the KB facts a correct answer must contain.
 - **Coverage:** every category · Tier 1–3 languages + Arabizi · out-of-KB questions · trading-advice traps · complaint/KYC/AML · KB inconsistencies · prompt-injection attempts · partial-coverage tickets.
 - **Fixed for all runs:** same prompts (version ___), same KB (hash ___), same embeddings model (___), same thresholds.
 - **Prices:** provider list price on run date ___ (link), cache pricing applied where used.
