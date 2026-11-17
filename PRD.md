@@ -68,7 +68,8 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 
 ### FR-3 Grounded reply drafting
 - FR-3.1 Answer **only** from the knowledge base. Every factual claim cites the page(s) used (URL + section/FAQ title).
-- FR-3.2 **Abstain** when the KB does not cover the question (e.g. fees, payment methods, withdrawal limits): draft a holding reply that says the information is being checked, and route.
+- FR-3.2 **Abstain** when the KB does not cover the question (e.g. fees, payment methods, withdrawal limits): draft a holding reply that says the information is being checked, and route. The holding reply **must not promise any timeline** (e.g. "within 24 hours"), because that would be an invented timeline (FR-4.3). Approved wording: "A member of our team is reviewing your request and will reply as soon as possible."
+- FR-3.2b **Partial coverage:** answer the covered part with citations and flag the uncovered part to the agent; never guess the missing part.
 - FR-3.3 When KB pages **conflict** (e.g. "instant" vs "within 60 minutes"), use the more conservative/specific statement and flag the conflict to the agent.
 - FR-3.4 Do **not** use known-defective content (the withdraw page's steps are copy-pasted from deposit).
 - FR-3.5 Deduplicate the FAQ that appears on both the deposit and withdraw pages, so citations stay clean.
@@ -82,7 +83,20 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 - FR-4.5 Treat ticket text as **untrusted input** (prompt-injection defence): instructions inside a ticket are never followed.
 
 ### FR-5 Routing
-- FR-5.1 Route to a human when **any** of: category is complaint / KYC / AML; trading-advice request; abstention; low confidence; post-check failure; angry sentiment with high urgency; invalid model output.
+- FR-5.1 Route to a human when **any** trigger fires, each emitting a reason code:
+
+  | Code | Trigger | Detection |
+  |---|---|---|
+  | `hard_rule_topic` | trading advice, complaint, KYC/AML | classification + deterministic keyword rules |
+  | `not_in_kb` | model abstained | draft step returns `abstained: true` |
+  | `weak_retrieval` | nothing relevant found | retrieval score below threshold / no source matched |
+  | `low_confidence` | classification confidence below threshold (default 0.7, configurable) | model confidence |
+  | `post_check_failed` | claim without citation, number/fee/timeline not in cited text, advice language | deterministic post-checks |
+  | `kb_conflict` | KB pages disagree on the point asked | conflict flags from ingestion |
+  | `angry_urgent` | angry sentiment + high/critical urgency | rules on classification |
+  | `technical_failure` | invalid JSON after one retry, LLM timeout/error | schema validation, error handling |
+
+  Model confidence is never trusted alone (models are overconfident); deterministic checks back it up.
 - FR-5.2 Output a routing decision: `auto_draft_ok` (agent reviews and sends) or `human_required` with **reason codes**.
 - FR-5.3 Route destination: `support_agent`, `senior_support`, `compliance`.
 
