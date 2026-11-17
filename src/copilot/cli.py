@@ -1,4 +1,4 @@
-"""Command-line interface: `copilot kb build`, `copilot kb show`."""
+"""Command-line interface: `copilot kb build`, `copilot kb show`, `copilot web`."""
 
 from pathlib import Path
 
@@ -32,3 +32,11 @@ def kb_show(chunk_id: str = typer.Argument(None, help="Show one chunk in full"))
     for c in kb.chunks:
         flags = f" [{', '.join(c.flags)}]" if c.flags else ""
         typer.echo(f"{c.id:32} {len(c.sources)} page(s){flags}  {c.text[:70]}…")
+
+
+@app.command("web")
+def web(host: str = "127.0.0.1", port: int = 8000, reload: bool = False) -> None:
+    """Start the web app (open http://127.0.0.1:8000/docs)."""
+    import uvicorn
+
+    uvicorn.run("copilot.web.app:app", host=host, port=port, reload=reload)

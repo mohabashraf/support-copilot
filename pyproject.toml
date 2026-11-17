@@ -8,8 +8,10 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.15.0",
+    "fastapi>=0.163.2",
     "pydantic>=2.14.3",
     "typer>=0.29.1",
+    "uvicorn[standard]>=0.54.0",
 ]
 
 [project.scripts]
@@ -21,5 +23,6 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.16.2",
     "pytest>=9.2.0",
 ]
