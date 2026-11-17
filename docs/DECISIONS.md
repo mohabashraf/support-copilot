@@ -66,7 +66,16 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
 - **Trade-offs / revisit when:** a runtime judge adds one more LLM call (latency + small cost, negligible vs agent time per the business case) and is itself an LLM that can be wrong. Thresholds are tuned on the eval set, not guessed. Benchmark compares with/without the runtime judge.
 
 ## D5. UI: CLI only, or CLI + minimal web page
-- **Status:** open
+- **Status:** decided (2026-11-18)
+- **Context:** brief says "a minimal CLI or simple web page is enough"; FR-9 already requires a KB explorer web view; reviewers get a 60-minute walkthrough; 3–5 h timebox.
+- **Decision: CLI + one small web app.**
+  - **CLI** (`copilot run tickets.jsonl`, `copilot eval`): batch processing and the eval/benchmark run; what reviewers can run in one command.
+  - **Web app** (FastAPI + server-rendered HTML, **no frontend framework**), three pages:
+    1. **Ticket view:** submit or pick a ticket → classification, draft with clickable citations, abstained flag, routing decision + reason codes, tokens/cost/latency, node-by-node trace.
+    2. **KB explorer (FR-9):** all chunks with flags (duplicate, conflict, defective, rule-sensitive).
+    3. **Search playground (FR-9):** question → top-k chunks with similarity scores and whether the abstain threshold triggers.
+- **Why:** the CLI satisfies the brief and the eval; the web page makes the walkthrough visual (show a trading-advice ticket being blocked, an out-of-KB ticket abstaining, citations opening the source chunk) and serves the explorer requirement with the same backend.
+- **Trade-offs / revisit when:** web page costs ~1 h of the timebox; kept deliberately plain (no React, no auth, local only). In Phase 2 the real UI is the helpdesk itself (private note), so this page becomes an internal admin/debug tool.
 
 ## D6. Observability and audit
 - **Status:** decided (2026-11-18)

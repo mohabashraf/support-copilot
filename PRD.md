@@ -211,7 +211,7 @@ The tracing tool is **not** the audit log: it is for debugging, may have limited
 2. LLM provider and model(s): one model or a small/large split.
 3. Classification and drafting in one call or two.
 4. Confidence: model self-report vs rules vs both.
-5. UI: CLI only, or CLI + minimal web page.
+5. ~~UI~~ decided: see D5.
 
 ## 11. Risks
 | Risk | Mitigation |
