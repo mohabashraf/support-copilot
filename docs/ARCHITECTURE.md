@@ -76,7 +76,7 @@ flowchart TB
         Adapter["Helpdesk adapter<br/>(file mock)"]
         Core["Co-pilot core<br/>LangGraph workflow"]
         KBStore["KB store<br/>chunks + flags + page URLs"]
-        Vec["Vector index<br/>multilingual embeddings"]
+        Vec["Vector index<br/>pgvector (Postgres)<br/>or in-memory for tests<br/>multilingual embeddings"]
         Rules["Rules & config<br/>categories, thresholds,<br/>language tiers, templates"]
         LLMIF["LLM interface<br/>(provider-agnostic)"]
         Audit["Audit log<br/>append-only JSONL"]
@@ -319,7 +319,7 @@ flowchart LR
     DD --> FL["flag chunks<br/>defective · conflict ·<br/>rule-sensitive"]
     FL --> STORE[("KB store<br/>chunks.json + KB hash")]
     STORE --> EMB["embed chunks<br/>multilingual model"]
-    EMB --> IDX[("vector index")]
+    EMB --> IDX[("pgvector<br/>(in-memory for tests)")]
     STORE --> PROMPT["labelled KB block<br/>for the draft prompt<br/>(stable order, cache-friendly)"]
     STORE --> EXP["KB explorer page"]
 ```
@@ -453,6 +453,7 @@ stateDiagram-v2
 | Return path | results.jsonl / web page | outbox → helpdesk REST API (private note) |
 | KB in prompt | whole KB (~2.5k tokens) | top-k from hybrid retrieval + reranker |
 | KB updates | manual re-ingest | ingestion pipeline with change detection |
+| Vector store | pgvector (Docker) or in-memory (tests) | pgvector + Postgres full-text for hybrid search |
 | Audit log | append-only JSONL | insert-only Postgres / write-once storage |
 | Tracing | Langfuse optional (cloud, synthetic data) | Langfuse self-hosted via OpenTelemetry |
 | Cost control | prompt caching | + answer cache, model split per step |
@@ -487,7 +488,7 @@ src/copilot/
 │
 ├── retrieval/              ── RAG: RETRIEVAL (online) ──
 │   ├── embeddings.py       multilingual embedding model (bge-m3 / multilingual-e5)
-│   ├── index.py            vector index over chunks (in-memory Phase 1; pgvector Phase 2)
+│   ├── index.py            VectorIndex interface: PgVectorIndex (app, eval, Phase 2) + InMemoryIndex (tests) (D7)
 │   ├── search.py           score(query) → ranked chunks; best score = abstain signal
 │   ├── bm25.py             keyword search (Phase 2 hybrid)
 │   └── rerank.py           cross-encoder reranker (Phase 2)
@@ -539,5 +540,6 @@ Full reasoning in [DECISIONS.md](DECISIONS.md).
 | Layered confidence (D4) | Rules + self-report + LLM judge; no single signal trusted alone. |
 | CLI + small web app (D5) | Runnable in one command; visual walkthrough. |
 | Own audit log + Langfuse (D6) | Audit is the legal record (draft and final); tracing is for debugging. |
+| pgvector, not a separate vector DB (D7) | Postgres is needed anyway in Phase 2; one database to run, secure and back up; right size for the scale |
 | Simple queue, not Kafka | 1–2 tickets/min at peak; need retries and spikes, not throughput. |
 | Fail-open | If the co-pilot is down, agents work as before. |

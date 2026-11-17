@@ -90,3 +90,28 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
   - Langfuse is open source and self-hostable for free → in production, ticket data stays on the broker's infrastructure. Works without LangChain.
   - Chosen over LangSmith (which I've run in production) because LangSmith self-hosting needs an enterprise plan; over Helicone because a proxy adds a third party in the data path; Phoenix is a fine alternative but one tool is enough.
 - **Trade-offs / revisit when:** Langfuse self-hosting needs several services (Postgres, ClickHouse, Redis, object storage), so it is not set up in Phase 1; demo uses the free cloud tier with synthetic tickets only. Revisit if Valetax already standardises on another tool (OpenTelemetry makes the switch cheap).
+
+## D7. Vector store: pgvector (with an in-memory index for tests)
+- **Status:** decided (2026-11-18)
+- **Context:** retrieval provides the abstain signal (`weak_retrieval`), the KB explorer and search playground, and all retrieval in Phase 2 (growing KB + SOPs). Phase 2 already needs a relational database for the audit log, ticket status and idempotency keys. Today the KB is 26 chunks; with SOPs it may reach thousands, not millions. Reviewers should be able to run the core without Docker.
+- **Options:**
+  - In-memory only (numpy): simplest, but no persistence and no Phase 2 path.
+  - **pgvector** (PostgreSQL extension): vectors in the same database as everything else.
+  - Qdrant: dedicated vector database (used in an earlier project of mine).
+  - Chroma: embedded vector store, mainly for prototypes.
+- **Decision:** **pgvector** as the real vector store, behind a `VectorIndex` interface with two implementations:
+  - `PgVectorIndex`: Postgres + pgvector (Docker Compose), used by the app, the eval runs and Phase 2.
+  - `InMemoryIndex`: numpy, used in unit tests and the no-Docker quick start.
+  - Selected by config: `VECTOR_STORE=pgvector | memory`.
+- **Why pgvector:**
+  1. **One database, not two.** Phase 2 needs Postgres anyway (audit log, tickets, idempotency). pgvector stores vectors in the same database, so there is one system to run, secure, back up and monitor. Qdrant would add a second database for no real gain at this scale.
+  2. **Right size for the scale.** HNSW indexing handles thousands to millions of vectors well. Qdrant's advantages (advanced vector features, very large scale, heavy vector traffic) don't apply to a KB of tens to thousands of chunks.
+  3. **SQL where it helps.** Filtering by flags (e.g. exclude `defective`, `promo`) is a normal `WHERE`; audit records can be joined with the chunks they cited; transactions keep KB versions consistent.
+  4. **Hybrid search in one query (Phase 2).** Postgres full-text search provides the keyword half next to the vector half, merged with RRF, without another service.
+  5. **Regulated-broker fit.** One place for access control, encryption at rest and backups, using standard Postgres tooling that operations teams already know.
+  6. **Experience.** I've used PostgreSQL with pgvector for retrieval in production, so I can operate and defend it.
+- **Why the interface + in-memory implementation:** unit tests run with no database; reviewers can run the core without Docker; the rest of the system depends only on `VectorIndex`, so the store can change without touching the workflow.
+- **Trade-offs / revisit when:**
+  - Requires Docker for the full app (documented in the quick start; memory mode remains available).
+  - Postgres full-text search is weaker for some languages than dedicated BM25 engines; measured in the Phase 2 hybrid benchmark.
+  - **Revisit (e.g. Qdrant or a managed vector service) when** vectors reach many millions, vector queries dominate database load, or advanced vector features (multi-vector, quantisation at scale) are needed.
