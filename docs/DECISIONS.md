@@ -25,7 +25,15 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
   - B (BM25): weak on paraphrases and non-English tickets.
 
 ## D2. LLM provider and model(s)
-- **Status:** open
+- **Status:** decided as a *method*; final model filled from docs/BENCHMARK.md
+- **Context:** any provider allowed; Python preferred; model cost is small vs agent time (business case), so quality and safety decide.
+- **Decision:**
+  - **Provider:** Anthropic (Claude) for Phase 1, behind a small provider-agnostic LLM interface; structured outputs for classification.
+  - **Model:** chosen by **benchmark**, not opinion. Candidates: `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5`, plus a split (Haiku classifies, Sonnet drafts). Model IDs are config, not code.
+  - **Rule:** 0 hard-rule violations and passing all gates → cheapest configuration wins.
+  - **Embeddings:** a **local multilingual, cross-lingual** model (e.g. bge-m3 or multilingual-e5), because tickets arrive in many languages while the KB is English, and no ticket text leaves for embeddings. Anthropic has no embeddings API; an English-only model (e.g. all-MiniLM) would fail cross-lingual matching.
+- **Why:** makes the trade-off visible to the business with numbers (docs/BENCHMARK.md).
+- **Trade-offs / revisit when:** a small eval set can't prove a rate of 0 (rule of three); revisit with production data, new model releases, or price changes.
 
 ## D3. Classification and drafting: one call or two
 - **Status:** open
