@@ -1,0 +1,61 @@
+# Knowledge-base ingestion config.
+# Chunk IDs and flags are HUMAN judgements (see kb/KB_FINDINGS.md), so they live here, not in code.
+# Source pages in kb/raw/ are never edited.
+#
+# Flags: conflict · defective · rule_sensitive · compliance · gap_link · route · promo
+
+[[pages]]
+slug = "deposit"
+file = "how-to-deposit.html"
+url = "https://valetax.com/how-to-deposit/"
+
+[[pages]]
+slug = "withdraw"
+file = "how-to-withdraw.html"
+url = "https://valetax.com/how-to-withdraw/"
+
+[[pages]]
+slug = "open"
+file = "how-to-open-an-account.html"
+url = "https://valetax.com/how-to-open-an-account/"
+
+[[pages]]
+slug = "verify"
+file = "how-to-verify-account.html"
+url = "https://valetax.com/how-to-verify-account/"
+
+# FAQ question text (exact, after whitespace normalisation) → chunk ID.
+# The same question on several pages maps to ONE chunk with all page URLs.
+[faq_ids]
+"What is the minimum deposit amount?" = "faq#min-deposit"
+"How can I deposit funds into my account?" = "faq#how-to-deposit"
+"What currencies can I use to deposit funds?" = "faq#deposit-currencies"
+"How long does it take for deposited funds to be credited to my balance?" = "faq#deposit-credit-time"
+"When will my funds be available for trading?" = "faq#funds-available"
+"Where can I view my deposit and withdrawal history?" = "faq#history"
+"What is my withdrawal request status ‘pending’?" = "faq#withdrawal-pending"
+"Why was my withdrawal request rejected?" = "faq#withdrawal-rejected"
+"I have not received my funds after my withdrawal request. What should I do?" = "faq#withdrawal-not-received"
+"How do I sign up for an account?" = "open#faq-sign-up"
+"What account type should I open?" = "open#faq-account-type"
+"What is the minimum initial deposit needed to open an account?" = "open#faq-min-initial-deposit"
+"Do I need to provide any documents to open an account?" = "open#faq-documents"
+"How long does it take to open an account?" = "open#faq-opening-time"
+"What leverage settings should I select?" = "open#faq-leverage"
+"Do you offer an Islamic-friendly account?" = "open#faq-islamic"
+
+# Chunk ID → flags (from kb/KB_FINDINGS.md). Chunks not listed have no flags.
+[flags]
+"deposit#intro" = ["conflict"]
+"faq#deposit-credit-time" = ["conflict"]
+"faq#withdrawal-rejected" = ["rule_sensitive"]
+"faq#withdrawal-not-received" = ["route"]
+"withdraw#intro" = ["conflict"]
+"withdraw#steps" = ["defective"]
+"open#intro" = ["conflict"]
+"open#faq-sign-up" = ["conflict", "gap_link"]
+"open#faq-account-type" = ["gap_link"]
+"open#faq-min-initial-deposit" = ["gap_link"]
+"open#faq-leverage" = ["rule_sensitive", "gap_link"]
+"notice#access" = ["rule_sensitive", "compliance"]
+"promo#devices" = ["promo"]
