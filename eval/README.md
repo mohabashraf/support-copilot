@@ -149,23 +149,30 @@ File: `eval/tickets_adversarial.jsonl`: **34 tickets designed to break the syste
 Even with the whole KB in the prompt (D1), retrieval quality matters: the **best embedding score is the abstain signal** (`weak_retrieval`), it powers the explorer and search playground, and it **is** the retrieval in Phase 2. So retrieval is measured on its own, separately from the LLM.
 
 **Data**
-- `kb/chunk_plan.json` / `kb/CHUNKS.md`: the 25 chunk IDs (the "answer key" space).
-- `eval/retrieval_queries.jsonl`: **70 queries** → relevant chunk IDs. 56 answerable (paraphrases, dialects, Arabizi, 10 languages, lexical-mismatch cases like "KYC", "1:2000", "cash out") + **14 no-answer** queries (fees, payment methods, spreads, bonuses...).
-- `eval/tickets_labelled.jsonl`: each ticket also has `expected.relevant_chunks` (28 tickets mapped), so retrieval is also scored on realistic ticket text, not only on clean queries.
+- `kb/chunk_plan.json` / `kb/CHUNKS.md`: the 26 chunk IDs (the "answer key" space).
+- `eval/retrieval_queries.jsonl`: **85 queries** with **graded relevance**:
+  - `required`: chunks needed to answer (conflicts list **both sides**).
+  - `optional`: helpful context; counts for hit rate, not required for recall.
+  - `answerable`: `true` · `false` (no-answer) · `partial` (KB answers part) · `route` (right chunk exists but a person must decide, e.g. jurisdiction).
+  - `must_not_answer_from`: chunks that may be retrieved but must not be used in the draft (the defective withdraw steps).
+- Coverage: 61 answerable, 4 partial, 3 route, 17 no-answer; paraphrases, dialects, Arabizi, 10 languages, lexical mismatch ("KYC", "1:2000", "cash out").
+- `eval/tickets_labelled.jsonl`: each ticket has `expected.chunks_required` / `chunks_optional`, so retrieval is also scored on realistic ticket text.
+- Labels were reviewed by an independent LLM-judge pass (2026-11-18): it found inconsistent labels (min-deposit, conflict sides, KYC documents, withdrawal timing), missing flags and 15 missing query types, all applied.
 
 **Metrics** (for answerable queries; k = 1, 3, 5)
 
 | Metric | Formula | What it tells us |
 |---|---|---|
-| **Recall@k** | relevant chunks in top k ÷ all relevant chunks | did we find what we needed? (most important: a missed chunk can't be cited) |
-| **Precision@k** | relevant chunks in top k ÷ k | how much noise comes with it |
-| **Hit rate@k** | queries with ≥1 relevant chunk in top k ÷ queries | simple "did it work at all" |
-| **MRR** | mean of 1 ÷ rank of the first relevant chunk (0 if none in top k) | is the right chunk near the top? |
-| **nDCG@5** | rank-weighted gain, normalised | quality of the whole ranking (optional) |
+| **Recall@k** | **required** chunks in top k ÷ all required chunks | did we find everything needed? (most important: a missed chunk can't be cited) |
+| **Precision@k** | (required + optional) chunks in top k ÷ k | how much noise comes with it |
+| **Hit rate@k** | queries with ≥1 required **or** optional chunk in top k ÷ queries | simple "did it work at all" |
+| **MRR** | mean of 1 ÷ rank of the first **required** chunk (0 if none in top 10) | is the right chunk near the top? |
+| **nDCG@5** (graded) | gain 2 for required, 1 for optional, rank-discounted, normalised | quality of the whole ranking |
+| **Defective-use rate** | drafts that use text from a `must_not_answer_from` chunk ÷ queries with such chunks | retrieving the defective withdraw steps is fine; *answering from them* is a failure |
 
 > Precision@k has a ceiling: most queries have only 1–2 relevant chunks, so Precision@5 can be at most 0.2–0.4 even for a perfect retriever. Read it together with Recall and MRR, not alone.
 
-**Abstain-signal metrics** (answerable vs no-answer queries)
+**Abstain-signal metrics** (`answerable: true` vs `false`; `partial` and `route` reported separately)
 - For a threshold `t` on the best score: **abstain recall** (no-answer queries correctly below `t`) and **false-abstain rate** (answerable queries wrongly below `t`).
 - **Threshold sweep:** plot both over `t`; choose `t` on this data (not guessed) and record it in config. Report AUROC of the best score as a separability check.
 

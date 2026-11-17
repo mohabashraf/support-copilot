@@ -25,8 +25,11 @@ Raw HTML in kb/raw/, extracted text in kb/*.txt.
 - Min deposit: "from 8 USD" (deposit FAQ) vs "depends on account type, see here" (open-account FAQ).
 - Typos: "insifficient", "in in queue".
 - Open-account page: "Open your account in **3** quick and simple steps" but **4** steps are listed.
+- **Trading before verification:** sign-up FAQ says "Opening a live account allows you to begin trading **immediately**", but the same page says "account opening and document verification will be completed within **48 hours**", and withdrawals can be rejected because the "account has not been verified". → "Can I trade before verification?" gets the conservative answer + `kb_conflict` flag.
+- Withdrawal timing: the only time figure for withdrawals is the **24 hours** "not received → contact support" line; it is not a processing-time promise.
 
 ## Content outside the main body
+- **"Trade from every device"** promo block (deposit + withdraw pages): kept as chunk `promo#devices`; it implies device access but names no app, so "Do you have a mobile app?" abstains.
 - **Important Access Notice** (on every page): site only for residents where access is permitted; Valetax not established in the visitor's jurisdiction; reverse solicitation. Kept as chunk `notice#access` (flags `rule_sensitive`, `compliance`): it is the KB basis for routing jurisdiction/eligibility questions to compliance, never for deciding them.
 
 ## Rule-sensitive content

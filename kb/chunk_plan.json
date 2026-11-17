@@ -129,7 +129,9 @@
    "https://valetax.com/how-to-withdraw/"
   ],
   "section": "FAQ: why withdrawal rejected",
-  "flags": [],
+  "flags": [
+   "rule_sensitive"
+  ],
   "summary": "Possible reasons: account not verified, data entry error, insufficient margin; email explains the reason.",
   "sample_questions": [
    "Why was my withdrawal rejected?"
@@ -142,7 +144,9 @@
    "https://valetax.com/how-to-withdraw/"
   ],
   "section": "FAQ: funds not received after withdrawal",
-  "flags": [],
+  "flags": [
+   "route"
+  ],
   "summary": "If not received within 24 hours, contact support.",
   "sample_questions": [
    "I didn't get my withdrawal"
@@ -208,7 +212,10 @@
    "https://valetax.com/how-to-open-an-account/"
   ],
   "section": "FAQ: how do I sign up",
-  "flags": [],
+  "flags": [
+   "conflict",
+   "gap_link"
+  ],
   "summary": "Follow step-by-step to verify and fund; live account lets you trade immediately; read Risk Disclosures, Privacy Policy, Terms.",
   "sample_questions": [
    "How do I register?"
@@ -235,7 +242,7 @@
   ],
   "section": "FAQ: minimum initial deposit to open",
   "flags": [
-   "conflict"
+   "gap_link"
   ],
   "summary": "Depends on account type; see account-types page (not in KB).",
   "sample_questions": [
@@ -273,7 +280,8 @@
   ],
   "section": "FAQ: which leverage settings",
   "flags": [
-   "rule_sensitive"
+   "rule_sensitive",
+   "gap_link"
   ],
   "summary": "Depends on strategy and goals; up to 1:2000 depending on account type.",
   "sample_questions": [
@@ -332,6 +340,22 @@
   "summary": "Site only for residents of jurisdictions where permitted; Valetax not established in your jurisdiction; reverse solicitation.",
   "sample_questions": [
    "Can I open an account from my country?"
+  ]
+ },
+ {
+  "id": "promo#devices",
+  "pages": [
+   "https://valetax.com/how-to-deposit/",
+   "https://valetax.com/how-to-withdraw/"
+  ],
+  "section": "Trade from every device (promo block)",
+  "flags": [
+   "promo"
+  ],
+  "summary": "Access your trading account on the go: monitor portfolio, place trades, track progress. No app names or download details.",
+  "sample_questions": [
+   "Do you have a mobile app?",
+   "Can I trade on my phone?"
   ]
  }
 ]

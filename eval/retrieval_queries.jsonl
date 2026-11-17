@@ -1,70 +1,85 @@
-{"qid": "R01", "lang": "en", "query": "What is the minimum deposit?", "relevant": ["faq#min-deposit"], "answerable": true}
-{"qid": "R02", "lang": "en", "query": "Can I start trading with just 5 dollars?", "relevant": ["faq#min-deposit"], "answerable": true}
-{"qid": "R03", "lang": "en", "query": "smallest amount I can fund my account with", "relevant": ["faq#min-deposit", "open#faq-min-initial-deposit"], "answerable": true}
-{"qid": "R04", "lang": "en", "query": "How do I put money into my account?", "relevant": ["deposit#steps", "faq#how-to-deposit"], "answerable": true}
-{"qid": "R05", "lang": "en", "query": "Do you accept euros or GBP for deposits?", "relevant": ["faq#deposit-currencies"], "answerable": true}
-{"qid": "R06", "lang": "en", "query": "which exchange rate is used when I fund in my local currency", "relevant": ["faq#deposit-currencies"], "answerable": true}
-{"qid": "R07", "lang": "en", "query": "I paid an hour ago and my balance is still zero", "relevant": ["faq#deposit-credit-time", "deposit#intro"], "answerable": true}
-{"qid": "R08", "lang": "en", "query": "Are deposits instant?", "relevant": ["faq#deposit-credit-time", "deposit#intro"], "answerable": true}
-{"qid": "R09", "lang": "en", "query": "When can I start trading after funding?", "relevant": ["faq#funds-available"], "answerable": true}
-{"qid": "R10", "lang": "en", "query": "where do I see my transaction history", "relevant": ["faq#history"], "answerable": true}
-{"qid": "R11", "lang": "en", "query": "My withdrawal is stuck on pending", "relevant": ["faq#withdrawal-pending"], "answerable": true}
-{"qid": "R12", "lang": "en", "query": "why did you reject my withdrawal", "relevant": ["faq#withdrawal-rejected"], "answerable": true}
-{"qid": "R13", "lang": "en", "query": "withdrawal declined insufficient margin", "relevant": ["faq#withdrawal-rejected"], "answerable": true}
-{"qid": "R14", "lang": "en", "query": "I never received the money I withdrew", "relevant": ["faq#withdrawal-not-received"], "answerable": true}
-{"qid": "R15", "lang": "en", "query": "Are withdrawals instant?", "relevant": ["withdraw#intro", "faq#withdrawal-pending"], "answerable": true}
-{"qid": "R16", "lang": "en", "query": "steps to withdraw money", "relevant": ["withdraw#steps"], "answerable": true}
-{"qid": "R17", "lang": "en", "query": "How do I create an account?", "relevant": ["open#steps", "open#faq-sign-up"], "answerable": true}
-{"qid": "R18", "lang": "en", "query": "how many steps does registration take", "relevant": ["open#intro", "open#steps"], "answerable": true}
-{"qid": "R19", "lang": "en", "query": "Which account type is best for me?", "relevant": ["open#faq-account-type"], "answerable": true}
-{"qid": "R20", "lang": "en", "query": "What documents are required to open a live account?", "relevant": ["open#faq-documents"], "answerable": true}
-{"qid": "R21", "lang": "en", "query": "Is a utility bill accepted as proof of address?", "relevant": ["open#faq-documents"], "answerable": true}
-{"qid": "R22", "lang": "en", "query": "my bank statement is 7 months old, is that ok", "relevant": ["open#faq-documents"], "answerable": true}
-{"qid": "R23", "lang": "en", "query": "How long does account verification take?", "relevant": ["open#faq-opening-time"], "answerable": true}
-{"qid": "R24", "lang": "en", "query": "What leverage do you offer?", "relevant": ["open#faq-leverage"], "answerable": true}
-{"qid": "R25", "lang": "en", "query": "Do you have swap-free accounts?", "relevant": ["open#faq-islamic"], "answerable": true}
-{"qid": "R26", "lang": "en", "query": "How do I complete KYC?", "relevant": ["verify#steps"], "answerable": true}
-{"qid": "R27", "lang": "en", "query": "why do I need to verify my identity", "relevant": ["verify#intro"], "answerable": true}
-{"qid": "R28", "lang": "en", "query": "My account is under review, what does that mean?", "relevant": ["verify#steps"], "answerable": true}
-{"qid": "R29", "lang": "en", "query": "Can I open an account from the United States?", "relevant": ["notice#access"], "answerable": true}
-{"qid": "R30", "lang": "en", "query": "what do I need to read before I start trading", "relevant": ["open#faq-sign-up"], "answerable": true}
-{"qid": "R31", "lang": "ar", "query": "ما هو الحد الأدنى للإيداع؟", "relevant": ["faq#min-deposit"], "answerable": true}
-{"qid": "R32", "lang": "ar", "query": "عايز اعرف اقل مبلغ ايداع", "relevant": ["faq#min-deposit"], "answerable": true}
-{"qid": "R33", "lang": "ar", "query": "هل يمكنني الإيداع باليورو؟", "relevant": ["faq#deposit-currencies"], "answerable": true}
-{"qid": "R34", "lang": "ar", "query": "حولت فلوس من ساعة ولسه الرصيد صفر", "relevant": ["faq#deposit-credit-time", "deposit#intro"], "answerable": true}
-{"qid": "R35", "lang": "ar", "query": "طلب السحب مكتوب قيد المعالجة", "relevant": ["faq#withdrawal-pending"], "answerable": true}
-{"qid": "R36", "lang": "ar", "query": "ليش انرفض طلب السحب حقي", "relevant": ["faq#withdrawal-rejected"], "answerable": true}
-{"qid": "R37", "lang": "ar", "query": "ما المستندات المطلوبة لفتح حساب حقيقي؟", "relevant": ["open#faq-documents"], "answerable": true}
-{"qid": "R38", "lang": "ar", "query": "كم يستغرق توثيق الحساب؟", "relevant": ["open#faq-opening-time"], "answerable": true}
-{"qid": "R39", "lang": "ar", "query": "هل عندكم حساب إسلامي بدون سواب؟", "relevant": ["open#faq-islamic"], "answerable": true}
-{"qid": "R40", "lang": "ar", "query": "a2al deposit kam?", "relevant": ["faq#min-deposit"], "answerable": true}
-{"qid": "R41", "lang": "ar", "query": "el sa7b bta3y lessa pending", "relevant": ["faq#withdrawal-pending"], "answerable": true}
-{"qid": "R42", "lang": "ru", "query": "Какой минимальный депозит?", "relevant": ["faq#min-deposit"], "answerable": true}
-{"qid": "R43", "lang": "ru", "query": "Почему отклонили вывод средств?", "relevant": ["faq#withdrawal-rejected"], "answerable": true}
-{"qid": "R44", "lang": "th", "query": "ฝากเงินขั้นต่ำเท่าไหร่", "relevant": ["faq#min-deposit"], "answerable": true}
-{"qid": "R45", "lang": "id", "query": "Dokumen apa yang dibutuhkan untuk membuka akun?", "relevant": ["open#faq-documents"], "answerable": true}
-{"qid": "R46", "lang": "vi", "query": "Có tài khoản Hồi giáo không?", "relevant": ["open#faq-islamic"], "answerable": true}
-{"qid": "R47", "lang": "es", "query": "¿Cuánto tarda la verificación de la cuenta?", "relevant": ["open#faq-opening-time"], "answerable": true}
-{"qid": "R48", "lang": "fr", "query": "Puis-je déposer en euros ?", "relevant": ["faq#deposit-currencies"], "answerable": true}
-{"qid": "R49", "lang": "zh-TW", "query": "帳戶驗證需要多久？", "relevant": ["open#faq-opening-time"], "answerable": true}
-{"qid": "R50", "lang": "sw", "query": "Kiasi cha chini cha kuweka pesa ni kiasi gani?", "relevant": ["faq#min-deposit"], "answerable": true}
-{"qid": "R51", "lang": "ckb", "query": "چۆن ئەکاونتەکەم پشتڕاست بکەمەوە؟", "relevant": ["verify#steps"], "answerable": true}
-{"qid": "R52", "lang": "en", "query": "KYC", "relevant": ["verify#steps", "verify#intro"], "answerable": true}
-{"qid": "R53", "lang": "en", "query": "1:2000", "relevant": ["open#faq-leverage"], "answerable": true}
-{"qid": "R54", "lang": "en", "query": "POA document older than half a year", "relevant": ["open#faq-documents"], "answerable": true}
-{"qid": "R55", "lang": "en", "query": "funds not credited", "relevant": ["faq#deposit-credit-time"], "answerable": true}
-{"qid": "R56", "lang": "en", "query": "cash out", "relevant": ["withdraw#steps", "faq#withdrawal-pending"], "answerable": true}
-{"qid": "N01", "lang": "en", "query": "How much is the withdrawal fee?", "relevant": [], "answerable": false}
-{"qid": "N02", "lang": "en", "query": "What payment methods do you support, do you take PayPal?", "relevant": [], "answerable": false}
-{"qid": "N03", "lang": "en", "query": "What is the maximum I can withdraw per day?", "relevant": [], "answerable": false}
-{"qid": "N04", "lang": "en", "query": "What is the spread on gold?", "relevant": [], "answerable": false}
-{"qid": "N05", "lang": "en", "query": "I forgot my MT5 password", "relevant": [], "answerable": false}
-{"qid": "N06", "lang": "en", "query": "Do you have a deposit bonus?", "relevant": [], "answerable": false}
-{"qid": "N07", "lang": "en", "query": "How do I become an introducing broker / partner?", "relevant": [], "answerable": false}
-{"qid": "N08", "lang": "en", "query": "Please close my account", "relevant": [], "answerable": false}
-{"qid": "N09", "lang": "en", "query": "Is forex trading halal?", "relevant": [], "answerable": false}
-{"qid": "N10", "lang": "en", "query": "What time does the market open on Monday?", "relevant": [], "answerable": false}
-{"qid": "N11", "lang": "ar", "query": "كم رسوم السحب؟", "relevant": [], "answerable": false}
-{"qid": "N12", "lang": "ar", "query": "هل عندكم بونص على الإيداع؟", "relevant": [], "answerable": false}
-{"qid": "N13", "lang": "ru", "query": "Какая комиссия за вывод?", "relevant": [], "answerable": false}
-{"qid": "N14", "lang": "en", "query": "Can I withdraw with crypto USDT TRC20?", "relevant": [], "answerable": false}
+{"qid": "R01", "lang": "en", "query": "What is the minimum deposit?", "required": ["faq#min-deposit"], "optional": ["open#faq-min-initial-deposit"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R02", "lang": "en", "query": "Can I start trading with just 5 dollars?", "required": ["faq#min-deposit"], "optional": ["open#faq-min-initial-deposit"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R03", "lang": "en", "query": "smallest amount I can fund my account with", "required": ["faq#min-deposit"], "optional": ["open#faq-min-initial-deposit"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R04", "lang": "en", "query": "How do I put money into my account?", "required": ["deposit#steps", "faq#how-to-deposit"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R05", "lang": "en", "query": "Do you accept euros or GBP for deposits?", "required": ["faq#deposit-currencies"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R06", "lang": "en", "query": "which exchange rate is used when I fund in my local currency", "required": ["faq#deposit-currencies"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R07", "lang": "en", "query": "I paid an hour ago and my balance is still zero", "required": ["faq#deposit-credit-time", "deposit#intro"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R08", "lang": "en", "query": "Are deposits instant?", "required": ["faq#deposit-credit-time", "deposit#intro"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R09", "lang": "en", "query": "When can I start trading after funding?", "required": ["faq#funds-available", "faq#deposit-credit-time"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R10", "lang": "en", "query": "where do I see my transaction history", "required": ["faq#history"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R11", "lang": "en", "query": "My withdrawal is stuck on pending", "required": ["faq#withdrawal-pending"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R12", "lang": "en", "query": "why did you reject my withdrawal", "required": ["faq#withdrawal-rejected"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R13", "lang": "en", "query": "withdrawal declined insufficient margin", "required": ["faq#withdrawal-rejected"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R14", "lang": "en", "query": "I never received the money I withdrew", "required": ["faq#withdrawal-not-received"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R15", "lang": "en", "query": "Are withdrawals instant?", "required": ["withdraw#intro", "faq#withdrawal-pending", "faq#withdrawal-not-received"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R16", "lang": "en", "query": "steps to withdraw money", "required": ["withdraw#steps"], "optional": ["withdraw#intro"], "answerable": true, "must_not_answer_from": ["withdraw#steps"]}
+{"qid": "R17", "lang": "en", "query": "How do I create an account?", "required": ["open#steps", "open#faq-sign-up"], "optional": ["open#intro"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R18", "lang": "en", "query": "how many steps does registration take", "required": ["open#intro", "open#steps"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R19", "lang": "en", "query": "Which account type is best for me?", "required": ["open#faq-account-type"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R20", "lang": "en", "query": "What documents are required to open a live account?", "required": ["open#faq-documents"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R21", "lang": "en", "query": "Is a utility bill accepted as proof of address?", "required": ["open#faq-documents"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R22", "lang": "en", "query": "my bank statement is 7 months old, is that ok", "required": ["open#faq-documents"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R23", "lang": "en", "query": "How long does account verification take?", "required": ["open#faq-opening-time"], "optional": ["verify#steps"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R24", "lang": "en", "query": "What leverage do you offer?", "required": ["open#faq-leverage"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R25", "lang": "en", "query": "Do you have swap-free accounts?", "required": ["open#faq-islamic"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R26", "lang": "en", "query": "How do I complete KYC?", "required": ["verify#steps", "open#faq-documents"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R27", "lang": "en", "query": "why do I need to verify my identity", "required": ["verify#intro"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R28", "lang": "en", "query": "My account is under review, what does that mean?", "required": ["verify#steps", "open#faq-opening-time"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R29", "lang": "en", "query": "Can I open an account from the United States?", "required": ["notice#access"], "optional": [], "answerable": "route", "must_not_answer_from": []}
+{"qid": "R30", "lang": "en", "query": "what do I need to read before I start trading", "required": ["open#faq-sign-up"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R31", "lang": "ar", "query": "ما هو الحد الأدنى للإيداع؟", "required": ["faq#min-deposit"], "optional": ["open#faq-min-initial-deposit"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R32", "lang": "ar", "query": "عايز اعرف اقل مبلغ ايداع", "required": ["faq#min-deposit"], "optional": ["open#faq-min-initial-deposit"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R33", "lang": "ar", "query": "هل يمكنني الإيداع باليورو؟", "required": ["faq#deposit-currencies"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R34", "lang": "ar", "query": "حولت فلوس من ساعة ولسه الرصيد صفر", "required": ["faq#deposit-credit-time", "deposit#intro"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R35", "lang": "ar", "query": "طلب السحب مكتوب قيد المعالجة", "required": ["faq#withdrawal-pending"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R36", "lang": "ar", "query": "ليش انرفض طلب السحب حقي", "required": ["faq#withdrawal-rejected"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R37", "lang": "ar", "query": "ما المستندات المطلوبة لفتح حساب حقيقي؟", "required": ["open#faq-documents"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R38", "lang": "ar", "query": "كم يستغرق توثيق الحساب؟", "required": ["open#faq-opening-time"], "optional": ["verify#steps"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R39", "lang": "ar", "query": "هل عندكم حساب إسلامي بدون سواب؟", "required": ["open#faq-islamic"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R40", "lang": "ar", "query": "a2al deposit kam?", "required": ["faq#min-deposit"], "optional": ["open#faq-min-initial-deposit"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R41", "lang": "ar", "query": "el sa7b bta3y lessa pending", "required": ["faq#withdrawal-pending"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R42", "lang": "ru", "query": "Какой минимальный депозит?", "required": ["faq#min-deposit"], "optional": ["open#faq-min-initial-deposit"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R43", "lang": "ru", "query": "Почему отклонили вывод средств?", "required": ["faq#withdrawal-rejected"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R44", "lang": "th", "query": "ฝากเงินขั้นต่ำเท่าไหร่", "required": ["faq#min-deposit"], "optional": ["open#faq-min-initial-deposit"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R45", "lang": "id", "query": "Dokumen apa yang dibutuhkan untuk membuka akun?", "required": ["open#faq-documents"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R46", "lang": "vi", "query": "Có tài khoản Hồi giáo không?", "required": ["open#faq-islamic"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R47", "lang": "es", "query": "¿Cuánto tarda la verificación de la cuenta?", "required": ["open#faq-opening-time"], "optional": ["verify#steps"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R48", "lang": "fr", "query": "Puis-je déposer en euros ?", "required": ["faq#deposit-currencies"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R49", "lang": "zh-TW", "query": "帳戶驗證需要多久？", "required": ["open#faq-opening-time"], "optional": ["verify#steps"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R50", "lang": "sw", "query": "Kiasi cha chini cha kuweka pesa ni kiasi gani?", "required": ["faq#min-deposit"], "optional": ["open#faq-min-initial-deposit"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R51", "lang": "ckb", "query": "چۆن ئەکاونتەکەم پشتڕاست بکەمەوە؟", "required": ["verify#steps", "open#faq-documents"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R52", "lang": "en", "query": "KYC", "required": ["verify#steps"], "optional": ["verify#intro", "open#faq-documents"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R53", "lang": "en", "query": "1:2000", "required": ["open#faq-leverage"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R54", "lang": "en", "query": "POA document older than half a year", "required": ["open#faq-documents"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R55", "lang": "en", "query": "funds not credited", "required": ["faq#deposit-credit-time", "deposit#intro"], "optional": ["faq#withdrawal-not-received"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R56", "lang": "en", "query": "cash out", "required": ["withdraw#steps", "withdraw#intro"], "optional": [], "answerable": true, "must_not_answer_from": ["withdraw#steps"]}
+{"qid": "N01", "lang": "en", "query": "How much is the withdrawal fee?", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "N02", "lang": "en", "query": "What payment methods do you support, do you take PayPal?", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "N03", "lang": "en", "query": "What is the maximum I can withdraw per day?", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "N04", "lang": "en", "query": "What is the spread on gold?", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "N05", "lang": "en", "query": "I forgot my MT5 password", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "N06", "lang": "en", "query": "Do you have a deposit bonus?", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "N07", "lang": "en", "query": "How do I become an introducing broker / partner?", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "N08", "lang": "en", "query": "Please close my account", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "N09", "lang": "en", "query": "Is forex trading halal?", "required": [], "optional": ["open#faq-islamic"], "answerable": false, "must_not_answer_from": []}
+{"qid": "N10", "lang": "en", "query": "What time does the market open on Monday?", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "N11", "lang": "ar", "query": "كم رسوم السحب؟", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "N12", "lang": "ar", "query": "هل عندكم بونص على الإيداع؟", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "N13", "lang": "ru", "query": "Какая комиссия за вывод?", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "N14", "lang": "en", "query": "Can I withdraw with crypto USDT TRC20?", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "R57", "lang": "en", "query": "How long does a withdrawal take?", "required": ["withdraw#intro", "faq#withdrawal-pending", "faq#withdrawal-not-received"], "optional": [], "answerable": "partial", "must_not_answer_from": []}
+{"qid": "R58", "lang": "en", "query": "Can I trade before my account is verified?", "required": ["open#faq-sign-up", "open#faq-opening-time"], "optional": ["verify#steps"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R59", "lang": "en", "query": "Do I need to verify my account before withdrawing?", "required": ["faq#withdrawal-rejected"], "optional": ["verify#steps"], "answerable": true, "must_not_answer_from": []}
+{"qid": "R60", "lang": "en", "query": "My utility bill is in my husband's name, is that ok?", "required": ["open#faq-documents"], "optional": [], "answerable": "route", "must_not_answer_from": []}
+{"qid": "R61", "lang": "en", "query": "Is a national ID card OK as proof of identity?", "required": ["open#faq-documents"], "optional": [], "answerable": "partial", "must_not_answer_from": []}
+{"qid": "R62", "lang": "en", "query": "Can I switch to another account type later?", "required": ["open#faq-account-type"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R63", "lang": "en", "query": "What is the minimum deposit for the ECN account?", "required": ["faq#min-deposit", "open#faq-min-initial-deposit"], "optional": [], "answerable": "partial", "must_not_answer_from": []}
+{"qid": "R64", "lang": "en", "query": "Will I be notified when my withdrawal is approved?", "required": ["faq#withdrawal-pending"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R65", "lang": "en", "query": "Do you charge overnight swap?", "required": ["open#faq-islamic"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R66", "lang": "ar", "query": "ما هي أقصى رافعة مالية؟", "required": ["open#faq-leverage"], "optional": [], "answerable": true, "must_not_answer_from": []}
+{"qid": "R67", "lang": "en", "query": "What is the minimum withdrawal amount?", "required": [], "optional": [], "answerable": false, "must_not_answer_from": []}
+{"qid": "R68", "lang": "en", "query": "Can I deposit with my friend's card?", "required": [], "optional": [], "answerable": "route", "must_not_answer_from": []}
+{"qid": "R69", "lang": "en", "query": "Do you offer a demo account?", "required": [], "optional": ["open#faq-sign-up"], "answerable": false, "must_not_answer_from": []}
+{"qid": "R70", "lang": "en", "query": "Is there a conversion fee if I deposit in EUR?", "required": ["faq#deposit-currencies"], "optional": [], "answerable": "partial", "must_not_answer_from": []}
+{"qid": "R71", "lang": "en", "query": "Do you have a mobile app?", "required": [], "optional": ["promo#devices"], "answerable": false, "must_not_answer_from": []}
