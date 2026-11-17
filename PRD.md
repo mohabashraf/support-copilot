@@ -106,7 +106,10 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 | NFR-1 | Safety & compliance | Zero tolerance for hard-rule violations; every draft reviewed by an agent before sending. |
 | NFR-2 | Auditability | Log every ticket: input hash, prompt version, KB version, model, retrieved sources, output, routing reasons, timestamp. |
 | NFR-3 | Privacy | Minimise PII sent to the LLM; no customer data stored beyond logs; secrets via environment variables, never in the repo. |
-| NFR-4 | Latency | p95 < 10 s per ticket (agent-assist, not real-time chat). |
+| NFR-4 | Latency | p95 < 10 s processing per ticket; draft ready within ~1 min of arrival (agent-assist, not real-time chat). |
+| NFR-4b | Throughput | Peak ≈ 70 tickets/hour (≈ 1–2/min, from 10,000/month × 5× peak factor); absorb spikes up to 10× (e.g. payment-provider outage). |
+| NFR-4c | Availability | **Fail-open:** if the co-pilot is down, agents keep working manually in the helpdesk; the co-pilot never blocks support. |
+| NFR-4d | Idempotency | The same ticket ID processed twice produces one draft (webhooks can be delivered twice). Ordering not required. |
 | NFR-5 | Cost | Cost per ticket tracked; target well below agent handling cost (quantified in the business case). |
 | NFR-6 | Scalability | Phase 2 handles ~10,000 tickets/month and growth (peaks, larger KB) without redesign. |
 | NFR-7 | Reliability | LLM timeouts/errors → retry with backoff, then route to human; the system never silently drops a ticket. |
@@ -135,7 +138,9 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 - Tickets arrive as text (email/chat/form); attachments ignored in Phase 1.
 - English KB; customers may write in other languages.
 - Agents review every draft in Phase 1.
-- ~10,000 tickets/month today; growth expected.
+- ~10,000 tickets/month today; growth expected. ≈ 330/day, ≈ 14/hour average, ≈ 70/hour at peak.
+- Tickets arrive from an existing helpdesk (e.g. Freshdesk/Zendesk) via webhook; replies go back as a **private note** via its REST API. Phase 1 mocks this with JSONL. We do **not** build a helpdesk (see docs/ARCHITECTURE.md).
+- Phase 1 processes tickets directly (no queue). Phase 2 adds a simple queue (Redis/RabbitMQ/SQS) for retries and spikes; Kafka is not justified at this volume.
 
 ## 9. Mocks and stubs (explained in README)
 - **Helpdesk integration:** mocked by JSONL in/out files. Real version: webhook from the helpdesk, reply posted back as an internal draft.
