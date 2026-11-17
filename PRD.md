@@ -99,6 +99,9 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
   | `kb_conflict` | KB pages disagree on the point asked | conflict flags from ingestion |
   | `angry_urgent` | angry sentiment + high/critical urgency | rules on classification |
   | `technical_failure` | invalid JSON after one retry, LLM timeout/error | schema validation, error handling |
+  | `low_resource_language` | ticket language where model quality is weak (initially ckb, sw; configurable) or translation confidence is low | language detection + config list + confidence |
+
+  For `low_resource_language`, the agent receives the classification and an **English draft** with citations instead of a possibly poor translation of a financial answer.
 
   Model confidence is never trusted alone (models are overconfident); deterministic checks back it up.
 - FR-5.2 Output a routing decision: `auto_draft_ok` (agent reviews and sends) or `human_required` with **reason codes**.
@@ -141,7 +144,7 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 | NFR-8 | Maintainability | Prompts, KB and rules versioned in the repo; provider-agnostic LLM interface; config-driven thresholds. |
 | NFR-9 | Testability | Deterministic parts unit-tested; evaluation set runnable with one command. |
 | NFR-10 | Observability | Metrics: volume by category, abstention rate, routing rate, violations, latency, tokens, cost. |
-| NFR-11 | Multilingual | Classify and reply in the customer's language; KB is English-only, so translated answers still cite English sources. |
+| NFR-11 | Multilingual | Classify and reply in the customer's language; KB is English-only, so translated answers still cite English sources. The **number/fee/timeline post-check runs after translation**. Quality in languages the team can't read is checked by back-translation + LLM judge in eval, and by native agents' edit rate per language in production. |
 | NFR-12 | Portability | Python; runs locally with one setup command; any LLM provider. |
 
 ## 7. Phases
@@ -163,6 +166,12 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 - Tickets arrive as text (email/chat/form); attachments ignored in Phase 1.
 - English KB; customers may write in other languages.
 - Agents review every draft in Phase 1.
+- **Languages:** the help site exists in 13 languages (en, ar, ckb/Kurdish Sorani, id, ms, th, vi, zh-TW, ru, sw, fr, pt, es), so tickets are assumed multilingual. The real ticket split by language is unknown (ask Valetax). Evaluation is tiered:
+  - Tier 1 (deep): English, Arabic (incl. dialects and Arabizi).
+  - Tier 2 (light, different scripts): Russian, Thai, Indonesian, Vietnamese.
+  - Tier 3 (fallback test, lower-resource): Kurdish (Sorani), Swahili.
+  - Smoke test if time allows: Chinese, Malay, French, Spanish, Portuguese.
+- **Arabic register:** customers may write in Egyptian/Gulf/Iraqi dialect or Arabizi; replies are always in **clear, simple Modern Standard Arabic** (warm, not stiff), in Arabic script. Reasons: precision and consistency for regulated financial wording, one register for compliance review, MSA is understood by all Arabic speakers, and LLM dialect generation is less reliable and can sound unprofessional. If a customer writes only in Arabizi/Latin script and may not read Arabic script, the agent is offered an English version too. Revisit with data (CSAT/edit rate by dialect).
 - ~10,000 tickets/month today; growth expected. ≈ 330/day, ≈ 14/hour average, ≈ 70/hour at peak.
 - Tickets arrive from an existing helpdesk (e.g. Freshdesk/Zendesk) via webhook; replies go back as a **private note** via its REST API. Phase 1 mocks this with JSONL. We do **not** build a helpdesk (see docs/ARCHITECTURE.md).
 - Phase 1 processes tickets directly (no queue). Phase 2 adds a simple queue (Redis/RabbitMQ/SQS) for retries and spikes; Kafka is not justified at this volume.
