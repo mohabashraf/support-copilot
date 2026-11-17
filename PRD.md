@@ -56,7 +56,11 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 ### FR-1 Ticket intake
 - FR-1.1 Accept a ticket with: `id`, `subject`, `body`, optional `channel`, `customer_id`, `created_at`.
 - FR-1.2 Accept single tickets (CLI) and batches (JSONL file).
-- FR-1.3 Strip/flag PII before any LLM call where possible (e.g. card numbers, document numbers).
+- FR-1.3 **Replace PII with typed placeholders** before any LLM call: e.g. `4111 1111 1111 1111` → `[CARD_1]`, passport/ID numbers → `[DOC_1]`, emails → `[EMAIL_1]`, phone numbers → `[PHONE_1]`, IBAN/account numbers → `[ACCOUNT_1]`.
+  - The placeholder → original mapping is kept **only in our service** (per ticket, in memory / encrypted store), never sent to the LLM or written to logs in clear text.
+  - The model still understands the ticket ("customer shared a card number `[CARD_1]`") without seeing the value.
+  - Drafts may contain placeholders; they are re-filled only where needed, and **sensitive values (full card or document numbers) are never echoed back** to the customer; at most masked (e.g. `**** 1111`).
+  - Detection: deterministic patterns (regex + Luhn check for cards) in Phase 1; a PII-detection library/model in Phase 2.
 
 ### FR-2 Classification
 - FR-2.1 **Category** (one of): `deposit`, `withdrawal`, `account_opening`, `verification_kyc`, `complaint`, `trading_advice_request`, `aml_compliance`, `other`.
