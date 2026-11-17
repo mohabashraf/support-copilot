@@ -117,16 +117,24 @@ A **workflow (state machine)**, not autonomous multi-agents: two LLM nodes, dete
 ```mermaid
 flowchart TD
     Start([ticket in]) --> PII["pii_mask<br/>(code)<br/>typed placeholders,<br/>rule flags,<br/>ticket wrapped as DATA"]
-    PII --> CLS{{"classify<br/>(LLM #1, structured JSON)<br/>category · urgency · language<br/>sentiment · confidence"}}
+    PII --> CLS{{"classify<br/>(LLM #1, structured JSON)<br/>intents[] · urgency · language<br/>reply_language · sentiment ·<br/>safety flags · confidence"}}
     CLS -->|invalid JSON| RETRY["retry once<br/>(code)"]
     RETRY --> CLS
-    CLS --> GATE["policy_gate<br/>(code)"]
+    CLS --> SAFE["safety_check<br/>(code + flags)<br/>vulnerable_customer?<br/>security_sensitive?"]
+    SAFE -->|vulnerable| CARE["care_note<br/>(code)<br/>short caring acknowledgement,<br/>no product talk,<br/>critical → senior_support"]
+    SAFE -->|security| SEC["template_reply<br/>(code)<br/>secure-process reply,<br/>reveal nothing"]
+    SAFE -->|none| GATE["policy_gate per intent<br/>(code)"]
+    CARE --> ROUTE
+    SEC --> ROUTE
 
     GATE -->|"blocked:<br/>trading advice"| TPL["template_reply<br/>(code)<br/>pre-approved decline"]
     GATE -->|"blocked:<br/>complaint / KYC / AML"| TPL2["template_reply<br/>(code)<br/>neutral acknowledgement"]
-    GATE -->|allowed| DRAFT{{"draft<br/>(LLM #2)<br/>grounded in KB,<br/>cites pages, or ABSTAINS"}}
+    GATE -->|allowed| DRAFT{{"draft<br/>(LLM #2)<br/>allowed intents only,<br/>grounded in KB, cites pages,<br/>or ABSTAINS, in reply_language"}}
+    GATE -->|"mixed: some intents<br/>allowed, some blocked"| DRAFT
+    DRAFT --> MERGE["merge<br/>(code)<br/>drafted parts + templates<br/>in intent order"]
+    MERGE --> POST
 
-    DRAFT --> POST["post_check<br/>(code)<br/>citations exist?<br/>numbers in cited text?<br/>no advice language?"]
+    POST["post_check<br/>(code)<br/>digits normalised (٨→8)<br/>citations exist?<br/>numbers in cited text?<br/>no advice language?"]
     POST -->|"fail (1st)"| DRAFT
     POST -->|pass| JUDGE{{"groundedness_judge<br/>(LLM, optional,<br/>different model)"}}
     POST -->|"fail (2nd)"| ROUTE
@@ -199,9 +207,13 @@ classDiagram
         str category
         str urgency
         str language
+        list intents
         str sentiment
+        str reply_language
         str decision_requested
         bool needs_account_action
+        bool vulnerable_customer
+        bool security_sensitive
         float confidence
     }
     class Citation {
@@ -265,8 +277,12 @@ Any trigger fires → `human_required` with its reason code (PRD FR-5.1).
 
 ```mermaid
 flowchart TD
-    S([after workflow]) --> T1{"hard-rule topic?<br/>trading advice · complaint · AML ·<br/>decision_requested ≠ none"}
-    T1 -->|yes| H1["human_required<br/>hard_rule_topic<br/>→ senior_support / compliance"]
+    S([after workflow]) --> T0{"vulnerable customer?"}
+    T0 -->|yes| H0["human_required<br/>vulnerable_customer<br/>critical → senior_support"]
+    T0 -->|no| T0b{"security-sensitive?"}
+    T0b -->|yes| H0b["human_required<br/>security_sensitive<br/>→ senior_support"]
+    T0b -->|no| T1{"hard-rule topic?<br/>trading advice · complaint · AML ·<br/>decision_requested ≠ none"}
+    T1 -->|yes| H1["human_required<br/>hard_rule_topic /<br/>multi_intent_blocked<br/>→ strictest destination"]
     T1 -->|no| T8{"technical failure?"}
     T8 -->|yes| H8["human_required<br/>technical_failure"]
     T8 -->|no| T2{"abstained?"}

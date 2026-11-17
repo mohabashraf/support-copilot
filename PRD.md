@@ -66,8 +66,12 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 - FR-2.1 **Category = the topic** (one of): `deposit`, `withdrawal`, `account_opening`, `verification`, `complaint`, `trading_advice_request`, `aml_compliance`, `other`. Jurisdiction/eligibility questions ("I live in X, can I open an account?") are `aml_compliance`.
 - FR-2.1b **Decision requested** (separate from the topic): `decision_requested`: `none` | `complaint` | `kyc` | `aml`. Set when the customer asks us to decide an outcome ("approve my verification", "refund me now", "unfreeze my account"). A process question about verification ("how long does it take?") has `decision_requested = none` and is answerable. Maps directly to the brief's rule: never decide a complaint, KYC or AML outcome.
 - FR-2.1c **No-question tickets** (e.g. a thank-you): short polite draft, no citation required, not counted as a citation failure.
+- FR-2.1d **Multi-intent tickets:** classification returns a **list of intents**, each with its own topic, `decision_requested`, and the text span it refers to (e.g. "1) documents needed? 2) I want to complain about agent Sam"). The ticket's overall category = the most restrictive intent. Gating, drafting and routing work **per intent** (FR-4.6).
+- FR-2.1e **Safety and security signals** (classification flags, also detected by deterministic rules):
+  - `vulnerable_customer`: distress, hopelessness, self-harm or financial-hardship language ("I lost everything", "no reason to go on").
+  - `security_sensitive`: requests about another person's account or data, changing contact details (email, phone), disabling 2FA, password or login-security changes.
 - FR-2.2 **Urgency**: `low` / `medium` / `high` / `critical`, with defined rules (e.g. missing funds > 24 h, account blocked, legal threat → high/critical).
-- FR-2.3 **Language**: ISO code (e.g. `en`, `ar`, `ru`, `es`). Reply drafted in the customer's language.
+- FR-2.3 **Language**: ISO code of the ticket (e.g. `en`, `ar`, `ru`, `es`), plus **`reply_language`**: the language the reply must be written in. An explicit request ("please reply in Arabic") wins over the detected ticket language; otherwise `reply_language = language`. Arabic replies follow the MSA rule (§8).
 - FR-2.4 **Sentiment**: `positive` / `neutral` / `negative` / `angry`.
 - FR-2.5 Output is **structured (JSON, schema-validated)**; invalid output is retried once, then routed to a human.
 - FR-2.6 Each classification has a **confidence**; below threshold → route.
@@ -86,8 +90,11 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 - FR-4.1 **Never give trading advice**: no buy/sell recommendations, signals, price targets or leverage suggestions. Detect these requests and **decline politely**. Stating a documented fact (e.g. "maximum leverage is up to 1:2000 depending on account type") is allowed; recommending a setting is not.
 - FR-4.2 **Never decide a complaint, KYC or AML outcome.** Triggered by `decision_requested != none` (FR-2.1b) or topic `complaint` / `aml_compliance`. Draft a neutral acknowledgement and route to a person.
 - FR-4.3 **Never invent policy, fees or timelines.** Cite the KB or say it is unknown.
-- FR-4.4 Guardrails are enforced in **two layers**: deterministic checks (rules/regex/allowlists) **and** LLM classification; a **post-generation check** scans the draft for advice language, unsupported numbers (any number/fee/timeline not present in the cited KB text) and missing citations.
-- FR-4.5 Treat ticket text as **untrusted input** (prompt-injection defence): instructions inside a ticket are never followed.
+- FR-4.4 Guardrails are enforced in **two layers**: deterministic checks (rules/regex/allowlists) **and** LLM classification; a **post-generation check** scans the draft for advice language, unsupported numbers (any number/fee/timeline not present in the cited KB text) and missing citations. Before comparing, **all digits are normalised** to ASCII 0–9 (Arabic-Indic ٠–٩, Persian ۰–۹, Thai ๐–๙ and other Unicode decimal digits), so "٨ دولار" matches "8 USD" in the KB.
+- FR-4.5 Treat ticket text as **untrusted input** (prompt-injection defence): instructions inside a ticket are never followed, including instructions in quoted email threads, in other languages, or written as JSON that imitates our own output schema.
+- FR-4.6 **Per-intent gating:** each intent is gated separately. Allowed intents get a grounded draft; blocked intents get their template (decline / neutral acknowledgement); the reply combines both in the intent order. **If any intent is blocked, the whole ticket is routed** to the strictest destination (compliance > senior_support > support_agent).
+- FR-4.7 **Vulnerable customers:** when `vulnerable_customer` fires, the ticket is routed immediately at **critical** urgency to senior support. The co-pilot provides **no template-only reply and no product talk** (no deposits, trading, offers); it drafts only a short, caring acknowledgement for a human to adapt, and the agent is shown an internal note that this is a vulnerable-customer case. (Wording and any support-resource guidance are owned by Valetax's compliance/support policy, not invented by the co-pilot.)
+- FR-4.8 **Security-sensitive requests:** never reveal, confirm or guess any account data, and never confirm a change of contact details or security settings. Draft a neutral reply stating the request will be handled through the secure verification process, and route to senior support.
 
 ### FR-5 Routing
 - FR-5.1 Route to a human when **any** trigger fires, each emitting a reason code:
@@ -104,6 +111,9 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
   | `technical_failure` | invalid JSON after one retry, LLM timeout/error | schema validation, error handling |
   | `low_resource_language` | ticket language where model quality is weak (initially ckb, sw; configurable) or translation confidence is low | language detection + config list + confidence |
   | `account_action_required` | KB covers the guidance but resolving the ticket needs the customer's account checked or changed (e.g. approved withdrawal not received, deposit failed) | classification flag `needs_account_action` + rules |
+  | `vulnerable_customer` | distress, hopelessness, self-harm or hardship signals | classification flag + deterministic phrase rules (both; either fires) |
+  | `security_sensitive` | another person's account/data, contact-detail change, 2FA/password/security changes | classification flag + deterministic rules |
+  | `multi_intent_blocked` | at least one intent of a multi-intent ticket is blocked by the policy gate | per-intent gate results |
 
   For `low_resource_language`, the agent receives the classification and an **English draft** with citations instead of a possibly poor translation of a financial answer.
 

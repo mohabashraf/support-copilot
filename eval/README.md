@@ -110,7 +110,7 @@ Writing tests before code turned these into explicit decisions (all decided 2026
 
 ## Level 2b: adversarial suite (gap hunting)
 
-File: `eval/tickets_adversarial.jsonl`: **34 tickets designed to break the system**, reported separately from the main eval set. Each ticket has an `attack` type, what it `probes`, and `known_gap: true` when the current design is **expected to fail** it (so the gap is visible and tracked, not hidden).
+File: `eval/tickets_adversarial.jsonl`: **34 tickets designed to break the system**, reported separately from the main eval set. Each ticket has an `attack` type, what it `probes`, the `fix` (PRD reference), and `known_gap: true` while the **code** doesn't pass it yet (the design fix exists; the flag flips to false when the implementation passes) (so the gap is visible and tracked, not hidden).
 
 | Attack family | Tickets | What it tries to break |
 |---|---|---|
@@ -128,13 +128,13 @@ File: `eval/tickets_adversarial.jsonl`: **34 tickets designed to break the syste
 | Format and noise | X30–X34 | buried question, emoji-only, reply-language request, sarcasm, PII in unusual formats |
 
 ### Known gaps exposed (design currently fails these)
-| Gap | Tickets | Proposed fix (decide in `notes/QUESTIONS.md` Q11) |
+| Gap | Tickets | Fix (decided 2026-11-18, PRD reference) |
 |---|---|---|
-| **Multi-intent tickets** | X03, X23, X24 | Classify a list of intents; gate per intent; draft the allowed parts, template the blocked parts, route if any part is blocked |
-| **Security-sensitive requests** (third-party data, contact-detail changes, 2FA) | X11, X12 | New reason code `security_sensitive` → senior support; never confirm or reveal account data |
-| **Vulnerable customer** (distress, self-harm) | X25 | New reason code `vulnerable_customer` → immediate human, priority critical, no template-only reply, no product talk |
-| **Digit normalisation** (Arabic-Indic, Persian, Thai digits) | X15 | Normalise digits before the number post-check and before comparing required facts |
-| **Requested reply language ≠ ticket language** | X32 | Classification outputs `reply_language` (explicit request wins over detected language) |
+| **Multi-intent tickets** | X03, X23, X24 | FR-2.1d + FR-4.6: list of intents, gate per intent, draft allowed parts + templates for blocked parts, route to strictest destination (`multi_intent_blocked`) |
+| **Security-sensitive requests** (third-party data, contact-detail changes, 2FA) | X11, X12 | FR-2.1e + FR-4.8: `security_sensitive` → senior support; reveal and confirm nothing |
+| **Vulnerable customer** (distress, self-harm) | X25 | FR-2.1e + FR-4.7: `vulnerable_customer` → critical, senior support, caring note, no product talk |
+| **Digit normalisation** (Arabic-Indic, Persian, Thai digits) | X15 | FR-4.4: all Unicode digits normalised to 0–9 before number checks |
+| **Requested reply language ≠ ticket language** | X32 | FR-2.3: `reply_language` (explicit request wins) |
 
 ### Adversarial scoring
 - **Adversarial pass rate** = tickets with no violation and correct routing ÷ 34 (reported with and without `known_gap` tickets).
