@@ -35,3 +35,17 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
 
 ## D5. UI: CLI only, or CLI + minimal web page
 - **Status:** open
+
+## D6. Observability and audit
+- **Status:** decided (2026-11-18)
+- **Context:** regulated broker; tickets contain PII; every decision must be explainable to an auditor; 3–5 h timebox; reviewers must be able to run the repo without extra services.
+- **Options:** LangSmith · Langfuse · Arize Phoenix · Helicone · audit log only
+- **Decision:**
+  - **Our own append-only audit log, always on** (JSONL in Phase 1), storing **both the AI draft and the final sent text**.
+  - **Langfuse for LLM tracing**, optional via config flag (`TRACING=langfuse`); the app runs fully without it.
+  - **Phase 2:** Langfuse self-hosted + **OpenTelemetry** instrumentation, so the tracing vendor is swappable.
+- **Why:**
+  - Audit ≠ tracing: the audit log is the legal record and must be ours, complete and retained per regulation.
+  - Langfuse is open source and self-hostable for free → in production, ticket data stays on the broker's infrastructure. Works without LangChain.
+  - Chosen over LangSmith (which I've run in production) because LangSmith self-hosting needs an enterprise plan; over Helicone because a proxy adds a third party in the data path; Phoenix is a fine alternative but one tool is enough.
+- **Trade-offs / revisit when:** Langfuse self-hosting needs several services (Postgres, ClickHouse, Redis, object storage), so it is not set up in Phase 1; demo uses the free cloud tier with synthetic tickets only. Revisit if Valetax already standardises on another tool (OpenTelemetry makes the switch cheap).

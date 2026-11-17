@@ -147,6 +147,31 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 | NFR-11 | Multilingual | Classify and reply in the customer's language; KB is English-only, so translated answers still cite English sources. The **number/fee/timeline post-check runs after translation**. Quality in languages the team can't read is checked by back-translation + LLM judge in eval, and by native agents' edit rate per language in production. |
 | NFR-12 | Portability | Python; runs locally with one setup command; any LLM provider. |
 
+## 6b. Compliance, audit and observability
+
+### Three separate layers
+| Layer | Purpose | Readers | Phase 1 | Phase 2 |
+|---|---|---|---|---|
+| **Audit log** | Legal record of what the system did and why, per ticket | Compliance, auditors | Append-only JSONL, always on | Insert-only Postgres table or write-once storage (e.g. S3 Object Lock); retention per compliance |
+| **LLM tracing** | Debugging and quality: prompts, model calls, tokens, latency, cost | Engineers | **Langfuse**, optional via config flag (synthetic data only) | Langfuse **self-hosted**, instrumented through **OpenTelemetry** so the vendor is swappable |
+| **App logs and metrics** | Operations: errors, throughput, alerts | DevOps / on-call | Structured JSON logs | Prometheus/Grafana or the cloud provider's tools; alerts on violations, abstain rate, latency, cost |
+
+The tracing tool is **not** the audit log: it is for debugging, may have limited retention, and holds ticket text, so it is self-hosted or PII-masked.
+
+### Audit-log record (one per ticket)
+- Ticket ID, timestamps, channel; **PII-masked** text (placeholders) + hash of the original.
+- Model name/version, **prompt version**, **KB version** (hash), retrieved/cited chunk IDs + scores.
+- Classification, guardrail results, routing decision + reason codes.
+- **Both the AI draft and the final text sent**, plus which agent reviewed/edited/sent it and when.
+  - Why both: an auditor can see what the AI suggested vs what the human decided ("who told the customer this, based on what?"), and the draft-vs-final diff is the **edit rate** quality metric.
+
+### Compliance requirements and open questions for Valetax
+- **Data flow** (documented in README): ticket → our service (PII placeholders) → LLM provider (masked text only) → our audit store; traces to self-hosted Langfuse.
+- **LLM provider terms:** no training on our data, zero data retention where available, Data Processing Agreement, known region. Verified against each provider's current terms, not assumed.
+- **Retention period:** set by Valetax compliance per their licence (Mauritius FSC) and customer jurisdictions. **Not invented here.**
+- **Privacy vs retention:** keep masked audit records for the required period; store the PII mapping separately with tighter access and shorter life.
+- **Access control:** engineers see masked traces; compliance sees the audit log; nobody sees raw PII by default.
+
 ## 7. Phases
 
 ### Phase 1: Ship ASAP
