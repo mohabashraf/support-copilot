@@ -51,8 +51,19 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
   - **Why not multi-agent:** the steps are fixed and the hard rules must be enforced by code, not by an agent's judgement. Multiple autonomous agents would add cost, latency and failure points without benefit here.
 - **Trade-offs / revisit when:** two calls add some latency (acceptable vs the 10 s target); LangGraph adds a dependency vs plain Python. Revisit splitting into agents only if one step grows too large or needs its own tools (e.g. a back-office lookup agent in Phase 2).
 
-## D4. Confidence: model self-report, rules, or both
-- **Status:** open
+## D4. Confidence: model self-report, rules, LLM judge, or a combination
+- **Status:** decided (2026-11-18)
+- **Context:** the co-pilot must know when it is not sure and route to a human (8 triggers, PRD FR-5.1). Models are often overconfident; deterministic checks are cheap and explainable but can't judge meaning.
+- **Options:** model self-reported confidence · deterministic rules · LLM-as-a-judge · combination
+- **Decision: route if ANY signal fails** (layers, cheapest first):
+  1. **Deterministic rules (always):** embedding best-score threshold (`weak_retrieval`), citations exist, every number/fee/timeline appears in the cited chunk text, no advice language, schema valid.
+  2. **Model self-report (always):** `confidence` in the classification output, below threshold → `low_confidence`. Never trusted alone.
+  3. **LLM-as-a-judge:**
+     - **Offline (always):** in the eval run, a judge scores faithfulness (is every claim supported by the cited chunks?), tone, and language quality, as part of docs/BENCHMARK.md.
+     - **Runtime (optional node `groundedness_judge`, after `post_check`):** checks each claim of the draft against the cited chunks; unsupported → `post_check_failed`. **Kept only if the benchmark shows it catches errors the rules miss** (e.g. "deposits are free", which contains no number).
+     - Judge uses a **different model from the drafter** to reduce correlated errors.
+- **Why:** rules catch the measurable failures for free; the judge catches *meaning* errors that rules can't; self-report adds a cheap early signal. No single signal is trusted alone.
+- **Trade-offs / revisit when:** a runtime judge adds one more LLM call (latency + small cost, negligible vs agent time per the business case) and is itself an LLM that can be wrong. Thresholds are tuned on the eval set, not guessed. Benchmark compares with/without the runtime judge.
 
 ## D5. UI: CLI only, or CLI + minimal web page
 - **Status:** open

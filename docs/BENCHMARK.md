@@ -17,6 +17,9 @@
 | C2 | `claude-haiku-5-5` | `claude-sonnet-5-5` | ___ | on |
 | C3 | `claude-sonnet-5-5` | `claude-sonnet-5-5` | ___ | on |
 | C4 | `claude-opus-5-5` | `claude-opus-5-5` | ___ | on |
+| C2+J | `claude-haiku-5-5` | `claude-sonnet-5-5` + runtime `groundedness_judge` (different model, e.g. `claude-haiku-5-5` or `claude-opus-5-5`) | ___ | on |
+
+Judge decision: keep the runtime judge only if C2+J catches unsafe/unsupported drafts that C2's deterministic post-checks miss, at acceptable latency.
 
 ## Results
 | Metric | Gate | C1 | C2 | C3 | C4 |
