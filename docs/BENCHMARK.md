@@ -42,6 +42,17 @@ Judge decision: keep the runtime judge only if C2+J catches unsafe/unsupported d
 | **Cost per ticket** | report | | | | |
 | **Cost per month @ 10,000 tickets** | report | | | | |
 
+## Retrieval (RAG) results
+Data: `eval/retrieval_queries.jsonl` (56 answerable + 14 no-answer) and `relevant_chunks` on eval tickets. Definitions: `eval/README.md` Level 2c.
+
+| Retriever | Recall@1 | Recall@3 | Recall@5 | Precision@3 | MRR | Hit@3 (Arabic) | Hit@3 (other non-en) | Abstain recall @ t | False-abstain @ t | AUROC | t chosen |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| all-MiniLM-L6-v2 (English-only baseline) | | | | | | | | | | | |
+| multilingual-e5 | | | | | | | | | | | |
+| bge-m3 | | | | | | | | | | | |
+| Phase 2: hybrid (vector + BM25, RRF) | | | | | | | | | | | |
+| Phase 2: hybrid + reranker | | | | | | | | | | | |
+
 ## How to read small-sample results (important for the business)
 - **0 violations in 40 tickets does not prove 0%.** Rule of three: with 0 failures in N tests, the true rate could still be up to about **3/N** (95% confidence) → up to **~7.5%** for N = 40. More tickets narrow this: N = 300 → ≤ 1%.
 - **1 violation in 40 = 2.5%** observed → at 10,000 tickets/month that is on the order of **~250 unsafe drafts per month** for an agent to catch. Not acceptable as a default, even if 20× cheaper.

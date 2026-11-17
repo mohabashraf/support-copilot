@@ -141,3 +141,39 @@ File: `eval/tickets_adversarial.jsonl`: **34 tickets designed to break the syste
 - **Over-blocking rate** = X20–X22 wrongly routed or refused (being too careful has a cost: agent time).
 - **Known gaps closed** = `known_gap` tickets now passing (tracks design improvements over time).
 - Hard-rule violations here count toward the same **0-violation release gate**.
+
+---
+
+## Level 2c: retrieval (RAG) evaluation
+
+Even with the whole KB in the prompt (D1), retrieval quality matters: the **best embedding score is the abstain signal** (`weak_retrieval`), it powers the explorer and search playground, and it **is** the retrieval in Phase 2. So retrieval is measured on its own, separately from the LLM.
+
+**Data**
+- `kb/chunk_plan.json` / `kb/CHUNKS.md`: the 25 chunk IDs (the "answer key" space).
+- `eval/retrieval_queries.jsonl`: **70 queries** → relevant chunk IDs. 56 answerable (paraphrases, dialects, Arabizi, 10 languages, lexical-mismatch cases like "KYC", "1:2000", "cash out") + **14 no-answer** queries (fees, payment methods, spreads, bonuses...).
+- `eval/tickets_labelled.jsonl`: each ticket also has `expected.relevant_chunks` (28 tickets mapped), so retrieval is also scored on realistic ticket text, not only on clean queries.
+
+**Metrics** (for answerable queries; k = 1, 3, 5)
+
+| Metric | Formula | What it tells us |
+|---|---|---|
+| **Recall@k** | relevant chunks in top k ÷ all relevant chunks | did we find what we needed? (most important: a missed chunk can't be cited) |
+| **Precision@k** | relevant chunks in top k ÷ k | how much noise comes with it |
+| **Hit rate@k** | queries with ≥1 relevant chunk in top k ÷ queries | simple "did it work at all" |
+| **MRR** | mean of 1 ÷ rank of the first relevant chunk (0 if none in top k) | is the right chunk near the top? |
+| **nDCG@5** | rank-weighted gain, normalised | quality of the whole ranking (optional) |
+
+> Precision@k has a ceiling: most queries have only 1–2 relevant chunks, so Precision@5 can be at most 0.2–0.4 even for a perfect retriever. Read it together with Recall and MRR, not alone.
+
+**Abstain-signal metrics** (answerable vs no-answer queries)
+- For a threshold `t` on the best score: **abstain recall** (no-answer queries correctly below `t`) and **false-abstain rate** (answerable queries wrongly below `t`).
+- **Threshold sweep:** plot both over `t`; choose `t` on this data (not guessed) and record it in config. Report AUROC of the best score as a separability check.
+
+**Breakdowns** (where retrieval usually fails)
+- English vs Arabic vs other languages (**cross-lingual**: Arabic/Thai/Russian query → English chunk).
+- MSA vs dialect vs Arabizi.
+- Clean query vs full ticket text (noise, multi-intent).
+
+**Experiments** (`docs/BENCHMARK.md`, Retrieval section)
+- Embedding models: `bge-m3`, `multilingual-e5` (multilingual) vs `all-MiniLM-L6-v2` (English-only **baseline**, expected to fail cross-lingual: this proves why D2 chose a multilingual model).
+- Phase 2: vector only vs **hybrid** (vector + BM25, RRF) vs hybrid + **reranker**.

@@ -1,0 +1,337 @@
+[
+ {
+  "id": "deposit#intro",
+  "pages": [
+   "https://valetax.com/how-to-deposit/"
+  ],
+  "section": "How to Deposit (intro)",
+  "flags": [
+   "conflict"
+  ],
+  "summary": "Range of instant, simple and secure funding methods.",
+  "sample_questions": [
+   "Are deposits instant?"
+  ]
+ },
+ {
+  "id": "deposit#steps",
+  "pages": [
+   "https://valetax.com/how-to-deposit/"
+  ],
+  "section": "Fund Account steps 1-4",
+  "flags": [],
+  "summary": "Log in to Member Area → Deposit → choose payment channel → enter account details and amount → start trading.",
+  "sample_questions": [
+   "How do I deposit?",
+   "Where is the deposit button?"
+  ]
+ },
+ {
+  "id": "faq#min-deposit",
+  "pages": [
+   "https://valetax.com/how-to-deposit/",
+   "https://valetax.com/how-to-withdraw/"
+  ],
+  "section": "FAQ: minimum deposit amount",
+  "flags": [],
+  "summary": "Minimum deposit starts from 8 USD, depending on account type.",
+  "sample_questions": [
+   "What is the minimum deposit?",
+   "Can I start with 5 dollars?"
+  ]
+ },
+ {
+  "id": "faq#how-to-deposit",
+  "pages": [
+   "https://valetax.com/how-to-deposit/",
+   "https://valetax.com/how-to-withdraw/"
+  ],
+  "section": "FAQ: how can I deposit funds",
+  "flags": [],
+  "summary": "Log in to member area, select payment option and deposit size.",
+  "sample_questions": [
+   "How can I fund my account?"
+  ]
+ },
+ {
+  "id": "faq#deposit-currencies",
+  "pages": [
+   "https://valetax.com/how-to-deposit/",
+   "https://valetax.com/how-to-withdraw/"
+  ],
+  "section": "FAQ: deposit currencies",
+  "flags": [],
+  "summary": "Any currency into the USD account at that day's exchange rate.",
+  "sample_questions": [
+   "Can I deposit in EUR?",
+   "Which currencies do you accept?"
+  ]
+ },
+ {
+  "id": "faq#deposit-credit-time",
+  "pages": [
+   "https://valetax.com/how-to-deposit/",
+   "https://valetax.com/how-to-withdraw/"
+  ],
+  "section": "FAQ: how long until deposit is credited",
+  "flags": [
+   "conflict"
+  ],
+  "summary": "Deposits are instant; balance updated within 60 minutes.",
+  "sample_questions": [
+   "My deposit isn't showing",
+   "How long does a deposit take?"
+  ]
+ },
+ {
+  "id": "faq#funds-available",
+  "pages": [
+   "https://valetax.com/how-to-deposit/",
+   "https://valetax.com/how-to-withdraw/"
+  ],
+  "section": "FAQ: when can I trade the funds",
+  "flags": [],
+  "summary": "Trade immediately once the balance is updated.",
+  "sample_questions": [
+   "When can I trade after depositing?"
+  ]
+ },
+ {
+  "id": "faq#history",
+  "pages": [
+   "https://valetax.com/how-to-deposit/",
+   "https://valetax.com/how-to-withdraw/"
+  ],
+  "section": "FAQ: deposit and withdrawal history",
+  "flags": [],
+  "summary": "View all deposits, withdrawals and transfers in the member area.",
+  "sample_questions": [
+   "Where can I see my transactions?"
+  ]
+ },
+ {
+  "id": "faq#withdrawal-pending",
+  "pages": [
+   "https://valetax.com/how-to-deposit/",
+   "https://valetax.com/how-to-withdraw/"
+  ],
+  "section": "FAQ: withdrawal status pending",
+  "flags": [],
+  "summary": "Request is in the queue being processed; you will be notified once approved.",
+  "sample_questions": [
+   "What does pending mean?"
+  ]
+ },
+ {
+  "id": "faq#withdrawal-rejected",
+  "pages": [
+   "https://valetax.com/how-to-deposit/",
+   "https://valetax.com/how-to-withdraw/"
+  ],
+  "section": "FAQ: why withdrawal rejected",
+  "flags": [],
+  "summary": "Possible reasons: account not verified, data entry error, insufficient margin; email explains the reason.",
+  "sample_questions": [
+   "Why was my withdrawal rejected?"
+  ]
+ },
+ {
+  "id": "faq#withdrawal-not-received",
+  "pages": [
+   "https://valetax.com/how-to-deposit/",
+   "https://valetax.com/how-to-withdraw/"
+  ],
+  "section": "FAQ: funds not received after withdrawal",
+  "flags": [],
+  "summary": "If not received within 24 hours, contact support.",
+  "sample_questions": [
+   "I didn't get my withdrawal"
+  ]
+ },
+ {
+  "id": "withdraw#intro",
+  "pages": [
+   "https://valetax.com/how-to-withdraw/"
+  ],
+  "section": "How to Withdraw (intro)",
+  "flags": [
+   "conflict"
+  ],
+  "summary": "Withdrawals 'easy and instant'.",
+  "sample_questions": [
+   "Are withdrawals instant?"
+  ]
+ },
+ {
+  "id": "withdraw#steps",
+  "pages": [
+   "https://valetax.com/how-to-withdraw/"
+  ],
+  "section": "Withdraw steps 1-4",
+  "flags": [
+   "defective"
+  ],
+  "summary": "Copy of deposit steps: log in, select channel, 'enter amount to deposit', 'Start Trading!'.",
+  "sample_questions": [
+   "What are the steps to withdraw?"
+  ]
+ },
+ {
+  "id": "open#intro",
+  "pages": [
+   "https://valetax.com/how-to-open-an-account/"
+  ],
+  "section": "How to Open an Account (intro)",
+  "flags": [
+   "conflict"
+  ],
+  "summary": "Open your account in '3 quick and simple steps' (but 4 steps are listed).",
+  "sample_questions": [
+   "How many steps to open an account?"
+  ]
+ },
+ {
+  "id": "open#steps",
+  "pages": [
+   "https://valetax.com/how-to-open-an-account/"
+  ],
+  "section": "Open account steps 1-4",
+  "flags": [],
+  "summary": "Click Create Account on valetax.com → enter details → access Member Area → make first deposit.",
+  "sample_questions": [
+   "How do I sign up?"
+  ]
+ },
+ {
+  "id": "open#faq-sign-up",
+  "pages": [
+   "https://valetax.com/how-to-open-an-account/"
+  ],
+  "section": "FAQ: how do I sign up",
+  "flags": [],
+  "summary": "Follow step-by-step to verify and fund; live account lets you trade immediately; read Risk Disclosures, Privacy Policy, Terms.",
+  "sample_questions": [
+   "How do I register?"
+  ]
+ },
+ {
+  "id": "open#faq-account-type",
+  "pages": [
+   "https://valetax.com/how-to-open-an-account/"
+  ],
+  "section": "FAQ: which account type",
+  "flags": [
+   "gap_link"
+  ],
+  "summary": "Depends on strategy and instruments; account-types page linked (not in KB); can open another type later.",
+  "sample_questions": [
+   "Which account should I choose?"
+  ]
+ },
+ {
+  "id": "open#faq-min-initial-deposit",
+  "pages": [
+   "https://valetax.com/how-to-open-an-account/"
+  ],
+  "section": "FAQ: minimum initial deposit to open",
+  "flags": [
+   "conflict"
+  ],
+  "summary": "Depends on account type; see account-types page (not in KB).",
+  "sample_questions": [
+   "Minimum to open an account?"
+  ]
+ },
+ {
+  "id": "open#faq-documents",
+  "pages": [
+   "https://valetax.com/how-to-open-an-account/"
+  ],
+  "section": "FAQ: documents to open an account",
+  "flags": [],
+  "summary": "Live accounts: proof of ID + proof of address (bank statement or utility bill) not older than 6 months; name clearly displayed.",
+  "sample_questions": [
+   "What documents do I need?"
+  ]
+ },
+ {
+  "id": "open#faq-opening-time",
+  "pages": [
+   "https://valetax.com/how-to-open-an-account/"
+  ],
+  "section": "FAQ: how long to open an account",
+  "flags": [],
+  "summary": "Account opening and document verification completed within 48 hours.",
+  "sample_questions": [
+   "How long does verification take?"
+  ]
+ },
+ {
+  "id": "open#faq-leverage",
+  "pages": [
+   "https://valetax.com/how-to-open-an-account/"
+  ],
+  "section": "FAQ: which leverage settings",
+  "flags": [
+   "rule_sensitive"
+  ],
+  "summary": "Depends on strategy and goals; up to 1:2000 depending on account type.",
+  "sample_questions": [
+   "What is the maximum leverage?"
+  ]
+ },
+ {
+  "id": "open#faq-islamic",
+  "pages": [
+   "https://valetax.com/how-to-open-an-account/"
+  ],
+  "section": "FAQ: Islamic-friendly account",
+  "flags": [],
+  "summary": "All accounts are Islamic friendly; no swap credited or withdrawn.",
+  "sample_questions": [
+   "Do you have swap-free accounts?"
+  ]
+ },
+ {
+  "id": "verify#intro",
+  "pages": [
+   "https://valetax.com/how-to-verify-account/"
+  ],
+  "section": "How to Verify Account (intro)",
+  "flags": [],
+  "summary": "Identity verification protects against identity theft and fraud.",
+  "sample_questions": [
+   "Why do I need to verify?"
+  ]
+ },
+ {
+  "id": "verify#steps",
+  "pages": [
+   "https://valetax.com/how-to-verify-account/"
+  ],
+  "section": "Verify steps 1-3",
+  "flags": [],
+  "summary": "Complete fields and upload documents (KYC profile) → account under review → verification completed.",
+  "sample_questions": [
+   "How do I verify my account?"
+  ]
+ },
+ {
+  "id": "notice#access",
+  "pages": [
+   "https://valetax.com/how-to-deposit/",
+   "https://valetax.com/how-to-withdraw/",
+   "https://valetax.com/how-to-open-an-account/",
+   "https://valetax.com/how-to-verify-account/"
+  ],
+  "section": "Important Access Notice (all pages)",
+  "flags": [
+   "rule_sensitive",
+   "compliance"
+  ],
+  "summary": "Site only for residents of jurisdictions where permitted; Valetax not established in your jurisdiction; reverse solicitation.",
+  "sample_questions": [
+   "Can I open an account from my country?"
+  ]
+ }
+]

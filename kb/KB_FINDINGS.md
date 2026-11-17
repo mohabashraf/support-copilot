@@ -24,6 +24,10 @@ Raw HTML in kb/raw/, extracted text in kb/*.txt.
 - Withdrawals "easy and instant" vs 'pending' queue and the 24 h line.
 - Min deposit: "from 8 USD" (deposit FAQ) vs "depends on account type, see here" (open-account FAQ).
 - Typos: "insifficient", "in in queue".
+- Open-account page: "Open your account in **3** quick and simple steps" but **4** steps are listed.
+
+## Content outside the main body
+- **Important Access Notice** (on every page): site only for residents where access is permitted; Valetax not established in the visitor's jurisdiction; reverse solicitation. Kept as chunk `notice#access` (flags `rule_sensitive`, `compliance`): it is the KB basis for routing jurisdiction/eligibility questions to compliance, never for deciding them.
 
 ## Rule-sensitive content
 - "What leverage settings should I select?" answer touches leverage → co-pilot may state the documented maximum, never suggest a setting.
