@@ -109,6 +109,13 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 - FR-7.2 Scoring script reporting the metrics in §2.
 - FR-7.3 The evaluation run acts as a **release gate**: hard-rule violations must be 0.
 
+### FR-9 Knowledge-base explorer (web view)
+- FR-9.1 A web page listing every KB chunk: source page, section/FAQ title, text, chunk ID, and flags (duplicate, conflict, known-defective, rule-sensitive).
+- FR-9.2 **Search playground:** type a question → see the top-k retrieved chunks with similarity scores, and whether the abstain threshold would trigger.
+- FR-9.3 Per-ticket trace: for a processed ticket, show which chunks were retrieved and which were cited in the draft.
+- FR-9.4 (Optional) 2-D map of chunk embeddings (PCA/UMAP) to show clusters by topic and spot overlaps.
+- Purpose: debugging retrieval, demoing the system, and letting support leads see exactly what the co-pilot "knows".
+
 ### FR-8 Business case
 - FR-8.1 One page answering: **is this worth running at ~10,000 tickets/month, and with which configuration?**
 - FR-8.2 Compare configurations (e.g. small vs large model, with/without caching) on cost per ticket, quality and latency, using measured numbers from the evaluation run plus stated assumptions (agent cost, handling time saved).
