@@ -39,4 +39,4 @@ def web(host: str = "127.0.0.1", port: int = 8000, reload: bool = False) -> None
     """Start the web app (open http://127.0.0.1:8000/docs)."""
     import uvicorn
 
-    uvicorn.run("copilot.web.app:app", host=host, port=port, reload=reload)
+    uvicorn.run("copilot.api.app:app", host=host, port=port, reload=reload)

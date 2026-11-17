@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from copilot.web.app import create_app
+from copilot.api.app import create_app
 
 client = TestClient(create_app())
 

@@ -16,6 +16,7 @@
 11. [Phase 2: ticket lifecycle with the helpdesk](#11-phase-2-ticket-lifecycle-with-the-helpdesk)
 12. [Phase 1 → Phase 2: what changes](#12-phase-1--phase-2-what-changes)
 13. [Key design choices](#13-key-design-choices)
+14. [Code layout](#14-code-layout)
 
 ---
 
@@ -458,6 +459,72 @@ stateDiagram-v2
 | **Unchanged** | the LangGraph co-pilot core, prompts, rules, eval set | same |
 
 ---
+
+## 14. Code layout
+
+Layers: **entry points** (CLI, API) are thin and call **services**; services never import from entry points. The CLI, the API, the eval runner and the LangGraph workflow all reuse the same services.
+
+```
+src/copilot/
+├── main.py                 entry point (copilot command)
+├── cli.py                  CLI commands: kb, run, eval, web
+├── config.py               settings: models, thresholds, categories, language tiers (env + toml)
+│
+├── api/                    ── ENTRY POINT: FastAPI (thin) ──
+│   ├── app.py              app factory, registers routers
+│   ├── deps.py             shared dependencies (KB, retriever, workflow)
+│   └── routes/
+│       ├── health.py       GET /health                         ✅
+│       ├── kb.py           GET /kb/chunks, /kb/chunks/{id}      ✅
+│       ├── search.py       POST /search  (playground)
+│       ├── tickets.py      POST /tickets, GET /tickets/{id}, POST /tickets/{id}/resume (HITL)
+│       └── webhook.py      POST /webhook/helpdesk  (Phase 2)
+│
+├── kb/                     ── RAG: INGESTION (offline) ──
+│   ├── models.py           Chunk, Source, KnowledgeBase        ✅
+│   ├── parse.py            HTML → blocks                       ✅
+│   └── ingest.py           blocks → chunks, flags, hash        ✅
+│
+├── retrieval/              ── RAG: RETRIEVAL (online) ──
+│   ├── embeddings.py       multilingual embedding model (bge-m3 / multilingual-e5)
+│   ├── index.py            vector index over chunks (in-memory Phase 1; pgvector Phase 2)
+│   ├── search.py           score(query) → ranked chunks; best score = abstain signal
+│   ├── bm25.py             keyword search (Phase 2 hybrid)
+│   └── rerank.py           cross-encoder reranker (Phase 2)
+│
+├── llm/                    ── RAG: GENERATION (provider layer) ──
+│   ├── client.py           provider-agnostic interface + Claude implementation
+│   └── prompts/            classify.md, draft.md, judge.md (versioned)
+│
+├── guardrails/             ── DETERMINISTIC SAFETY ──
+│   ├── pii.py              typed placeholders, Luhn, digit normalisation
+│   ├── policy_gate.py      hard rules per intent
+│   ├── post_check.py       citations, numbers-in-source, advice language
+│   └── templates.py        pre-approved replies
+│
+├── workflow/               ── LANGGRAPH ORCHESTRATION ──
+│   ├── state.py            CopilotState
+│   ├── nodes.py            pii_mask, classify, safety_check, policy_gate, draft, merge, post_check, route
+│   ├── routing.py          reason codes, destinations
+│   └── graph.py            StateGraph wiring, checkpointer, interrupt (HITL)
+│
+├── audit/
+│   └── log.py              append-only audit record (draft AND final)
+│
+└── eval/
+    ├── retrieval.py        recall@k, precision@k, MRR, nDCG, abstain threshold sweep
+    ├── workflow.py         end-to-end scoring on labelled + adversarial sets
+    └── report.py           writes docs/BENCHMARK.md tables
+
+tests/                      unit tests per module (no LLM calls)
+eval/                       datasets (labelled, adversarial, retrieval queries)
+kb/                         raw pages, config, chunk plan
+```
+
+**The RAG is three layers**, so each can be tested and swapped on its own:
+1. **Ingestion** (`kb/`): pages → chunks. Offline, deterministic, unit-tested.
+2. **Retrieval** (`retrieval/`): query → ranked chunks + scores. Measured with recall/precision/MRR on `eval/retrieval_queries.jsonl`.
+3. **Generation** (`llm/` + the `draft` node in `workflow/`): chunks + ticket → grounded draft with citations. Measured with the end-to-end eval.
 
 ## 13. Key design choices
 
