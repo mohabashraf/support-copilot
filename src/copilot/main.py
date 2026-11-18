@@ -12,7 +12,7 @@ from copilot.log import setup_logging
 def serve() -> None:
     """Start the FastAPI server with uvicorn. Host, port and log level come from settings."""
     st = get_settings()
-    setup_logging(st.log_level, st.log_format, st.log_file, st.log_max_mb, st.log_backups)
+    setup_logging(st)
     uvicorn.run(
         # Import string + factory=True: uvicorn calls create_app() when the server starts.
         # A module-level `app = create_app()` would load the embedding model on every import.

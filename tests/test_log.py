@@ -6,7 +6,15 @@ import logging
 from fastapi.testclient import TestClient
 
 from copilot.api.app import create_app
+from copilot.config import Settings
 from copilot.log import JsonFormatter, setup_logging
+
+
+def _st(level="INFO", fmt="json", log_file=None) -> Settings:
+    """Logging settings for a test, without reading .env (model_construct skips loading)."""
+    return Settings.model_construct(
+        log_level=level, log_format=fmt, log_file=log_file, log_max_mb=10, log_backups=5
+    )
 
 
 def test_json_formatter_includes_extra_fields():
@@ -17,7 +25,7 @@ def test_json_formatter_includes_extra_fields():
 
 
 def test_request_log_has_request_id(capsys):
-    setup_logging("INFO", "json")
+    setup_logging(_st())
     r = TestClient(create_app(with_retriever=False)).get("/health")
     assert r.headers["X-Request-ID"]
     lines = [
@@ -33,7 +41,7 @@ def test_search_log_has_no_query_text(capsys):
     from copilot.retrieval.search import Retriever
     from tests.test_retrieval import FakeEmbedder
 
-    setup_logging("DEBUG", "json")
+    setup_logging(_st("DEBUG"))
     r = Retriever(build_kb(), FakeEmbedder(), InMemoryIndex())
     r.build_index()
     secret = "my card 4111 1111 1111 1111 minimum deposit"
@@ -47,7 +55,7 @@ def test_file_log_is_json_even_when_console_is_text(tmp_path):
     import logging as std_logging
 
     f = tmp_path / "logs" / "app.log"
-    setup_logging("INFO", "text", str(f))
+    setup_logging(_st(fmt="text", log_file=f))
     std_logging.getLogger("copilot.test").info("hello file", extra={"n": 1})
     for h in std_logging.getLogger().handlers:
         h.flush()

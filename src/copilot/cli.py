@@ -24,7 +24,7 @@ def _setup() -> None:
     from copilot.log import setup_logging
 
     st = get_settings()
-    setup_logging(st.log_level, st.log_format, st.log_file, st.log_max_mb, st.log_backups)
+    setup_logging(st)
 
 
 @kb_app.command("show")

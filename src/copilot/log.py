@@ -13,7 +13,8 @@ import os
 import sys
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
+
+from copilot.config import Settings
 
 NOISY = [
     "sentence_transformers",
@@ -54,32 +55,29 @@ class TextFormatter(logging.Formatter):
         return f"{time} {record.levelname:7} {record.name}: {record.getMessage()} {tail}".rstrip()
 
 
-def setup_logging(
-    level: str = "INFO",
-    fmt: str = "json",
-    log_file: str | None = None,
-    max_mb: int = 10,
-    backups: int = 5,
-) -> None:
-    """Console in `fmt`; file (if set) always JSON.
+def setup_logging(st: Settings) -> None:
+    """Console in LOG_FORMAT; file (if LOG_FILE is set) always JSON. All values come from .env.
 
-    The file rotates at `max_mb` MB and keeps `backups` old files.
+    The file rotates at LOG_MAX_MB and keeps LOG_BACKUPS old files.
     """
     os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     console = logging.StreamHandler(sys.stdout)
-    console.setFormatter(JsonFormatter() if fmt == "json" else TextFormatter())
+    console.setFormatter(JsonFormatter() if st.log_format == "json" else TextFormatter())
     handlers: list[logging.Handler] = [console]
-    if log_file:
-        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+    if st.log_file:
+        st.log_file.parent.mkdir(parents=True, exist_ok=True)
         fh = RotatingFileHandler(
-            log_file, maxBytes=max_mb * 1024 * 1024, backupCount=backups, encoding="utf-8"
+            st.log_file,
+            maxBytes=st.log_max_mb * 1024 * 1024,
+            backupCount=st.log_backups,
+            encoding="utf-8",
         )
         fh.setFormatter(JsonFormatter())  # files are for tools: always machine-readable
         handlers.append(fh)
     root = logging.getLogger()
     root.handlers[:] = handlers
-    root.setLevel(level.upper())
+    root.setLevel(st.log_level)
     for name in NOISY:
         logging.getLogger(name).setLevel(logging.WARNING)
 
