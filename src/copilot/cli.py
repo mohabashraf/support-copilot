@@ -32,7 +32,11 @@ def kb_show(chunk_id: str = typer.Argument(None, help="Show one chunk in full"))
     """List all chunks, or show one."""
     kb = build_kb()
     if chunk_id:
-        c = kb.get(chunk_id)
+        try:
+            c = kb.get(chunk_id)
+        except KeyError:
+            typer.echo(f"unknown chunk {chunk_id!r}; run `copilot kb show` to list ids", err=True)
+            raise typer.Exit(1) from None
         typer.echo(
             f"{c.id}  [{', '.join(c.flags) or 'no flags'}]\n"
             f"{c.section}\n{', '.join(c.page_urls)}\n\n{c.text}"
