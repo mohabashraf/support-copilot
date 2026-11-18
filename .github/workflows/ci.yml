@@ -22,6 +22,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked
+      - run: cp .env.example .env  # .env is the source of truth for settings (config.py)
       - name: Style (PEP 8)
         run: |
           uv run ruff format --check .

@@ -21,6 +21,7 @@ Read first: `PRD.md` (requirements), `docs/ARCHITECTURE.md` (design), `docs/DECI
 - KB pages are used **as they are**: never edit `knowledge_base/raw/` or rewrite KB text; flag problems instead.
 - Every new behaviour gets a unit test; changes to prompts or models are checked against the eval set (`copilot eval`). Hard-rule violations must stay at 0.
 - No secrets in the repo: keys come from `.env` (see `.env.example`).
+- `.env` is the single source of truth for settings: no defaults in `config.py`; every new setting goes in `.env.example` too (a test checks it).
 - Keep commits small, with clear messages.
 
 ## How we work
