@@ -53,3 +53,11 @@ def test_file_log_is_json_even_when_console_is_text(tmp_path):
         h.flush()
     line = json.loads(f.read_text().splitlines()[-1])
     assert line["msg"] == "hello file" and line["n"] == 1
+
+
+def test_uvicorn_color_message_is_dropped():
+    rec = logging.LogRecord("uvicorn.error", logging.INFO, "", 0, "started", (), None)
+    rec.color_message = "\x1b[36mstarted\x1b[0m"
+    rec.ms = 3
+    out = json.loads(JsonFormatter().format(rec))
+    assert "color_message" not in out and out["ms"] == 3

@@ -24,7 +24,11 @@ NOISY = [
     "httpx",
     "filelock",
 ]
-_STD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", (), None).__dict__) | {"message", "asctime"}
+_STD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", (), None).__dict__) | {
+    "message",
+    "asctime",
+    "color_message",  # uvicorn adds a copy of msg with terminal colour codes: noise in a file
+}
 
 
 class JsonFormatter(logging.Formatter):
