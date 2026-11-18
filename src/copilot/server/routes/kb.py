@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from copilot.api.deps import get_kb
 from copilot.kb.models import Chunk, KnowledgeBase
+from copilot.server.deps import get_kb
 
 router = APIRouter(prefix="/kb", tags=["knowledge base"])
 

@@ -463,7 +463,7 @@ stateDiagram-v2
 
 ## 14. Code layout
 
-Layers: **entry points** (CLI, API) are thin and call **services**; services never import from entry points. The CLI, the API, the eval runner and the LangGraph workflow all reuse the same services.
+Layers: **entry points** (CLI, web server) are thin and call **services**; services never import from entry points. The CLI, the API, the eval runner and the LangGraph workflow all reuse the same services.
 
 ```
 src/copilot/
@@ -471,15 +471,17 @@ src/copilot/
 ├── cli.py                  CLI for one-off jobs: kb, search, run, eval (does NOT start the server)
 ├── config.py               settings: models, thresholds, categories, language tiers (env + toml)
 │
-├── api/                    ── ENTRY POINT: FastAPI (thin) ──
-│   ├── app.py              app factory, registers routers
+├── server/                 ── ENTRY POINT: the FastAPI web server (thin) ──
+│   ├── app.py              create_app(): builds the app (KB, retriever, routes); main.py runs it
 │   ├── deps.py             shared dependencies (KB, retriever, workflow)
+│   ├── middleware.py       request ID + one log line per request    ✅
 │   └── routes/
 │       ├── health.py       GET /health                         ✅
 │       ├── kb.py           GET /kb/chunks, /kb/chunks/{id}      ✅
 │       ├── search.py       POST /search  (playground)
 │       ├── tickets.py      POST /tickets, GET /tickets/{id}, POST /tickets/{id}/resume (HITL)
-│       └── webhook.py      POST /webhook/helpdesk  (Phase 2)
+│       ├── webhook.py      POST /webhook/helpdesk  (Phase 2)
+│       └── pages.py        HTML pages: ticket view, KB explorer (FR-9)
 │
 ├── kb/                     ── RAG: INGESTION (offline) ──
 │   ├── models.py           Chunk, Source, KnowledgeBase        ✅

@@ -7,7 +7,7 @@ from fastapi import Request
 
 from copilot.log import get_logger
 
-log = get_logger("copilot.api")
+log = get_logger("copilot.server")
 
 
 async def log_requests(request: Request, call_next):

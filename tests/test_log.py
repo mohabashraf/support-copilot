@@ -5,9 +5,9 @@ import logging
 
 from fastapi.testclient import TestClient
 
-from copilot.api.app import create_app
 from copilot.config import Settings
 from copilot.log import JsonFormatter, setup_logging
+from copilot.server.app import create_app
 
 
 def _st(level="INFO", fmt="json", log_file=None) -> Settings:

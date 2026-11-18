@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
-from copilot.api.deps import get_kb
 from copilot.kb.models import KnowledgeBase
+from copilot.server.deps import get_kb
 
 router = APIRouter(tags=["health"])
 

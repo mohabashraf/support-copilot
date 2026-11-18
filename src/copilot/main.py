@@ -16,7 +16,7 @@ def serve() -> None:
     uvicorn.run(
         # Import string + factory=True: uvicorn calls create_app() when the server starts.
         # A module-level `app = create_app()` would load the embedding model on every import.
-        "copilot.api.app:create_app",
+        "copilot.server.app:create_app",
         factory=True,
         host=st.host,
         port=st.port,

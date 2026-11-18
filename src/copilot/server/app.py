@@ -1,11 +1,11 @@
-"""FastAPI app factory. Routes are thin: they call services in kb/, retrieval/, workflow/."""
+"""Builds the FastAPI app (main.py runs it). Routes stay thin: they call kb/, retrieval/."""
 
 from fastapi import FastAPI
 
-from copilot.api.middleware import log_requests
-from copilot.api.routes import health, kb, search
 from copilot.config import get_settings
 from copilot.kb.ingest import build_kb
+from copilot.server.middleware import log_requests
+from copilot.server.routes import health, kb, search
 
 
 def create_app(with_retriever: bool = True) -> FastAPI:
