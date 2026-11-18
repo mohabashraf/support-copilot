@@ -1,4 +1,20 @@
-# Postgres + pgvector for retrieval (D7). Phase 2 adds audit, tickets and idempotency tables to the same database.
+# The whole app from a clean clone:   cp .env.example .env && docker compose up --build
+#   db       Postgres + pgvector (D7)
+#   indexer  one-off job: builds/updates the KB + vectors (copilot kb index, D8), then exits
+#   app      the FastAPI server; starts only after the indexer succeeded
+# Only the database:                  docker compose up -d db   (for local `uv run` development)
+
+x-copilot: &copilot
+  build: .
+  image: support-copilot:local
+  env_file: .env  # .env is the source of truth; the lines below only adapt it to Docker
+  environment:
+    DATABASE_URL: postgresql://copilot:copilot@db:5432/copilot  # "db" = the service below
+    HOST: 0.0.0.0  # listen outside the container, so the host can reach the server
+  volumes:
+    - hf-cache:/cache/huggingface  # embedding model downloaded once, shared by both services
+    - ./logs:/app/logs  # log files land in ./logs on the host, as with `uv run`
+
 services:
   db:
     image: pgvector/pgvector:pg17
@@ -16,5 +32,28 @@ services:
       timeout: 3s
       retries: 20
 
+  indexer:
+    <<: *copilot
+    command: ["copilot", "kb", "index"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    <<: *copilot
+    ports:
+      - "8000:8000"
+    depends_on:
+      indexer:
+        condition: service_completed_successfully  # read-only server: needs an indexed KB
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
 volumes:
   pgdata:
+  hf-cache:

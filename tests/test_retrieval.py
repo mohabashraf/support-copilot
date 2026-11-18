@@ -6,6 +6,7 @@ Model quality is measured by `copilot eval retrieval`, not by unit tests."""
 import os
 
 import numpy as np
+import psycopg
 import pytest
 
 from copilot.kb.ingest import build_kb
@@ -80,8 +81,6 @@ DB = os.environ.get("TEST_DATABASE_URL", "postgresql://copilot:copilot@localhost
 
 def _db_up() -> bool:
     try:
-        import psycopg
-
         psycopg.connect(DB, connect_timeout=2).close()
         return True
     except Exception:

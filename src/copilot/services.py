@@ -9,8 +9,12 @@ Serving is READ-ONLY (D8):
 from dataclasses import dataclass
 
 from copilot.config import Settings
+from copilot.kb.ingest import build_kb
 from copilot.kb.models import KnowledgeBase
-from copilot.retrieval.index import VectorIndex
+from copilot.kb.store import KBStore
+from copilot.retrieval.embeddings import get_embedder
+from copilot.retrieval.index import InMemoryIndex, PgVectorIndex, VectorIndex
+from copilot.retrieval.indexer import index_kb
 from copilot.retrieval.search import Retriever
 
 
@@ -25,20 +29,12 @@ class Services:
 
 
 def load_services(st: Settings) -> Services:
-    from copilot.retrieval.embeddings import get_embedder
 
     if st.vector_store == "memory":
-        from copilot.kb.ingest import build_kb
-        from copilot.retrieval.index import InMemoryIndex
-        from copilot.retrieval.indexer import index_kb
-
         kb = build_kb()
         embedder, index = get_embedder(st.embedding_model), InMemoryIndex()
         index_kb(kb, embedder, index)
         return Services(kb, Retriever(kb, embedder, index))
-
-    from copilot.kb.store import KBStore
-    from copilot.retrieval.index import PgVectorIndex
 
     kb = KBStore(st.database_url).load()
     if kb is None:

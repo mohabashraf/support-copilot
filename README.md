@@ -10,7 +10,27 @@ It never talks to customers directly: an agent reviews and sends every reply.
 > Status: in progress. Sections marked _TBD_ are filled as the build progresses.
 
 ## Quick start
-_TBD_ (`uv sync`, `.env` from `.env.example`, `docker compose up -d`, `copilot kb index`, `copilot eval retrieval`; start the API server with `uv run python -m copilot.main`)
+
+**Option A: everything in Docker (one command)**
+```bash
+cp .env.example .env          # settings: .env is the single source of truth
+docker compose up --build     # db → indexer (builds the KB + vectors) → app
+```
+Then open http://localhost:8000/docs. The first run downloads the embedding model (~0.5 GB, cached in a volume).
+The `indexer` runs `copilot kb index` and exits; the `app` starts only if it succeeded (D8: the server is read-only).
+After changing the pages or `knowledge_base/kb_config.toml`: `docker compose run --rm indexer` (only changed chunks are re-embedded).
+
+**Option B: local development (code runs on your machine, only the database in Docker)**
+```bash
+uv sync
+cp .env.example .env
+docker compose up -d db
+uv run copilot kb index                 # ingestion: the only writer of the KB (D8)
+uv run python -m copilot.main           # server on http://127.0.0.1:8000
+uv run copilot search "minimum deposit" # CLI, read-only
+uv run copilot eval retrieval           # recall / precision / MRR (eval/)
+```
+No Docker at all: set `VECTOR_STORE=memory` in `.env` (everything is built in memory from the raw pages).
 
 ## What's where
 | Document | What it answers |

@@ -12,7 +12,14 @@ from pathlib import Path
 import typer
 
 from copilot.config import get_settings
+from copilot.eval import retrieval as retrieval_eval
 from copilot.kb.ingest import build_kb
+from copilot.kb.store import KBStore
+from copilot.log import setup_logging
+from copilot.retrieval.embeddings import get_embedder
+from copilot.retrieval.index import PgVectorIndex
+from copilot.retrieval.indexer import index_kb
+from copilot.services import NotIndexedError, load_services
 
 app = typer.Typer(help="Support-ticket co-pilot")
 kb_app = typer.Typer(help="Knowledge-base commands")
@@ -24,7 +31,6 @@ app.add_typer(eval_app, name="eval")
 @app.callback()
 def _setup() -> None:
     """Runs before every command: configure logging from settings."""
-    from copilot.log import setup_logging
 
     st = get_settings()
     setup_logging(st)
@@ -52,7 +58,6 @@ def kb_show(chunk_id: str = typer.Argument(None, help="Show one chunk in full"))
 
 def _retriever(model: str | None, store: str | None):
     """Read-only retriever, like the server's: settings from .env, flags override them."""
-    from copilot.services import NotIndexedError, load_services
 
     st = get_settings()
     st = st.model_copy(
@@ -78,10 +83,6 @@ def kb_index(
     The only command that writes the knowledge base. Run it after the pages or
     kb_config.toml change, and once per embedding model.
     """
-    from copilot.kb.store import KBStore
-    from copilot.retrieval.embeddings import get_embedder
-    from copilot.retrieval.index import PgVectorIndex
-    from copilot.retrieval.indexer import index_kb
 
     st = get_settings()
     model = model or st.embedding_model
@@ -114,10 +115,9 @@ def eval_retrieval(
 
     Runs eval/retrieval_queries.jsonl and the ticket texts in eval/tickets_labelled.jsonl.
     """
-    from copilot.eval.retrieval import run
 
     r, model, store = _retriever(model, store)
-    rep = run(r, model, store)
+    rep = retrieval_eval.run(r, model, store)
     q, t, a = rep["queries"], rep["tickets"], rep["abstain"]
     typer.echo(f"model {model} · store {store} · kb {rep['kb_hash']}")
     typer.echo(

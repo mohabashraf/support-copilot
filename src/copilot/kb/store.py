@@ -4,6 +4,7 @@
 Each chunk is stored whole as JSON and validated by the Chunk model when it is read back.
 """
 
+import psycopg
 from psycopg.types.json import Jsonb
 
 from copilot.kb.models import Chunk, Diff, KnowledgeBase, diff
@@ -11,7 +12,6 @@ from copilot.kb.models import Chunk, Diff, KnowledgeBase, diff
 
 class KBStore:
     def __init__(self, database_url: str, table: str = "kb_chunks"):
-        import psycopg
 
         self.table = table
         self.conn = psycopg.connect(database_url, autocommit=True)

@@ -12,6 +12,8 @@ import re
 from typing import Protocol
 
 import numpy as np
+import psycopg
+from pgvector.psycopg import register_vector
 
 
 class VectorIndex(Protocol):
@@ -64,8 +66,6 @@ class PgVectorIndex:
     """One table per embedding model, because each model has its own vector length."""
 
     def __init__(self, database_url: str, model_name: str, dim: int):
-        import psycopg
-        from pgvector.psycopg import register_vector
 
         self.table = "chunk_vectors_" + re.sub(r"[^a-z0-9]", "_", model_name.lower())
         self.dim = dim

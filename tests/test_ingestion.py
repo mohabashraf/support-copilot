@@ -7,6 +7,7 @@ import pytest
 
 from copilot.kb.ingest import build_kb
 from copilot.kb.models import KnowledgeBase, diff
+from copilot.kb.store import KBStore
 from copilot.retrieval.index import InMemoryIndex, PgVectorIndex
 from copilot.retrieval.indexer import index_kb
 from copilot.services import NotIndexedError, require_fresh
@@ -83,7 +84,6 @@ def test_incremental_pgvector():
 
 @pg
 def test_kb_store_round_trip_and_sync():
-    from copilot.kb.store import KBStore
 
     store = KBStore(DB, table="test_kb_chunks")
     store.conn.execute("TRUNCATE test_kb_chunks")

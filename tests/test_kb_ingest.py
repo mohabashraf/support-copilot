@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from bs4 import BeautifulSoup
 
 from copilot.kb.ingest import KB_DIR, IngestError, build_kb
 from copilot.kb.parse import normalise
@@ -51,7 +52,6 @@ def test_access_notice_on_every_page(kb):
 
 def test_source_text_is_not_rewritten(kb):
     """Every chunk's text must appear in its page's own text (only whitespace is normalised)."""
-    from bs4 import BeautifulSoup
 
     files = {
         "https://valetax.com/how-to-deposit/": "how-to-deposit.html",

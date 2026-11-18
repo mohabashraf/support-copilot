@@ -42,7 +42,9 @@ class SentenceTransformerEmbedder:
     def __init__(self, name: str):
         if name not in MODELS:
             raise ValueError(f"unknown embedding model {name!r}; choose one of {sorted(MODELS)}")
-        from sentence_transformers import SentenceTransformer  # heavy import, only when used
+        # Deliberate exception to PEP 8: importing this loads torch (~9 s). Deferring it keeps
+        # the CLI, the tests and `import copilot...` fast; only code that embeds pays the cost.
+        from sentence_transformers import SentenceTransformer  # noqa: PLC0415
 
         self.name = name
         self.spec = MODELS[name]

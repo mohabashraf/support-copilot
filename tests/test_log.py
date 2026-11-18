@@ -8,8 +8,12 @@ from fastapi.testclient import TestClient
 from copilot.config import Settings
 from copilot.kb.ingest import build_kb
 from copilot.log import JsonFormatter, setup_logging
+from copilot.retrieval.index import InMemoryIndex
+from copilot.retrieval.indexer import index_kb
+from copilot.retrieval.search import Retriever
 from copilot.server.app import create_app
 from copilot.services import Services
+from tests.test_retrieval import FakeEmbedder
 
 
 def _st(level="INFO", fmt="json", log_file=None) -> Settings:
@@ -38,10 +42,6 @@ def test_request_log_has_request_id(capsys):
 
 
 def test_search_log_has_no_query_text(capsys):
-    from copilot.retrieval.index import InMemoryIndex
-    from copilot.retrieval.indexer import index_kb
-    from copilot.retrieval.search import Retriever
-    from tests.test_retrieval import FakeEmbedder
 
     setup_logging(_st("DEBUG"))
     kb, index = build_kb(), InMemoryIndex()
@@ -55,12 +55,11 @@ def test_search_log_has_no_query_text(capsys):
 
 
 def test_file_log_is_json_even_when_console_is_text(tmp_path):
-    import logging as std_logging
 
     f = tmp_path / "logs" / "app.log"
     setup_logging(_st(fmt="text", log_file=f))
-    std_logging.getLogger("copilot.test").info("hello file", extra={"n": 1})
-    for h in std_logging.getLogger().handlers:
+    logging.getLogger("copilot.test").info("hello file", extra={"n": 1})
+    for h in logging.getLogger().handlers:
         h.flush()
     line = json.loads(f.read_text().splitlines()[-1])
     assert line["msg"] == "hello file" and line["n"] == 1

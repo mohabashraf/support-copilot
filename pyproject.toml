@@ -15,9 +15,20 @@ dependencies = [
     "pydantic>=2.14.3",
     "pydantic-settings>=2.16.3",
     "sentence-transformers>=6.3.0",
+    "torch>=2.15.0",  # direct dependency so the CPU-only source below applies
     "typer>=0.29.1",
     "uvicorn[standard]>=0.54.0",
 ]
+
+# Linux (Docker, CI): CPU-only PyTorch. The default Linux wheels pull ~3 GB of NVIDIA GPU
+# libraries we never use (embeddings run on CPU). macOS keeps the normal PyPI wheels.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [project.scripts]
 copilot = "copilot.cli:app"
@@ -49,6 +60,7 @@ select = [
   "B",        # bugbear: likely bugs (mutable defaults, ...)
   "UP",       # pyupgrade: modern Python 3.12 syntax
   "SIM",      # simplify: needlessly complex code
+  "PLC0415",  # PEP 8: imports at the top of the file. A deliberate exception needs `# noqa: PLC0415`
 ]
 ignore = ["B008"]  # FastAPI/Typer use function calls in defaults (Depends(), typer.Option()) by design
 
