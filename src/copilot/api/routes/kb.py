@@ -18,5 +18,5 @@ def list_chunks(flag: str | None = None, kb: KnowledgeBase = Depends(get_kb)) ->
 def get_chunk(chunk_id: str, kb: KnowledgeBase = Depends(get_kb)) -> Chunk:
     try:
         return kb.get(chunk_id)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"chunk not found: {chunk_id}")
+    except KeyError as err:
+        raise HTTPException(status_code=404, detail=f"chunk not found: {chunk_id}") from err

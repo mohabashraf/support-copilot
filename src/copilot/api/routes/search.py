@@ -33,15 +33,26 @@ def get_retriever(request: Request):
 
 
 @router.post("/search")
-def search(req: SearchRequest, request: Request, retriever=Depends(get_retriever)) -> SearchResponse:
+def search(
+    req: SearchRequest, request: Request, retriever=Depends(get_retriever)
+) -> SearchResponse:
     hits = retriever.search(req.query, k=req.k)
     best = hits[0].score if hits else 0.0
     t = getattr(request.app.state, "abstain_threshold", None)
     return SearchResponse(
         query=req.query,
-        hits=[SearchHit(rank=h.rank, chunk_id=h.chunk_id, score=round(h.score, 4),
-                        section=retriever.kb.get(h.chunk_id).section,
-                        page_urls=retriever.kb.get(h.chunk_id).page_urls,
-                        flags=list(retriever.kb.get(h.chunk_id).flags)) for h in hits],
-        best_score=round(best, 4), abstain_threshold=t, would_abstain=(best < t) if t is not None else None,
+        hits=[
+            SearchHit(
+                rank=h.rank,
+                chunk_id=h.chunk_id,
+                score=round(h.score, 4),
+                section=retriever.kb.get(h.chunk_id).section,
+                page_urls=retriever.kb.get(h.chunk_id).page_urls,
+                flags=list(retriever.kb.get(h.chunk_id).flags),
+            )
+            for h in hits
+        ],
+        best_score=round(best, 4),
+        abstain_threshold=t,
+        would_abstain=(best < t) if t is not None else None,
     )

@@ -1,4 +1,7 @@
-"""Retrieval metrics (eval/README.md, Level 2c). Pure functions: ranked IDs + labels in, numbers out."""
+"""Retrieval metrics (eval/README.md, Level 2c).
+
+Pure functions: ranked chunk IDs + labels in, numbers out.
+"""
 
 import math
 
@@ -31,6 +34,7 @@ def reciprocal_rank(ranked: list[str], required: list[str]) -> float:
 
 def ndcg_at_k(ranked: list[str], required: list[str], optional: list[str], k: int = 5) -> float:
     """Graded: gain 2 for required, 1 for optional, discounted by rank, normalised to [0, 1]."""
+
     def gain(cid: str) -> int:
         return 2 if cid in required else 1 if cid in optional else 0
 
@@ -41,28 +45,35 @@ def ndcg_at_k(ranked: list[str], required: list[str], optional: list[str], k: in
 
 
 def auroc(pos_scores: list[float], neg_scores: list[float]) -> float:
-    """Probability a random answerable query scores higher than a random no-answer one (0.5 = useless)."""
+    """Chance a random answerable query outscores a random no-answer one (0.5 = useless)."""
     if not pos_scores or not neg_scores:
         return float("nan")
     wins = sum((p > n) + 0.5 * (p == n) for p in pos_scores for n in neg_scores)
     return wins / (len(pos_scores) * len(neg_scores))
 
 
-def threshold_sweep(pos_scores: list[float], neg_scores: list[float], steps: int = 41) -> list[dict]:
-    """For each threshold t: abstain recall (no-answer below t) and false-abstain rate (answerable below t)."""
+def threshold_sweep(
+    pos_scores: list[float], neg_scores: list[float], steps: int = 41
+) -> list[dict]:
+    """For each threshold t: abstain recall and false-abstain rate.
+
+    abstain recall = no-answer queries below t; false abstain = answerable queries below t.
+    """
     lo, hi = min(pos_scores + neg_scores), max(pos_scores + neg_scores)
     out = []
     for i in range(steps):
         t = lo + (hi - lo) * i / (steps - 1)
-        out.append({
-            "t": round(t, 4),
-            "abstain_recall": sum(s < t for s in neg_scores) / len(neg_scores),
-            "false_abstain": sum(s < t for s in pos_scores) / len(pos_scores),
-        })
+        out.append(
+            {
+                "t": round(t, 4),
+                "abstain_recall": sum(s < t for s in neg_scores) / len(neg_scores),
+                "false_abstain": sum(s < t for s in pos_scores) / len(pos_scores),
+            }
+        )
     return out
 
 
 def choose_threshold(sweep: list[dict], max_false_abstain: float = 0.05) -> dict:
-    """Highest abstain recall while wrongly abstaining on at most `max_false_abstain` of answerable queries."""
+    """Best abstain recall while false-abstaining on at most `max_false_abstain` of answerable."""
     ok = [r for r in sweep if r["false_abstain"] <= max_false_abstain]
     return max(ok, key=lambda r: (r["abstain_recall"], -r["t"])) if ok else sweep[0]

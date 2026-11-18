@@ -16,10 +16,20 @@ async def log_requests(request: Request, call_next):
     try:
         response = await call_next(request)
     except Exception:
-        log.exception("request failed", extra={"request_id": request_id, "method": request.method,
-                                               "path": request.url.path})
+        log.exception(
+            "request failed",
+            extra={"request_id": request_id, "method": request.method, "path": request.url.path},
+        )
         raise
     response.headers["X-Request-ID"] = request_id
-    log.info("request", extra={"request_id": request_id, "method": request.method, "path": request.url.path,
-                               "status": response.status_code, "ms": round((time.perf_counter() - t0) * 1000, 1)})
+    log.info(
+        "request",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+            "status": response.status_code,
+            "ms": round((time.perf_counter() - t0) * 1000, 1),
+        },
+    )
     return response

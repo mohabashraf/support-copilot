@@ -29,5 +29,31 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "httpx2>=2.16.2",
+    "pre-commit>=4.7.0",
     "pytest>=9.2.0",
+    "ruff>=0.17.5",
 ]
+
+# ---- Code style: PEP 8, enforced by Ruff (format + lint) ----
+[tool.ruff]
+line-length = 99          # PEP 8 allows teams to agree on up to 99
+target-version = "py312"
+extend-exclude = ["knowledge_base/raw"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W",   # pycodestyle: the PEP 8 rules (indentation, whitespace, line length, ...)
+  "F",        # pyflakes: unused imports/variables, undefined names
+  "I",        # isort: import order (stdlib → third-party → our code)
+  "N",        # pep8-naming: snake_case functions, CapWords classes, ...
+  "B",        # bugbear: likely bugs (mutable defaults, ...)
+  "UP",       # pyupgrade: modern Python 3.12 syntax
+  "SIM",      # simplify: needlessly complex code
+]
+ignore = ["B008"]  # FastAPI/Typer use function calls in defaults (Depends(), typer.Option()) by design
+
+[tool.ruff.lint.isort]
+known-first-party = ["copilot"]
+
+[tool.ruff.format]
+quote-style = "double"

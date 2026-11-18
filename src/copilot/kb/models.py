@@ -5,7 +5,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 BlockKind = Literal["intro", "steps", "faq", "promo", "notice"]
-Flag = Literal["conflict", "defective", "rule_sensitive", "compliance", "gap_link", "route", "promo"]
+Flag = Literal[
+    "conflict", "defective", "rule_sensitive", "compliance", "gap_link", "route", "promo"
+]
 
 
 class Source(BaseModel):

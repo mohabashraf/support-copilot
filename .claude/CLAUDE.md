@@ -14,6 +14,7 @@ Read first: `PRD.md` (requirements), `docs/ARCHITECTURE.md` (design), `docs/DECI
 
 ## Engineering rules
 - Python 3.12, `uv` for dependencies, type hints, Pydantic models for all data crossing a boundary.
+- **PEP 8, enforced by Ruff** (config in `pyproject.toml`, line length 99). Run `uv run ruff format . && uv run ruff check .` before committing; the pre-commit hook and CI refuse unformatted code. Never disable a rule inline without a comment saying why.
 - LangGraph is a **workflow** (fixed nodes + conditional edges), not autonomous multi-agents.
 - Deterministic checks are code, not prompts. LLM output is always schema-validated.
 - Model IDs, thresholds, categories and language tiers live in config, never hard-coded.

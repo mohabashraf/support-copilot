@@ -20,16 +20,18 @@ def test_request_log_has_request_id(capsys):
     setup_logging("INFO", "json")
     r = TestClient(create_app(with_retriever=False)).get("/health")
     assert r.headers["X-Request-ID"]
-    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
+    lines = [
+        json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")
+    ]
     req = [x for x in lines if x["msg"] == "request"]
     assert req and req[-1]["path"] == "/health" and req[-1]["status"] == 200
 
 
 def test_search_log_has_no_query_text(capsys):
-    from tests.test_retrieval import FakeEmbedder
     from copilot.kb.ingest import build_kb
     from copilot.retrieval.index import InMemoryIndex
     from copilot.retrieval.search import Retriever
+    from tests.test_retrieval import FakeEmbedder
 
     setup_logging("DEBUG", "json")
     r = Retriever(build_kb(), FakeEmbedder(), InMemoryIndex())
@@ -42,12 +44,12 @@ def test_search_log_has_no_query_text(capsys):
 
 
 def test_file_log_is_json_even_when_console_is_text(tmp_path):
-    import logging as L
+    import logging as std_logging
 
     f = tmp_path / "logs" / "app.log"
     setup_logging("INFO", "text", str(f))
-    L.getLogger("copilot.test").info("hello file", extra={"n": 1})
-    for h in L.getLogger().handlers:
+    std_logging.getLogger("copilot.test").info("hello file", extra={"n": 1})
+    for h in std_logging.getLogger().handlers:
         h.flush()
     line = json.loads(f.read_text().splitlines()[-1])
     assert line["msg"] == "hello file" and line["n"] == 1

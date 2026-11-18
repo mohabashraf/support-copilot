@@ -12,9 +12,13 @@ import numpy as np
 
 
 class VectorIndex(Protocol):
-    def upsert(self, ids: list[str], vectors: np.ndarray, flags: list[list[str]], kb_hash: str) -> None: ...
+    def upsert(
+        self, ids: list[str], vectors: np.ndarray, flags: list[list[str]], kb_hash: str
+    ) -> None: ...
 
-    def search(self, query: np.ndarray, k: int, exclude_flags: tuple[str, ...] = ()) -> list[tuple[str, float]]:
+    def search(
+        self, query: np.ndarray, k: int, exclude_flags: tuple[str, ...] = ()
+    ) -> list[tuple[str, float]]:
         """Return up to k (chunk_id, cosine similarity) pairs, best first."""
         ...
 
@@ -26,7 +30,11 @@ class InMemoryIndex:
         self._vecs = np.zeros((0, 0), dtype=np.float32)
 
     def upsert(self, ids, vectors, flags, kb_hash) -> None:
-        self._ids, self._flags, self._vecs = list(ids), list(flags), np.asarray(vectors, dtype=np.float32)
+        self._ids, self._flags, self._vecs = (
+            list(ids),
+            list(flags),
+            np.asarray(vectors, dtype=np.float32),
+        )
 
     def search(self, query, k, exclude_flags=()):
         scores = self._vecs @ query  # vectors are normalised, so dot product = cosine similarity
@@ -68,12 +76,17 @@ class PgVectorIndex:
         )
 
     def upsert(self, ids, vectors, flags, kb_hash) -> None:
-        with self.conn.transaction():  # all-or-nothing: the table always holds one consistent KB version
+        # All-or-nothing: the table always holds one consistent KB version.
+        with self.conn.transaction():
             self.conn.execute(f"DELETE FROM {self.table}")
             with self.conn.cursor() as cur:
                 cur.executemany(
-                    f"INSERT INTO {self.table} (chunk_id, kb_hash, flags, embedding) VALUES (%s, %s, %s, %s)",
-                    [(i, kb_hash, f, np.asarray(v, dtype=np.float32)) for i, f, v in zip(ids, flags, vectors)],
+                    f"INSERT INTO {self.table} (chunk_id, kb_hash, flags, embedding) "
+                    "VALUES (%s, %s, %s, %s)",
+                    [
+                        (i, kb_hash, f, np.asarray(v, dtype=np.float32))
+                        for i, f, v in zip(ids, flags, vectors, strict=True)
+                    ],
                 )
 
     def kb_hash(self) -> str | None:
@@ -88,6 +101,11 @@ class PgVectorIndex:
                 WHERE NOT (flags && %s::text[])
                 ORDER BY embedding <=> %s
                 LIMIT %s""",
-            (np.asarray(query, dtype=np.float32), list(exclude_flags), np.asarray(query, dtype=np.float32), k),
+            (
+                np.asarray(query, dtype=np.float32),
+                list(exclude_flags),
+                np.asarray(query, dtype=np.float32),
+                k,
+            ),
         ).fetchall()
         return [(cid, float(score)) for cid, score in rows]

@@ -60,7 +60,11 @@ def test_source_text_is_not_rewritten(kb):
         "https://valetax.com/how-to-verify-account/": "how-to-verify-account.html",
     }
     page_text = {
-        url: normalise(BeautifulSoup((KB_DIR / "raw" / f).read_text(encoding="utf-8"), "html.parser").get_text(" "))
+        url: normalise(
+            BeautifulSoup(
+                (KB_DIR / "raw" / f).read_text(encoding="utf-8"), "html.parser"
+            ).get_text(" ")
+        )
         for url, f in files.items()
     }
     key_facts = {

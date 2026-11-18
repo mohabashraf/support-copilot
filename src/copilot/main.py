@@ -1,7 +1,7 @@
 """Main entry point.
 
-    uv run python -m copilot.main     → start the FastAPI server (the ONLY way to start it)
-    uv run copilot <command>          → CLI for one-off jobs (kb, search, eval)
+uv run python -m copilot.main     → start the FastAPI server (the ONLY way to start it)
+uv run copilot <command>          → CLI for one-off jobs (kb, search, eval)
 """
 
 import uvicorn
@@ -15,14 +15,15 @@ def serve(host: str | None = None, port: int | None = None, reload: bool = False
     st = get_settings()
     setup_logging(st.log_level, st.log_format, st.log_file, st.log_max_mb, st.log_backups)
     uvicorn.run(
-        "copilot.api.app:create_app",  # import string + factory=True: the app is built when the server starts
+        # Import string + factory=True: the app is created when the server starts, not at import.
+        "copilot.api.app:create_app",
         factory=True,
         host=host or st.host,
         port=port or st.port,
         reload=reload,
         log_level=st.log_level.lower(),
         log_config=None,  # don't let uvicorn replace our logging: its logs become JSON lines too
-        access_log=False,  # our middleware logs each request (with request_id + ms), so no duplicate line
+        access_log=False,  # our middleware logs each request (request_id + ms): no duplicates
     )
 
 

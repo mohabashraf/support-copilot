@@ -17,10 +17,12 @@ class ModelSpec:
 
 
 MODELS: dict[str, ModelSpec] = {
-    # English-only BASELINE: expected to fail cross-lingual queries (that's the point of the comparison).
+    # English-only BASELINE: expected to fail cross-lingual queries (the point of the comparison).
     "all-minilm-l6": ModelSpec("sentence-transformers/all-MiniLM-L6-v2", 384),
     # Multilingual, small (~0.5 GB). e5 models need "query: " / "passage: " prefixes.
-    "multilingual-e5-small": ModelSpec("intfloat/multilingual-e5-small", 384, "query: ", "passage: "),
+    "multilingual-e5-small": ModelSpec(
+        "intfloat/multilingual-e5-small", 384, "query: ", "passage: "
+    ),
     # Multilingual, large (~2 GB). No prefixes.
     "bge-m3": ModelSpec("BAAI/bge-m3", 1024),
 }

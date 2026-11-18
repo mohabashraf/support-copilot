@@ -46,8 +46,12 @@ def parse_page(html: str) -> tuple[str, list[Block]]:
     for wrap in soup.select(".seps-list__content-wrap"):
         label = _text(wrap.select_one(".seps-list__label"))
         heading = _text(wrap.find("h2"))
-        desc = " ".join(_text(p) for p in wrap.find_all("p") if not p.find_parent(class_="seps-list__label"))
-        steps.append(_sentence(f"{label.capitalize()}: {heading}") + (f" {_sentence(desc)}" if desc else ""))
+        desc = " ".join(
+            _text(p) for p in wrap.find_all("p") if not p.find_parent(class_="seps-list__label")
+        )
+        steps.append(
+            _sentence(f"{label.capitalize()}: {heading}") + (f" {_sentence(desc)}" if desc else "")
+        )
     if steps:
         blocks.append(Block("steps", f"{title}: steps", " ".join(steps)))
 
@@ -69,6 +73,8 @@ def parse_page(html: str) -> tuple[str, list[Block]]:
     if notice_title:
         body = soup.select_one(".uk-modal__body")
         paras = [_text(p) for p in body.find_all("p")] if body else []
-        blocks.append(Block("notice", _text(notice_title), " ".join([_text(notice_title) + "."] + paras)))
+        blocks.append(
+            Block("notice", _text(notice_title), " ".join([_text(notice_title) + "."] + paras))
+        )
 
     return title, blocks

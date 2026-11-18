@@ -1,4 +1,7 @@
-"""Retriever: question → ranked chunks with scores. The best score is the abstain signal (weak_retrieval)."""
+"""Retriever: question → ranked chunks with scores.
+
+The best score is one abstain signal (`weak_retrieval`).
+"""
 
 import time
 from dataclasses import dataclass
@@ -27,19 +30,41 @@ class Retriever:
         t0 = time.perf_counter()
         texts = [f"{c.section}\n{c.text}" for c in self.kb.chunks]
         vectors = self.embedder.embed_passages(texts)
-        self.index.upsert([c.id for c in self.kb.chunks], vectors, [list(c.flags) for c in self.kb.chunks], self.kb.kb_hash)
-        log.info("index built", extra={"chunks": len(texts), "model": self.embedder.name,
-                                       "index": type(self.index).__name__, "kb_hash": self.kb.kb_hash,
-                                       "ms": round((time.perf_counter() - t0) * 1000, 1)})
+        self.index.upsert(
+            [c.id for c in self.kb.chunks],
+            vectors,
+            [list(c.flags) for c in self.kb.chunks],
+            self.kb.kb_hash,
+        )
+        log.info(
+            "index built",
+            extra={
+                "chunks": len(texts),
+                "model": self.embedder.name,
+                "index": type(self.index).__name__,
+                "kb_hash": self.kb.kb_hash,
+                "ms": round((time.perf_counter() - t0) * 1000, 1),
+            },
+        )
 
     def search(self, query: str, k: int = 5, exclude_flags: tuple[str, ...] = ()) -> list[Hit]:
         t0 = time.perf_counter()
         qv = self.embedder.embed_queries([query])[0]
-        hits = [Hit(cid, score, rank) for rank, (cid, score) in enumerate(self.index.search(qv, k, exclude_flags), 1)]
+        hits = [
+            Hit(cid, score, rank)
+            for rank, (cid, score) in enumerate(self.index.search(qv, k, exclude_flags), 1)
+        ]
         # No query text in logs (may contain PII): length, top chunk, score, timing only.
-        log.debug("search", extra={"query_chars": len(query), "k": k, "top": hits[0].chunk_id if hits else None,
-                                   "best": round(hits[0].score, 4) if hits else None,
-                                   "ms": round((time.perf_counter() - t0) * 1000, 1)})
+        log.debug(
+            "search",
+            extra={
+                "query_chars": len(query),
+                "k": k,
+                "top": hits[0].chunk_id if hits else None,
+                "best": round(hits[0].score, 4) if hits else None,
+                "ms": round((time.perf_counter() - t0) * 1000, 1),
+            },
+        )
         return hits
 
     def best_score(self, query: str) -> float:

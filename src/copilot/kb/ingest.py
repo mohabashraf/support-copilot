@@ -1,4 +1,7 @@
-"""Build the knowledge base: parse pages → assign chunk IDs → merge duplicates → attach flags → hash."""
+"""Build the knowledge base.
+
+Parse pages → assign chunk IDs → merge duplicates → attach flags → hash.
+"""
 
 import hashlib
 import json
@@ -47,7 +50,8 @@ def build_kb(kb_dir: Path = KB_DIR) -> KnowledgeBase:
             cid = _chunk_id(page["slug"], block.kind, block.heading, faq_ids)
             if cid in chunks:
                 existing = chunks[cid]
-                # Same ID on another page: must be the same text, otherwise it's a conflict to review.
+                # Same ID on another page: must be the same text,
+                # otherwise it's a conflict for a human to review.
                 if existing.text != block.text:
                     raise IngestError(f"{cid}: same ID, different text on {page['url']}")
                 existing.sources.append(source)
@@ -65,9 +69,17 @@ def build_kb(kb_dir: Path = KB_DIR) -> KnowledgeBase:
     if unknown:
         raise IngestError(f"flags configured for chunks that don't exist: {sorted(unknown)}")
 
-    payload = json.dumps([c.model_dump() for c in chunks.values()], ensure_ascii=False, sort_keys=True)
+    payload = json.dumps(
+        [c.model_dump() for c in chunks.values()], ensure_ascii=False, sort_keys=True
+    )
     kb_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
-    log.info("kb built", extra={"chunks": len(chunks), "pages": len(config["pages"]), "kb_hash": kb_hash,
-                                  "ms": round((time.perf_counter() - t0) * 1000, 1)})
+    log.info(
+        "kb built",
+        extra={
+            "chunks": len(chunks),
+            "pages": len(config["pages"]),
+            "kb_hash": kb_hash,
+            "ms": round((time.perf_counter() - t0) * 1000, 1),
+        },
+    )
     return KnowledgeBase(chunks=list(chunks.values()), kb_hash=kb_hash)
-

@@ -1,0 +1,30 @@
+# On every push / pull request: style (PEP 8 via ruff) + unit tests, including pgvector.
+name: CI
+on: [push, pull_request]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      db:  # the same pgvector image as docker-compose.yml, so the pgvector test runs (not skipped)
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: copilot
+          POSTGRES_PASSWORD: copilot
+          POSTGRES_DB: copilot
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U copilot -d copilot" --health-interval 2s
+          --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Style (PEP 8)
+        run: |
+          uv run ruff format --check .
+          uv run ruff check .
+      - name: Unit tests
+        run: uv run pytest -q

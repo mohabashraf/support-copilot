@@ -1,0 +1,15 @@
+# Runs before every `git commit`: the commit is refused if style checks fail.
+# Uses the project's own ruff (uv run), so local, hook and CI versions are identical.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format (PEP 8 formatting)
+        entry: uv run ruff format
+        language: system
+        types: [python]
+      - id: ruff-check
+        name: ruff check (PEP 8 + lint)
+        entry: uv run ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types: [python]

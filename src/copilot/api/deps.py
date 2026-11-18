@@ -1,4 +1,7 @@
-"""Shared dependencies for routes. Routes ask for what they need; they never build it themselves."""
+"""Shared dependencies for routes.
+
+Routes ask for what they need; they never build it themselves.
+"""
 
 from fastapi import Request
 
