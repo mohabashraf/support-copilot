@@ -1,10 +1,9 @@
 """Command-line interface: kb build/show/index, search, eval retrieval, web."""
 
+import json
 from pathlib import Path
 
 import typer
-
-import json
 
 from copilot.config import get_settings
 from copilot.kb.ingest import KB_DIR, build_kb, write_kb
