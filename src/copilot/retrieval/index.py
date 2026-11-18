@@ -3,6 +3,9 @@
 - InMemoryIndex: numpy, for unit tests and the no-Docker quick start.
 - PgVectorIndex: Postgres + pgvector, for the app, eval runs and Phase 2.
 The rest of the system only knows `VectorIndex`.
+
+Incremental (D8): each row keeps the chunk's content_hash, so ingestion embeds only new or
+changed chunks and deletes removed ones. The server only calls `hashes()` and `search()`.
 """
 
 import re
@@ -12,9 +15,17 @@ import numpy as np
 
 
 class VectorIndex(Protocol):
+    def hashes(self) -> dict[str, str]:
+        """chunk_id → content_hash of every stored vector."""
+        ...
+
     def upsert(
-        self, ids: list[str], vectors: np.ndarray, flags: list[list[str]], kb_hash: str
-    ) -> None: ...
+        self, ids: list[str], vectors: np.ndarray, flags: list[list[str]], hashes: list[str]
+    ) -> None:
+        """Insert new chunks, replace changed ones. Other rows are left alone."""
+        ...
+
+    def delete(self, ids: list[str]) -> None: ...
 
     def search(
         self, query: np.ndarray, k: int, exclude_flags: tuple[str, ...] = ()
@@ -25,28 +36,28 @@ class VectorIndex(Protocol):
 
 class InMemoryIndex:
     def __init__(self) -> None:
-        self._ids: list[str] = []
-        self._flags: list[list[str]] = []
-        self._vecs = np.zeros((0, 0), dtype=np.float32)
+        self._rows: dict[str, tuple[np.ndarray, list[str], str]] = {}  # id → (vector, flags, hash)
 
-    def upsert(self, ids, vectors, flags, kb_hash) -> None:
-        self._ids, self._flags, self._vecs = (
-            list(ids),
-            list(flags),
-            np.asarray(vectors, dtype=np.float32),
-        )
+    def hashes(self) -> dict[str, str]:
+        return {cid: h for cid, (_, _, h) in self._rows.items()}
+
+    def upsert(self, ids, vectors, flags, hashes) -> None:
+        for cid, v, f, h in zip(ids, vectors, flags, hashes, strict=True):
+            self._rows[cid] = (np.asarray(v, dtype=np.float32), list(f), h)
+
+    def delete(self, ids) -> None:
+        for cid in ids:
+            self._rows.pop(cid, None)
 
     def search(self, query, k, exclude_flags=()):
-        scores = self._vecs @ query  # vectors are normalised, so dot product = cosine similarity
-        order = np.argsort(-scores)
-        out = []
-        for i in order:
-            if exclude_flags and set(self._flags[i]) & set(exclude_flags):
-                continue
-            out.append((self._ids[i], float(scores[i])))
-            if len(out) == k:
-                break
-        return out
+        rows = [
+            (cid, v) for cid, (v, f, _) in self._rows.items() if not set(f) & set(exclude_flags)
+        ]
+        if not rows:
+            return []
+        scores = np.stack([v for _, v in rows]) @ query  # normalised: dot product = cosine
+        order = np.argsort(-scores)[:k]
+        return [(rows[i][0], float(scores[i])) for i in order]
 
 
 class PgVectorIndex:
@@ -63,10 +74,10 @@ class PgVectorIndex:
         register_vector(self.conn)
         self.conn.execute(
             f"""CREATE TABLE IF NOT EXISTS {self.table} (
-                    chunk_id  text PRIMARY KEY,
-                    kb_hash   text NOT NULL,
-                    flags     text[] NOT NULL DEFAULT '{{}}',
-                    embedding vector({dim}) NOT NULL
+                    chunk_id     text PRIMARY KEY,
+                    content_hash text NOT NULL,
+                    flags        text[] NOT NULL DEFAULT '{{}}',
+                    embedding    vector({dim}) NOT NULL
                 )"""
         )
         # HNSW index for fast approximate search with cosine distance (useful as the KB grows).
@@ -75,37 +86,37 @@ class PgVectorIndex:
             "USING hnsw (embedding vector_cosine_ops)"
         )
 
-    def upsert(self, ids, vectors, flags, kb_hash) -> None:
-        # All-or-nothing: the table always holds one consistent KB version.
-        with self.conn.transaction():
-            self.conn.execute(f"DELETE FROM {self.table}")
-            with self.conn.cursor() as cur:
-                cur.executemany(
-                    f"INSERT INTO {self.table} (chunk_id, kb_hash, flags, embedding) "
-                    "VALUES (%s, %s, %s, %s)",
-                    [
-                        (i, kb_hash, f, np.asarray(v, dtype=np.float32))
-                        for i, f, v in zip(ids, flags, vectors, strict=True)
-                    ],
-                )
+    def hashes(self) -> dict[str, str]:
+        rows = self.conn.execute(f"SELECT chunk_id, content_hash FROM {self.table}").fetchall()
+        return dict(rows)
 
-    def kb_hash(self) -> str | None:
-        row = self.conn.execute(f"SELECT kb_hash FROM {self.table} LIMIT 1").fetchone()
-        return row[0] if row else None
+    def upsert(self, ids, vectors, flags, hashes) -> None:
+        with self.conn.transaction(), self.conn.cursor() as cur:
+            cur.executemany(
+                f"""INSERT INTO {self.table} (chunk_id, content_hash, flags, embedding)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (chunk_id) DO UPDATE SET
+                        content_hash = EXCLUDED.content_hash,
+                        flags = EXCLUDED.flags,
+                        embedding = EXCLUDED.embedding""",
+                [
+                    (i, h, f, np.asarray(v, dtype=np.float32))
+                    for i, v, f, h in zip(ids, vectors, flags, hashes, strict=True)
+                ],
+            )
+
+    def delete(self, ids) -> None:
+        self.conn.execute(f"DELETE FROM {self.table} WHERE chunk_id = ANY(%s)", (list(ids),))
 
     def search(self, query, k, exclude_flags=()):
         # <=> is pgvector's cosine DISTANCE (0 = identical); similarity = 1 - distance.
+        q = np.asarray(query, dtype=np.float32)
         rows = self.conn.execute(
             f"""SELECT chunk_id, 1 - (embedding <=> %s) AS score
                 FROM {self.table}
                 WHERE NOT (flags && %s::text[])
                 ORDER BY embedding <=> %s
                 LIMIT %s""",
-            (
-                np.asarray(query, dtype=np.float32),
-                list(exclude_flags),
-                np.asarray(query, dtype=np.float32),
-                k,
-            ),
+            (q, list(exclude_flags), q, k),
         ).fetchall()
         return [(cid, float(score)) for cid, score in rows]

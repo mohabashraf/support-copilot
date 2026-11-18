@@ -115,3 +115,25 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
   - Requires Docker for the full app (documented in the quick start; memory mode remains available).
   - Postgres full-text search is weaker for some languages than dedicated BM25 engines; measured in the Phase 2 hybrid benchmark.
   - **Revisit (e.g. Qdrant or a managed vector service) when** vectors reach many millions, vector queries dominate database load, or advanced vector features (multi-vector, quantisation at scale) are needed.
+
+## D8. Ingestion and serving are separate; ingestion is incremental
+- **Status:** decided (2026-11-18)
+- **Context:** first version: the server parsed the raw HTML at startup and, if the KB hash had changed, re-embedded every chunk and replaced the vector table. Fine for 4 pages; the brief says the KB and SOPs will grow (Phase 2: ~10k tickets/month).
+- **Problems with the first version at scale:**
+  1. **Slow, risky startup:** a KB change made the server re-embed everything before answering anything.
+  2. **Races:** with several server workers, each one sees "hash changed" and rebuilds the same table.
+  3. **All or nothing:** one new page re-embedded the whole KB (delete all, insert all).
+  4. **Wrong owner:** a web server needed write access to the knowledge base.
+- **Decision:**
+  - **One writer:** `copilot kb index` (`retrieval/indexer.py: index_kb`) is the only code that writes the KB. It runs as a job (by hand today; CI or a scheduler on KB/SOP change in Phase 2).
+  - **Incremental:** every chunk has a `content_hash` (text, sources, flags). The job embeds only new or changed chunks and deletes removed ones. Vectors are keyed by chunk ID in one table per embedding model.
+  - **Postgres holds the chunks too** (`kb_chunks`, whole chunk as JSON, validated by the `Chunk` model on read), so the server never reads raw HTML.
+  - **Read-only serving:** the server and the CLI search load the KB from Postgres and check that the model's vectors match it exactly. If not, they stop with "run `copilot kb index`"; they never rebuild silently.
+  - **Order:** vectors first, chunks last, so the server only sees a new KB once its vectors exist. A crash in between makes the check fail loudly; re-running the job fixes it.
+- **Verified:** first run embeds 26; a second run embeds 0; one edited FAQ re-embeds 1; a removed chunk is deleted with 0 embedded (tests in memory and pgvector). Retrieval eval unchanged (R@3 0.89, MRR 0.825).
+- **Trade-offs / revisit when:**
+  - A flag-only change re-embeds that chunk (the hash covers flags). Cheap now; split the hash if flags change often.
+  - The job takes no lock: run one at a time. Phase 2: a Postgres advisory lock, or the job queue guarantees it.
+  - Schema changes are handled by dropping and rebuilding the vector tables (they are derived data). Add migrations (e.g. Alembic) when the audit-log tables arrive, because those are not derived.
+  - `VECTOR_STORE=memory` keeps the old build-everything-in-memory path for tests and the no-Docker demo.
+

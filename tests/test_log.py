@@ -6,8 +6,10 @@ import logging
 from fastapi.testclient import TestClient
 
 from copilot.config import Settings
+from copilot.kb.ingest import build_kb
 from copilot.log import JsonFormatter, setup_logging
 from copilot.server.app import create_app
+from copilot.services import Services
 
 
 def _st(level="INFO", fmt="json", log_file=None) -> Settings:
@@ -26,7 +28,7 @@ def test_json_formatter_includes_extra_fields():
 
 def test_request_log_has_request_id(capsys):
     setup_logging(_st())
-    r = TestClient(create_app(with_retriever=False)).get("/health")
+    r = TestClient(create_app(Services(build_kb()))).get("/health")
     assert r.headers["X-Request-ID"]
     lines = [
         json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")
@@ -36,14 +38,15 @@ def test_request_log_has_request_id(capsys):
 
 
 def test_search_log_has_no_query_text(capsys):
-    from copilot.kb.ingest import build_kb
     from copilot.retrieval.index import InMemoryIndex
+    from copilot.retrieval.indexer import index_kb
     from copilot.retrieval.search import Retriever
     from tests.test_retrieval import FakeEmbedder
 
     setup_logging(_st("DEBUG"))
-    r = Retriever(build_kb(), FakeEmbedder(), InMemoryIndex())
-    r.build_index()
+    kb, index = build_kb(), InMemoryIndex()
+    index_kb(kb, FakeEmbedder(), index)
+    r = Retriever(kb, FakeEmbedder(), index)
     secret = "my card 4111 1111 1111 1111 minimum deposit"
     r.search(secret)
     out = capsys.readouterr().out

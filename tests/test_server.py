@@ -2,9 +2,11 @@
 
 from fastapi.testclient import TestClient
 
+from copilot.kb.ingest import build_kb
 from copilot.server.app import create_app
+from copilot.services import Services
 
-client = TestClient(create_app(with_retriever=False))  # no model download in unit tests
+client = TestClient(create_app(Services(build_kb())))  # no model download in unit tests
 
 
 def test_health():

@@ -3,24 +3,22 @@
 from fastapi import FastAPI
 
 from copilot.config import get_settings
-from copilot.kb.ingest import build_kb
 from copilot.server.middleware import log_requests
 from copilot.server.routes import health, kb, search
+from copilot.services import Services, load_services
 
 
-def create_app(with_retriever: bool = True) -> FastAPI:
+def create_app(services: Services | None = None) -> FastAPI:
+    """uvicorn calls this with no arguments: load the KB + retriever from settings (read-only,
+    D8). Tests pass their own Services, so they need no database and no model."""
+    services = services or load_services(get_settings())
     app = FastAPI(title="Support co-pilot", version="0.1.0")
     app.middleware("http")(log_requests)
-    app.state.kb = build_kb()  # built once at startup
+    app.state.kb = services.kb
     app.include_router(health.router)
     app.include_router(kb.router)
-    if with_retriever:  # loads the embedding model + connects to the vector store (D7)
-        from copilot.retrieval.search import make_retriever
-
-        st = get_settings()
-        app.state.retriever = make_retriever(
-            app.state.kb, st.vector_store, st.embedding_model, st.database_url
-        )
+    if services.retriever is not None:
+        app.state.retriever = services.retriever
         app.state.abstain_threshold = None  # set from the retrieval eval once chosen
         app.include_router(search.router)
     return app

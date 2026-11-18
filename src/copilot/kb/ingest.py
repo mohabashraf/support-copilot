@@ -1,10 +1,10 @@
-"""Build the knowledge base.
+"""Build the knowledge base from the raw pages (INGESTION side only).
 
 Parse pages → assign chunk IDs → merge duplicates → attach flags → hash.
+The server never calls this with VECTOR_STORE=pgvector: it reads the KB from Postgres
+(kb/store.py), written by `copilot kb index`.
 """
 
-import hashlib
-import json
 import time
 import tomllib
 from pathlib import Path
@@ -69,17 +69,14 @@ def build_kb(kb_dir: Path = KB_DIR) -> KnowledgeBase:
     if unknown:
         raise IngestError(f"flags configured for chunks that don't exist: {sorted(unknown)}")
 
-    payload = json.dumps(
-        [c.model_dump() for c in chunks.values()], ensure_ascii=False, sort_keys=True
-    )
-    kb_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+    kb = KnowledgeBase.from_chunks(list(chunks.values()))
     log.info(
         "kb built",
         extra={
             "chunks": len(chunks),
             "pages": len(config["pages"]),
-            "kb_hash": kb_hash,
+            "kb_hash": kb.kb_hash,
             "ms": round((time.perf_counter() - t0) * 1000, 1),
         },
     )
-    return KnowledgeBase(chunks=list(chunks.values()), kb_hash=kb_hash)
+    return kb

@@ -10,6 +10,7 @@ import pytest
 
 from copilot.kb.ingest import build_kb
 from copilot.retrieval.index import InMemoryIndex, PgVectorIndex
+from copilot.retrieval.indexer import index_kb
 from copilot.retrieval.search import Retriever
 
 VOCAB = [
@@ -52,9 +53,8 @@ def kb():
 
 
 def _retriever(kb, index):
-    r = Retriever(kb, FakeEmbedder(), index)
-    r.build_index()
-    return r
+    index_kb(kb, FakeEmbedder(), index)
+    return Retriever(kb, FakeEmbedder(), index)
 
 
 def test_memory_index_finds_obvious_chunk(kb):

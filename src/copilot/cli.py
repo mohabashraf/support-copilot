@@ -1,6 +1,9 @@
 """Command-line interface for one-off jobs: kb show/index, search, eval retrieval.
 
-The API server is NOT started here: run `uv run python -m copilot.main`.
+- `kb index` is the INGESTION job: the only writer of the KB in Postgres (D8).
+- `kb show` reads the raw pages (what the next `kb index` would write).
+- `search` / `eval retrieval` are read-only, like the server.
+The server is NOT started here: run `uv run python -m copilot.main`.
 """
 
 import json
@@ -29,7 +32,7 @@ def _setup() -> None:
 
 @kb_app.command("show")
 def kb_show(chunk_id: str = typer.Argument(None, help="Show one chunk in full")) -> None:
-    """List all chunks, or show one."""
+    """List all chunks from the raw pages, or show one."""
     kb = build_kb()
     if chunk_id:
         try:
@@ -48,23 +51,46 @@ def kb_show(chunk_id: str = typer.Argument(None, help="Show one chunk in full"))
 
 
 def _retriever(model: str | None, store: str | None):
-    from copilot.retrieval.search import make_retriever
+    """Read-only retriever, like the server's: settings from .env, flags override them."""
+    from copilot.services import NotIndexedError, load_services
 
     st = get_settings()
-    model, store = model or st.embedding_model, store or st.vector_store
-    return make_retriever(build_kb(), store, model, st.database_url), model, store
+    st = st.model_copy(
+        update={
+            "embedding_model": model or st.embedding_model,
+            "vector_store": store or st.vector_store,
+        }
+    )
+    try:
+        r = load_services(st).retriever
+    except NotIndexedError as err:
+        typer.echo(str(err), err=True)
+        raise typer.Exit(1) from None
+    return r, st.embedding_model, st.vector_store
 
 
 @kb_app.command("index")
 def kb_index(
     model: str = typer.Option(None, help="Embedding model (default from settings)"),
-    store: str = typer.Option(None, help="pgvector | memory"),
 ) -> None:
-    """Embed all chunks and store them in the vector index."""
-    r, model, store = _retriever(model, store)
-    r.build_index()
+    """INGESTION (D8): write the KB + vectors to Postgres. Embeds only new/changed chunks.
+
+    The only command that writes the knowledge base. Run it after the pages or
+    kb_config.toml change, and once per embedding model.
+    """
+    from copilot.kb.store import KBStore
+    from copilot.retrieval.embeddings import get_embedder
+    from copilot.retrieval.index import PgVectorIndex
+    from copilot.retrieval.indexer import index_kb
+
+    st = get_settings()
+    model = model or st.embedding_model
+    kb, embedder = build_kb(), get_embedder(model)
+    index = PgVectorIndex(st.database_url, model, embedder.dim)
+    d = index_kb(kb, embedder, index, KBStore(st.database_url))
     typer.echo(
-        f"indexed {len(r.kb.chunks)} chunks · model {model} · store {store} · kb {r.kb.kb_hash}"
+        f"kb {kb.kb_hash} · model {model} · added {len(d.added)} · changed {len(d.changed)} · "
+        f"removed {len(d.removed)} · unchanged {d.unchanged}"
     )
 
 

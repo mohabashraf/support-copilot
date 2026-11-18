@@ -311,18 +311,37 @@ In code, all triggers are evaluated and **every** reason code that fires is reco
 
 Pages are used **as they are** (never edited); problems are flagged, and how the co-pilot handles each one is a documented choice.
 
+**Ingestion and serving are separate (D8).** `copilot kb index` is the only writer; the server only reads.
+
 ```mermaid
 flowchart LR
-    RAW[("knowledge_base/raw/*.html<br/>unchanged")] --> EXT["extract text<br/>+ headings"]
-    EXT --> CH["chunk by section / FAQ<br/>keep page title + URL"]
-    CH --> DD["deduplicate shared FAQ<br/>one chunk, both page URLs"]
-    DD --> FL["flag chunks<br/>defective · conflict ·<br/>rule-sensitive"]
-    FL --> STORE[("KB store<br/>chunks.json + KB hash")]
-    STORE --> EMB["embed chunks<br/>multilingual model"]
-    EMB --> IDX[("pgvector<br/>(in-memory for tests)")]
-    STORE --> PROMPT["labelled KB block<br/>for the draft prompt<br/>(stable order, cache-friendly)"]
-    STORE --> EXP["KB explorer page"]
+    subgraph ING["INGESTION: copilot kb index (offline job, the only writer)"]
+        RAW[("knowledge_base/raw/*.html<br/>unchanged")] --> EXT["extract text<br/>+ headings"]
+        EXT --> CH["chunk by section / FAQ<br/>keep page title + URL"]
+        CH --> DD["deduplicate shared FAQ<br/>one chunk, both page URLs"]
+        DD --> FL["flag chunks<br/>defective · conflict ·<br/>rule-sensitive"]
+        FL --> DIFF{"per-chunk content hash<br/>vs what is stored"}
+        DIFF -->|"new / changed only"| EMB["embed<br/>multilingual model"]
+        DIFF -->|"gone"| DEL["delete"]
+    end
+    subgraph PG["Postgres"]
+        VEC[("chunk_vectors_&lt;model&gt;<br/>vector + content hash + flags")]
+        KBT[("kb_chunks<br/>whole chunk as JSON")]
+    end
+    EMB --> VEC
+    DEL --> VEC
+    DIFF -->|"written last"| KBT
+    subgraph SRV["SERVING: server / CLI search (read-only)"]
+        LOAD["load KB<br/>check vectors match<br/>(else: run kb index)"]
+        LOAD --> PROMPT["labelled KB block<br/>for the draft prompt"]
+        LOAD --> SEARCH["search"]
+        LOAD --> EXP["KB explorer page"]
+    end
+    KBT --> LOAD
+    VEC --> LOAD
 ```
+
+Adding one page to a 1,000-chunk KB embeds only that page's chunks; an unchanged KB embeds nothing. `VECTOR_STORE=memory` (tests, no-Docker demo) builds everything in memory from the raw pages instead.
 
 | Flag | Example | Handling |
 |---|---|---|
@@ -452,7 +471,7 @@ stateDiagram-v2
 | Idempotency | not needed | ticket-ID keys in Postgres |
 | Return path | results.jsonl / web page | outbox → helpdesk REST API (private note) |
 | KB in prompt | whole KB (~2.5k tokens) | top-k from hybrid retrieval + reranker |
-| KB updates | manual re-ingest | ingestion pipeline with change detection |
+| KB updates | `copilot kb index`: incremental (per-chunk hash), only writer (D8) | same job, triggered on KB/SOP change (CI or scheduler) + conflict report |
 | Vector store | pgvector (Docker) or in-memory (tests) | pgvector + Postgres full-text for hybrid search |
 | Audit log | append-only JSONL | insert-only Postgres / write-once storage |
 | Tracing | Langfuse optional (cloud, synthetic data) | Langfuse self-hosted via OpenTelemetry |
@@ -483,15 +502,19 @@ src/copilot/
 │       ├── webhook.py      POST /webhook/helpdesk  (Phase 2)
 │       └── pages.py        HTML pages: ticket view, KB explorer (FR-9)
 │
+├── services.py             load KB + retriever from settings, READ-ONLY (D8)   ✅
+│
 ├── kb/                     ── RAG: INGESTION (offline) ──
-│   ├── models.py           Chunk, Source, KnowledgeBase        ✅
+│   ├── models.py           Chunk, Source, KnowledgeBase, content hashes, diff  ✅
 │   ├── parse.py            HTML → blocks                       ✅
-│   └── ingest.py           blocks → chunks, flags, hash        ✅
+│   ├── ingest.py           blocks → chunks, flags, hash        ✅
+│   └── store.py            KBStore: chunks in Postgres (written by kb index, read by the server)  ✅
 │
 ├── retrieval/              ── RAG: RETRIEVAL (online) ──
 │   ├── embeddings.py       multilingual embedding model (bge-m3 / multilingual-e5)
 │   ├── index.py            VectorIndex interface: PgVectorIndex (app, eval, Phase 2) + InMemoryIndex (tests) (D7)
-│   ├── search.py           score(query) → ranked chunks; best score = abstain signal
+│   ├── indexer.py          index_kb(): the ONLY writer; embeds new/changed chunks only (D8)  ✅
+│   ├── search.py           Retriever (read-only): query → ranked chunks; best score = abstain signal
 │   ├── bm25.py             keyword search (Phase 2 hybrid)
 │   └── rerank.py           cross-encoder reranker (Phase 2)
 │
@@ -525,7 +548,7 @@ knowledge_base/                         raw pages, config, chunk plan
 ```
 
 **The RAG is three layers**, so each can be tested and swapped on its own:
-1. **Ingestion** (`src/copilot/kb/`, data in `knowledge_base/`): pages → chunks. Offline, deterministic, unit-tested.
+1. **Ingestion** (`src/copilot/kb/` + `retrieval/indexer.py`, data in `knowledge_base/`): pages → chunks → vectors in Postgres. An offline job (`copilot kb index`), incremental, the only writer (D8).
 2. **Retrieval** (`retrieval/`): query → ranked chunks + scores. Measured with recall/precision/MRR on `eval/retrieval_queries.jsonl`.
 3. **Generation** (`llm/` + the `draft` node in `workflow/`): chunks + ticket → grounded draft with citations. Measured with the end-to-end eval.
 
