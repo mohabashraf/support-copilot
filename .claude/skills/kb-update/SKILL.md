@@ -49,9 +49,11 @@ findings. Only `copilot kb index` writes the KB to Postgres (D8).
    with the previous numbers in `docs/BENCHMARK.md`. A drop in R@3 / MRR / Hit@3 by language must be
    explained before committing.
 
-9. **Test and commit:** `uv run pytest -q`. Tests that pin the chunk count (26 today, e.g. in
-   `tests/test_kb_ingest.py`, `tests/test_server.py`, `tests/test_ingestion.py`) must be updated on
-   purpose, with the new count in the commit message.
+9. **Test and commit:** `uv run pytest -q`. `knowledge_base/chunk_plan.json` (the expected chunk
+   list, checked by `tests/test_kb_ingest.py`) and `knowledge_base/CHUNKS.md` must list the new
+   chunks. Tests that pin the chunk count (26 today: `tests/test_kb_ingest.py`,
+   `tests/test_server.py`, `tests/test_ingestion.py`) are updated on purpose, with the new count in
+   the commit message.
 
 ## Done when
 `kb show` reads correctly · flags + KB_FINDINGS updated · `kb index` reports only the expected
