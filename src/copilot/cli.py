@@ -14,6 +14,15 @@ app.add_typer(kb_app, name="kb")
 eval_app = typer.Typer(help="Evaluation commands")
 app.add_typer(eval_app, name="eval")
 
+
+@app.callback()
+def _setup() -> None:
+    """Runs before every command: configure logging from settings."""
+    from copilot.log import setup_logging
+
+    st = get_settings()
+    setup_logging(st.log_level, st.log_format)
+
 BUILD_PATH = KB_DIR / "build" / "chunks.json"
 
 
@@ -39,11 +48,11 @@ def kb_show(chunk_id: str = typer.Argument(None, help="Show one chunk in full"))
 
 
 @app.command("web")
-def web(host: str = "127.0.0.1", port: int = 8000, reload: bool = False) -> None:
-    """Start the web app (open http://127.0.0.1:8000/docs)."""
-    import uvicorn
+def web(host: str = typer.Option(None), port: int = typer.Option(None), reload: bool = False) -> None:
+    """Start the FastAPI server (open http://127.0.0.1:8000/docs)."""
+    from copilot.main import serve
 
-    uvicorn.run("copilot.api.app:create_app", factory=True, host=host, port=port, reload=reload)
+    serve(host, port, reload)
 
 
 def _retriever(model: str | None, store: str | None):

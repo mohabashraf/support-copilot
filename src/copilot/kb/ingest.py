@@ -2,11 +2,15 @@
 
 import hashlib
 import json
+import time
 import tomllib
 from pathlib import Path
 
 from copilot.kb.models import Chunk, KnowledgeBase, Source
 from copilot.kb.parse import parse_page
+from copilot.log import get_logger
+
+log = get_logger(__name__)
 
 KB_DIR = Path(__file__).resolve().parents[3] / "knowledge_base"
 
@@ -29,6 +33,7 @@ def _chunk_id(page_slug: str, kind: str, heading: str, faq_ids: dict[str, str]) 
 
 
 def build_kb(kb_dir: Path = KB_DIR) -> KnowledgeBase:
+    t0 = time.perf_counter()
     config = tomllib.loads((kb_dir / "kb_config.toml").read_text(encoding="utf-8"))
     faq_ids: dict[str, str] = config["faq_ids"]
     flags: dict[str, list[str]] = config.get("flags", {})
@@ -62,6 +67,8 @@ def build_kb(kb_dir: Path = KB_DIR) -> KnowledgeBase:
 
     payload = json.dumps([c.model_dump() for c in chunks.values()], ensure_ascii=False, sort_keys=True)
     kb_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+    log.info("kb built", extra={"chunks": len(chunks), "pages": len(config["pages"]), "kb_hash": kb_hash,
+                                  "ms": round((time.perf_counter() - t0) * 1000, 1)})
     return KnowledgeBase(chunks=list(chunks.values()), kb_hash=kb_hash)
 
 

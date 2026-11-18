@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://copilot:copilot@localhost:5433/copilot"
     embedding_model: str = "multilingual-e5-small"
 
+    log_level: str = "INFO"  # DEBUG | INFO | WARNING | ERROR
+    log_format: Literal["json", "text"] = "json"  # json for servers/log tools, text while developing
+    host: str = "127.0.0.1"
+    port: int = 8000
+
 
 def get_settings() -> Settings:
     return Settings()

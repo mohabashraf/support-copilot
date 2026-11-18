@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 
+from copilot.api.middleware import log_requests
 from copilot.api.routes import health, kb, search
 from copilot.config import get_settings
 from copilot.kb.ingest import build_kb
@@ -9,6 +10,7 @@ from copilot.kb.ingest import build_kb
 
 def create_app(with_retriever: bool = True) -> FastAPI:
     app = FastAPI(title="Support co-pilot", version="0.1.0")
+    app.middleware("http")(log_requests)
     app.state.kb = build_kb()  # built once at startup
     app.include_router(health.router)
     app.include_router(kb.router)
