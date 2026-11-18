@@ -13,7 +13,7 @@ from copilot.log import setup_logging
 def serve(host: str | None = None, port: int | None = None, reload: bool = False) -> None:
     """Start the FastAPI server with uvicorn."""
     st = get_settings()
-    setup_logging(st.log_level, st.log_format)
+    setup_logging(st.log_level, st.log_format, st.log_file, st.log_max_mb, st.log_backups)
     uvicorn.run(
         "copilot.api.app:create_app",  # import string + factory=True: the app is built when the server starts
         factory=True,

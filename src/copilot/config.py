@@ -13,7 +13,10 @@ class Settings(BaseSettings):
     embedding_model: str = "multilingual-e5-small"
 
     log_level: str = "INFO"  # DEBUG | INFO | WARNING | ERROR
-    log_format: Literal["json", "text"] = "json"  # json for servers/log tools, text while developing
+    log_format: Literal["json", "text"] = "json"  # console format; json for servers/log tools, text while developing
+    log_file: str | None = "logs/copilot.log"  # JSON lines, rotated; empty = console only
+    log_max_mb: int = 10
+    log_backups: int = 5
     host: str = "127.0.0.1"
     port: int = 8000
 

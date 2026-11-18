@@ -39,3 +39,15 @@ def test_search_log_has_no_query_text(capsys):
     out = capsys.readouterr().out
     assert '"msg": "search"' in out
     assert "4111" not in out and "minimum deposit" not in out
+
+
+def test_file_log_is_json_even_when_console_is_text(tmp_path):
+    import logging as L
+
+    f = tmp_path / "logs" / "app.log"
+    setup_logging("INFO", "text", str(f))
+    L.getLogger("copilot.test").info("hello file", extra={"n": 1})
+    for h in L.getLogger().handlers:
+        h.flush()
+    line = json.loads(f.read_text().splitlines()[-1])
+    assert line["msg"] == "hello file" and line["n"] == 1
