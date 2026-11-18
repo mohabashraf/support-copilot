@@ -467,7 +467,7 @@ Layers: **entry points** (CLI, API) are thin and call **services**; services nev
 
 ```
 src/copilot/
-├── main.py                 entry point (copilot command)
+├── main.py                 entry point: serve() starts the FastAPI server; main() runs the CLI
 ├── cli.py                  CLI commands: kb, run, eval, web
 ├── config.py               settings: models, thresholds, categories, language tiers (env + toml)
 │

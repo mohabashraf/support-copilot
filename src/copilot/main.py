@@ -1,7 +1,7 @@
 """Main entry point.
 
-    uv run copilot <command>          → CLI (kb, search, eval, web)
-    uv run python -m copilot.main     → start the FastAPI server directly
+    uv run python -m copilot.main     → start the FastAPI server (the ONLY way to start it)
+    uv run copilot <command>          → CLI for one-off jobs (kb, search, eval)
 """
 
 import uvicorn

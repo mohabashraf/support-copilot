@@ -10,7 +10,7 @@ It never talks to customers directly: an agent reviews and sends every reply.
 > Status: in progress. Sections marked _TBD_ are filled as the build progresses.
 
 ## Quick start
-_TBD_ (`uv sync`, `.env` from `.env.example`, `copilot run`, `copilot eval`, `copilot web`)
+_TBD_ (`uv sync`, `.env` from `.env.example`, `docker compose up -d`, `copilot kb index`, `copilot eval retrieval`; start the API server with `uv run python -m copilot.main`)
 
 ## What's where
 | Document | What it answers |

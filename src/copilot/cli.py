@@ -1,4 +1,7 @@
-"""Command-line interface: kb build/show/index, search, eval retrieval, web."""
+"""Command-line interface for one-off jobs: kb build/show/index, search, eval retrieval.
+
+The API server is NOT started here: run `uv run python -m copilot.main`.
+"""
 
 import json
 from pathlib import Path
@@ -45,14 +48,6 @@ def kb_show(chunk_id: str = typer.Argument(None, help="Show one chunk in full"))
     for c in kb.chunks:
         flags = f" [{', '.join(c.flags)}]" if c.flags else ""
         typer.echo(f"{c.id:32} {len(c.sources)} page(s){flags}  {c.text[:70]}…")
-
-
-@app.command("web")
-def web(host: str = typer.Option(None), port: int = typer.Option(None), reload: bool = False) -> None:
-    """Start the FastAPI server (open http://127.0.0.1:8000/docs)."""
-    from copilot.main import serve
-
-    serve(host, port, reload)
 
 
 def _retriever(model: str | None, store: str | None):
