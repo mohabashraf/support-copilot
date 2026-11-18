@@ -2,30 +2,32 @@
 
 `copilot kb index` writes it; the server reads the KB from here, never from the raw HTML.
 Each chunk is stored whole as JSON and validated by the Chunk model when it is read back.
+Uses the shared connection pool (copilot/db.py).
 """
 
-import psycopg
 from psycopg.types.json import Jsonb
+from psycopg_pool import ConnectionPool
 
 from copilot.kb.models import Chunk, Diff, KnowledgeBase, diff
 
 
 class KBStore:
-    def __init__(self, database_url: str, table: str = "kb_chunks"):
-
-        self.table = table
-        self.conn = psycopg.connect(database_url, autocommit=True)
-        self.conn.execute(
-            f"""CREATE TABLE IF NOT EXISTS {table} (
-                    chunk_id     text PRIMARY KEY,
-                    position     int NOT NULL,          -- page order, so the KB reads the same
-                    content_hash text NOT NULL,
-                    data         jsonb NOT NULL         -- the whole Chunk
-                )"""
-        )
+    def __init__(self, pool: ConnectionPool, table: str = "kb_chunks"):
+        self.pool, self.table = pool, table
+        with pool.connection() as conn:
+            conn.execute(
+                f"""CREATE TABLE IF NOT EXISTS {table} (
+                        chunk_id     text PRIMARY KEY,
+                        position     int NOT NULL,          -- page order, so the KB reads the same
+                        content_hash text NOT NULL,
+                        data         jsonb NOT NULL         -- the whole Chunk
+                    )"""
+            )
 
     def hashes(self) -> dict[str, str]:
-        return dict(self.conn.execute(f"SELECT chunk_id, content_hash FROM {self.table}"))
+        """chunk_id → content_hash. Cheap (no chunk data): used by the reload watcher."""
+        with self.pool.connection() as conn:
+            return dict(conn.execute(f"SELECT chunk_id, content_hash FROM {self.table}"))
 
     def sync(self, kb: KnowledgeBase) -> Diff:
         """Make the table match `kb` and report what changed.
@@ -34,7 +36,7 @@ class KBStore:
         removed chunks are deleted. One transaction: a reader never sees half an update.
         """
         d = diff(kb.chunk_hashes, self.hashes())
-        with self.conn.transaction(), self.conn.cursor() as cur:
+        with self.pool.connection() as conn, conn.transaction(), conn.cursor() as cur:
             cur.executemany(
                 f"""INSERT INTO {self.table} (chunk_id, position, content_hash, data)
                     VALUES (%s, %s, %s, %s)
@@ -53,7 +55,8 @@ class KBStore:
 
     def load(self) -> KnowledgeBase | None:
         """The KB as last written by `copilot kb index`, or None if it was never indexed."""
-        rows = self.conn.execute(f"SELECT data FROM {self.table} ORDER BY position").fetchall()
+        with self.pool.connection() as conn:
+            rows = conn.execute(f"SELECT data FROM {self.table} ORDER BY position").fetchall()
         if not rows:
             return None
         return KnowledgeBase.from_chunks([Chunk.model_validate(data) for (data,) in rows])

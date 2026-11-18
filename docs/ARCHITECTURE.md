@@ -502,7 +502,8 @@ src/copilot/
 │       ├── webhook.py      POST /webhook/helpdesk  (Phase 2)
 │       └── pages.py        HTML pages: ticket view, KB explorer (FR-9)
 │
-├── services.py             load KB + retriever from settings, READ-ONLY (D8)   ✅
+├── db.py                   one Postgres connection pool per process (shared by store + index)  ✅
+├── services.py             load KB + retriever, READ-ONLY; KBWatcher hot reload (D8)   ✅
 │
 ├── kb/                     ── RAG: INGESTION (offline) ──
 │   ├── models.py           Chunk, Source, KnowledgeBase, content hashes, diff  ✅

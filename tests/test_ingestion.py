@@ -11,7 +11,8 @@ from copilot.kb.store import KBStore
 from copilot.retrieval.index import InMemoryIndex, PgVectorIndex
 from copilot.retrieval.indexer import index_kb
 from copilot.services import NotIndexedError, require_fresh
-from tests.test_retrieval import DB, FakeEmbedder, _db_up
+from tests.pg import db_up
+from tests.test_retrieval import FakeEmbedder
 
 
 class CountingEmbedder(FakeEmbedder):
@@ -72,21 +73,22 @@ def test_require_fresh_refuses_a_stale_index():
         require_fresh(_edit(kb, "faq#history", "edited"), index, "fake")  # KB moved on
 
 
-pg = pytest.mark.skipif(not _db_up(), reason="Postgres + pgvector not running")
+pg = pytest.mark.skipif(not db_up(), reason="Postgres + pgvector not running")
 
 
 @pg
-def test_incremental_pgvector():
-    index = PgVectorIndex(DB, "fake_incremental_test", FakeEmbedder.dim)
-    index.conn.execute(f"TRUNCATE {index.table}")
+def test_incremental_pgvector(pool):
+    index = PgVectorIndex(pool, "fake_incremental_test", FakeEmbedder.dim)
+    with pool.connection() as conn:
+        conn.execute(f"TRUNCATE {index.table}")
     _check_incremental(index)
 
 
 @pg
-def test_kb_store_round_trip_and_sync():
-
-    store = KBStore(DB, table="test_kb_chunks")
-    store.conn.execute("TRUNCATE test_kb_chunks")
+def test_kb_store_round_trip_and_sync(pool):
+    store = KBStore(pool, table="test_kb_chunks")
+    with pool.connection() as conn:
+        conn.execute("TRUNCATE test_kb_chunks")
     assert store.load() is None  # never indexed
 
     kb = build_kb()

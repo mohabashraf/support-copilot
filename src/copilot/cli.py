@@ -6,12 +6,14 @@
 The server is NOT started here: run `uv run python -m copilot.main`.
 """
 
+import atexit
 import json
 from pathlib import Path
 
 import typer
 
 from copilot.config import get_settings
+from copilot.db import open_pool
 from copilot.eval import retrieval as retrieval_eval
 from copilot.kb.ingest import build_kb
 from copilot.kb.store import KBStore
@@ -58,7 +60,6 @@ def kb_show(chunk_id: str = typer.Argument(None, help="Show one chunk in full"))
 
 def _retriever(model: str | None, store: str | None):
     """Read-only retriever, like the server's: settings from .env, flags override them."""
-
     st = get_settings()
     st = st.model_copy(
         update={
@@ -66,8 +67,11 @@ def _retriever(model: str | None, store: str | None):
             "vector_store": store or st.vector_store,
         }
     )
+    pool = open_pool(st) if st.vector_store == "pgvector" else None
+    if pool is not None:
+        atexit.register(pool.close)  # the retriever uses it until the command ends
     try:
-        r = load_services(st).retriever
+        r = load_services(st, pool).retriever
     except NotIndexedError as err:
         typer.echo(str(err), err=True)
         raise typer.Exit(1) from None
@@ -83,12 +87,12 @@ def kb_index(
     The only command that writes the knowledge base. Run it after the pages or
     kb_config.toml change, and once per embedding model.
     """
-
     st = get_settings()
     model = model or st.embedding_model
     kb, embedder = build_kb(), get_embedder(model)
-    index = PgVectorIndex(st.database_url, model, embedder.dim)
-    d = index_kb(kb, embedder, index, KBStore(st.database_url))
+    with open_pool(st) as pool:
+        index = PgVectorIndex(pool, model, embedder.dim)
+        d = index_kb(kb, embedder, index, KBStore(pool))
     typer.echo(
         f"kb {kb.kb_hash} · model {model} · added {len(d.added)} · changed {len(d.changed)} · "
         f"removed {len(d.removed)} · unchanged {d.unchanged}"

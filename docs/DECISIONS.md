@@ -136,4 +136,8 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
   - The job takes no lock: run one at a time. Phase 2: a Postgres advisory lock, or the job queue guarantees it.
   - Schema changes are handled by dropping and rebuilding the vector tables (they are derived data). Add migrations (e.g. Alembic) when the audit-log tables arrive, because those are not derived.
   - `VECTOR_STORE=memory` keeps the old build-everything-in-memory path for tests and the no-Docker demo.
+- **Follow-ups done (2026-11-18):**
+  - **One connection pool per process** (`copilot/db.py`, `psycopg_pool`, size `DB_POOL_SIZE`), shared by `KBStore` and `PgVectorIndex`. Each call borrows a connection and returns it, so concurrent requests don't queue behind one connection and don't pay for a new connection each time.
+  - **Hot reload without restart** (`KBWatcher`, every `KB_RELOAD_SECONDS`, 0 = off): a cheap query compares the stored chunk hashes with the served KB. If they differ and the vectors are ready, a complete new `Services` is swapped in with **one assignment**, so a request never mixes an old KB with a new retriever. If the vectors aren't ready (indexer mid-run, other model), the old KB keeps serving and it retries next tick. Verified live: a flag change was indexed (1 chunk re-embedded) and served ~2 s later, with no restart.
+  - Not done: a `POST /admin/reload` endpoint (needs authentication first); with several server processes each one reloads on its own within one interval.
 

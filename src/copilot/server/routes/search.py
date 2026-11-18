@@ -3,6 +3,9 @@
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
+from copilot.retrieval.search import Retriever
+from copilot.server.deps import get_retriever
+
 router = APIRouter(tags=["search"])
 
 
@@ -28,13 +31,9 @@ class SearchResponse(BaseModel):
     would_abstain: bool | None  # None until a threshold is chosen from the eval
 
 
-def get_retriever(request: Request):
-    return request.app.state.retriever
-
-
 @router.post("/search")
 def search(
-    req: SearchRequest, request: Request, retriever=Depends(get_retriever)
+    req: SearchRequest, request: Request, retriever: Retriever = Depends(get_retriever)
 ) -> SearchResponse:
     hits = retriever.search(req.query, k=req.k)
     best = hits[0].score if hits else 0.0

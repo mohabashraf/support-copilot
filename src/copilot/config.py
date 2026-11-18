@@ -11,7 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import ValidationError, field_validator
+from pydantic import Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[2]  # src/copilot/config.py → repo root
@@ -23,7 +23,9 @@ class Settings(BaseSettings):
 
     vector_store: Literal["pgvector", "memory"]
     database_url: str
+    db_pool_size: int = Field(ge=1)
     embedding_model: str
+    kb_reload_seconds: float = Field(ge=0)  # 0 = off
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"]
     log_format: Literal["json", "text"]  # console format; the log file is always JSON

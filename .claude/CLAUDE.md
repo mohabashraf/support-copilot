@@ -34,6 +34,8 @@ docker compose up --build                     # whole stack: db → indexer → 
 | HTML → chunks, IDs, flags | `kb/parse.py`, `kb/ingest.py`, `knowledge_base/kb_config.toml` |
 | Chunk / KB models, hashes | `kb/models.py` |
 | KB in Postgres | `kb/store.py` |
+| Postgres connection pool | `src/copilot/db.py` (`open_pool`, shared by store + index) |
+| Hot reload of the KB | `services.py` `KBWatcher` + `server/app.py` `_watch` |
 | Embed + write vectors (the only writer) | `retrieval/indexer.py` |
 | Vector index (pgvector / memory) | `retrieval/index.py` |
 | Search | `retrieval/search.py` |
@@ -42,7 +44,8 @@ docker compose up --build                     # whole stack: db → indexer → 
 | Logging | `src/copilot/log.py` |
 
 ## Gotchas
-- After changing `knowledge_base/` run `copilot kb index`, or the server refuses to start ("vectors do not match").
+- After changing `knowledge_base/` run `copilot kb index`. A running server picks it up within `KB_RELOAD_SECONDS`; a starting server refuses an unindexed KB ("vectors do not match").
+- Routes read `app.state.services` (one object) via `server/deps.py`: never store KB or retriever separately on `app.state`, or a reload could mix versions.
 - Adding a setting: `.env.example` + `config.py` + your `.env`, all three (skill `add-setting`).
 - e5 embedding models need the `query: ` / `passage: ` prefixes (`retrieval/embeddings.py` `MODELS`).
 - Imports go at the top (Ruff PLC0415). The only exception is `sentence_transformers` (loads torch, ~9 s).

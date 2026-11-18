@@ -8,7 +8,9 @@ from copilot.config import ROOT, Settings
 FULL = {
     "VECTOR_STORE": "memory",
     "DATABASE_URL": "postgresql://u:p@localhost:5433/db",
+    "DB_POOL_SIZE": "5",
     "EMBEDDING_MODEL": "multilingual-e5-small",
+    "KB_RELOAD_SECONDS": "30",
     "LOG_LEVEL": "INFO",
     "LOG_FORMAT": "text",
     "LOG_FILE": "logs/test.log",
@@ -55,3 +57,8 @@ def test_empty_log_file_means_console_only(tmp_path):
 def test_env_example_has_every_setting():
     """.env.example is the template for .env: a new setting must be added there too."""
     Settings(_env_file=ROOT / ".env.example")
+
+
+def test_pool_size_must_be_positive(tmp_path):
+    with pytest.raises(ValidationError, match="db_pool_size"):
+        Settings(_env_file=_env_file(tmp_path, FULL | {"DB_POOL_SIZE": "0"}))

@@ -12,8 +12,7 @@ import re
 from typing import Protocol
 
 import numpy as np
-import psycopg
-from pgvector.psycopg import register_vector
+from psycopg_pool import ConnectionPool
 
 
 class VectorIndex(Protocol):
@@ -63,35 +62,36 @@ class InMemoryIndex:
 
 
 class PgVectorIndex:
-    """One table per embedding model, because each model has its own vector length."""
+    """One table per embedding model, because each model has its own vector length.
 
-    def __init__(self, database_url: str, model_name: str, dim: int):
+    Takes the shared pool (copilot/db.py): each call borrows a connection and gives it back.
+    """
 
+    def __init__(self, pool: ConnectionPool, model_name: str, dim: int):
+        self.pool = pool
         self.table = "chunk_vectors_" + re.sub(r"[^a-z0-9]", "_", model_name.lower())
         self.dim = dim
-        self.conn = psycopg.connect(database_url, autocommit=True)
-        self.conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        register_vector(self.conn)
-        self.conn.execute(
-            f"""CREATE TABLE IF NOT EXISTS {self.table} (
-                    chunk_id     text PRIMARY KEY,
-                    content_hash text NOT NULL,
-                    flags        text[] NOT NULL DEFAULT '{{}}',
-                    embedding    vector({dim}) NOT NULL
-                )"""
-        )
-        # HNSW index for fast approximate search with cosine distance (useful as the KB grows).
-        self.conn.execute(
-            f"CREATE INDEX IF NOT EXISTS {self.table}_hnsw ON {self.table} "
-            "USING hnsw (embedding vector_cosine_ops)"
-        )
+        with pool.connection() as conn:
+            conn.execute(
+                f"""CREATE TABLE IF NOT EXISTS {self.table} (
+                        chunk_id     text PRIMARY KEY,
+                        content_hash text NOT NULL,
+                        flags        text[] NOT NULL DEFAULT '{{}}',
+                        embedding    vector({dim}) NOT NULL
+                    )"""
+            )
+            # HNSW index: fast approximate search with cosine distance (useful as the KB grows).
+            conn.execute(
+                f"CREATE INDEX IF NOT EXISTS {self.table}_hnsw ON {self.table} "
+                "USING hnsw (embedding vector_cosine_ops)"
+            )
 
     def hashes(self) -> dict[str, str]:
-        rows = self.conn.execute(f"SELECT chunk_id, content_hash FROM {self.table}").fetchall()
-        return dict(rows)
+        with self.pool.connection() as conn:
+            return dict(conn.execute(f"SELECT chunk_id, content_hash FROM {self.table}"))
 
     def upsert(self, ids, vectors, flags, hashes) -> None:
-        with self.conn.transaction(), self.conn.cursor() as cur:
+        with self.pool.connection() as conn, conn.transaction(), conn.cursor() as cur:
             cur.executemany(
                 f"""INSERT INTO {self.table} (chunk_id, content_hash, flags, embedding)
                     VALUES (%s, %s, %s, %s)
@@ -106,17 +106,19 @@ class PgVectorIndex:
             )
 
     def delete(self, ids) -> None:
-        self.conn.execute(f"DELETE FROM {self.table} WHERE chunk_id = ANY(%s)", (list(ids),))
+        with self.pool.connection() as conn:
+            conn.execute(f"DELETE FROM {self.table} WHERE chunk_id = ANY(%s)", (list(ids),))
 
     def search(self, query, k, exclude_flags=()):
         # <=> is pgvector's cosine DISTANCE (0 = identical); similarity = 1 - distance.
         q = np.asarray(query, dtype=np.float32)
-        rows = self.conn.execute(
-            f"""SELECT chunk_id, 1 - (embedding <=> %s) AS score
-                FROM {self.table}
-                WHERE NOT (flags && %s::text[])
-                ORDER BY embedding <=> %s
-                LIMIT %s""",
-            (q, list(exclude_flags), q, k),
-        ).fetchall()
+        with self.pool.connection() as conn:
+            rows = conn.execute(
+                f"""SELECT chunk_id, 1 - (embedding <=> %s) AS score
+                    FROM {self.table}
+                    WHERE NOT (flags && %s::text[])
+                    ORDER BY embedding <=> %s
+                    LIMIT %s""",
+                (q, list(exclude_flags), q, k),
+            ).fetchall()
         return [(cid, float(score)) for cid, score in rows]

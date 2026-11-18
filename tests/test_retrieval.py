@@ -3,16 +3,14 @@
 Tests the plumbing, not model quality.
 Model quality is measured by `copilot eval retrieval`, not by unit tests."""
 
-import os
-
 import numpy as np
-import psycopg
 import pytest
 
 from copilot.kb.ingest import build_kb
 from copilot.retrieval.index import InMemoryIndex, PgVectorIndex
 from copilot.retrieval.indexer import index_kb
 from copilot.retrieval.search import Retriever
+from tests.pg import db_up
 
 VOCAB = [
     "minimum",
@@ -76,25 +74,14 @@ def test_exclude_flags(kb):
     assert len(ids) == 24
 
 
-DB = os.environ.get("TEST_DATABASE_URL", "postgresql://copilot:copilot@localhost:5433/copilot")
-
-
-def _db_up() -> bool:
-    try:
-        psycopg.connect(DB, connect_timeout=2).close()
-        return True
-    except Exception:
-        return False
-
-
-@pytest.mark.skipif(not _db_up(), reason="Postgres + pgvector not running (docker compose up -d)")
-def test_pgvector_matches_memory(kb):
+@pytest.mark.skipif(not db_up(), reason="Postgres + pgvector not running (docker compose up -d)")
+def test_pgvector_matches_memory(kb, pool):
     """Same vectors in both indexes → same ranking.
 
     Proves the SQL (cosine, ORDER BY, flags filter) is right.
     """
     mem = _retriever(kb, InMemoryIndex())
-    pg = _retriever(kb, PgVectorIndex(DB, "fake_test", FakeEmbedder.dim))
+    pg = _retriever(kb, PgVectorIndex(pool, "fake_test", FakeEmbedder.dim))
     for q in [
         "minimum deposit",
         "documents proof of address",
