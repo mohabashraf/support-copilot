@@ -2,4 +2,4 @@
 __pycache__/
 .env
 notes/
-kb/build/
+knowledge_base/build/

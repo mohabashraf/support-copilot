@@ -1,6 +1,6 @@
 # Knowledge-base ingestion config.
-# Chunk IDs and flags are HUMAN judgements (see kb/KB_FINDINGS.md), so they live here, not in code.
-# Source pages in kb/raw/ are never edited.
+# Chunk IDs and flags are HUMAN judgements (see knowledge_base/KB_FINDINGS.md), so they live here, not in code.
+# Source pages in knowledge_base/raw/ are never edited.
 #
 # Flags: conflict · defective · rule_sensitive · compliance · gap_link · route · promo
 
@@ -44,7 +44,7 @@ url = "https://valetax.com/how-to-verify-account/"
 "What leverage settings should I select?" = "open#faq-leverage"
 "Do you offer an Islamic-friendly account?" = "open#faq-islamic"
 
-# Chunk ID → flags (from kb/KB_FINDINGS.md). Chunks not listed have no flags.
+# Chunk ID → flags (from knowledge_base/KB_FINDINGS.md). Chunks not listed have no flags.
 [flags]
 "deposit#intro" = ["conflict"]
 "faq#deposit-credit-time" = ["conflict"]

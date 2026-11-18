@@ -313,7 +313,7 @@ Pages are used **as they are** (never edited); problems are flagged, and how the
 
 ```mermaid
 flowchart LR
-    RAW[("kb/raw/*.html<br/>unchanged")] --> EXT["extract text<br/>+ headings"]
+    RAW[("knowledge_base/raw/*.html<br/>unchanged")] --> EXT["extract text<br/>+ headings"]
     EXT --> CH["chunk by section / FAQ<br/>keep page title + URL"]
     CH --> DD["deduplicate shared FAQ<br/>one chunk, both page URLs"]
     DD --> FL["flag chunks<br/>defective · conflict ·<br/>rule-sensitive"]
@@ -519,11 +519,11 @@ src/copilot/
 
 tests/                      unit tests per module (no LLM calls)
 eval/                       datasets (labelled, adversarial, retrieval queries)
-kb/                         raw pages, config, chunk plan
+knowledge_base/                         raw pages, config, chunk plan
 ```
 
 **The RAG is three layers**, so each can be tested and swapped on its own:
-1. **Ingestion** (`kb/`): pages → chunks. Offline, deterministic, unit-tested.
+1. **Ingestion** (`src/copilot/kb/`, data in `knowledge_base/`): pages → chunks. Offline, deterministic, unit-tested.
 2. **Retrieval** (`retrieval/`): query → ranked chunks + scores. Measured with recall/precision/MRR on `eval/retrieval_queries.jsonl`.
 3. **Generation** (`llm/` + the `draft` node in `workflow/`): chunks + ticket → grounded draft with citations. Measured with the end-to-end eval.
 

@@ -3,7 +3,7 @@
 ## What this project is
 A co-pilot for support agents at a retail forex/CFD broker: classify each ticket, draft a reply grounded in the knowledge base with page citations (or abstain), and route to a human when required. Phase 1 ships fast; Phase 2 scales to ~10,000 tickets/month with a growing KB.
 
-Read first: `PRD.md` (requirements), `docs/ARCHITECTURE.md` (design), `docs/DECISIONS.md` (why), `kb/KB_FINDINGS.md` (KB gaps and inconsistencies).
+Read first: `PRD.md` (requirements), `docs/ARCHITECTURE.md` (design), `docs/DECISIONS.md` (why), `knowledge_base/KB_FINDINGS.md` (KB gaps and inconsistencies).
 
 ## Hard rules (never break, in code or prompts)
 1. Never give trading advice: no buy/sell recommendations, signals, price targets or leverage suggestions. Detect and decline politely.
@@ -17,7 +17,7 @@ Read first: `PRD.md` (requirements), `docs/ARCHITECTURE.md` (design), `docs/DECI
 - LangGraph is a **workflow** (fixed nodes + conditional edges), not autonomous multi-agents.
 - Deterministic checks are code, not prompts. LLM output is always schema-validated.
 - Model IDs, thresholds, categories and language tiers live in config, never hard-coded.
-- KB pages are used **as they are**: never edit `kb/raw/` or rewrite KB text; flag problems instead.
+- KB pages are used **as they are**: never edit `knowledge_base/raw/` or rewrite KB text; flag problems instead.
 - Every new behaviour gets a unit test; changes to prompts or models are checked against the eval set (`copilot eval`). Hard-rule violations must stay at 0.
 - No secrets in the repo: keys come from `.env` (see `.env.example`).
 - Keep commits small, with clear messages.

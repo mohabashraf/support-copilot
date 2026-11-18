@@ -1,5 +1,5 @@
 # Knowledge-base findings (4 help pages, read 2026-11-17)
-Raw HTML in kb/raw/, extracted text in kb/*.txt.
+Raw HTML in knowledge_base/raw/ (unchanged snapshot, 2026-11-17). Chunks are produced by `copilot kb build`.
 
 ## What the KB actually covers
 - Deposit: 4 steps; FAQ: min deposit from 8 USD (depends on account type); any currency into USD account at that day's rate; "instant", balance visible within 60 min; trade once balance updated; history in Member Area.

@@ -149,7 +149,7 @@ File: `eval/tickets_adversarial.jsonl`: **34 tickets designed to break the syste
 Even with the whole KB in the prompt (D1), retrieval quality matters: the **best embedding score is the abstain signal** (`weak_retrieval`), it powers the explorer and search playground, and it **is** the retrieval in Phase 2. So retrieval is measured on its own, separately from the LLM.
 
 **Data**
-- `kb/chunk_plan.json` / `kb/CHUNKS.md`: the 26 chunk IDs (the "answer key" space).
+- `knowledge_base/chunk_plan.json` / `knowledge_base/CHUNKS.md`: the 26 chunk IDs (the "answer key" space).
 - `eval/retrieval_queries.jsonl`: **85 queries** with **graded relevance**:
   - `required`: chunks needed to answer (conflicts list **both sides**).
   - `optional`: helpful context; counts for hit rate, not required for recall.

@@ -8,7 +8,7 @@ from pathlib import Path
 from copilot.kb.models import Chunk, KnowledgeBase, Source
 from copilot.kb.parse import parse_page
 
-KB_DIR = Path(__file__).resolve().parents[3] / "kb"
+KB_DIR = Path(__file__).resolve().parents[3] / "knowledge_base"
 
 
 class IngestError(Exception):

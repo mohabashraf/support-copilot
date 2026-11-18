@@ -20,7 +20,7 @@ _TBD_ (`uv sync`, `.env` from `.env.example`, `copilot run`, `copilot eval`, `co
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Why: every design decision with options and trade-offs |
 | [docs/BENCHMARK.md](docs/BENCHMARK.md) | Measured results per model configuration |
 | [docs/BUSINESS_CASE.md](docs/BUSINESS_CASE.md) | Is it worth running at 10,000 tickets/month, and with which configuration? |
-| [kb/KB_FINDINGS.md](kb/KB_FINDINGS.md) | Gaps, overlaps and inconsistencies found in the four help pages, and how each is handled |
+| [knowledge_base/KB_FINDINGS.md](knowledge_base/KB_FINDINGS.md) | Gaps, overlaps and inconsistencies found in the four help pages, and how each is handled |
 
 ## Phases
 - **Phase 1: ship ASAP** (git tag `v1-ship`): _TBD_
