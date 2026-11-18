@@ -1,4 +1,4 @@
-"""Command-line interface for one-off jobs: kb build/show/index, search, eval retrieval.
+"""Command-line interface for one-off jobs: kb show/index, search, eval retrieval.
 
 The API server is NOT started here: run `uv run python -m copilot.main`.
 """
@@ -9,7 +9,7 @@ from pathlib import Path
 import typer
 
 from copilot.config import get_settings
-from copilot.kb.ingest import KB_DIR, build_kb, write_kb
+from copilot.kb.ingest import build_kb
 
 app = typer.Typer(help="Support-ticket co-pilot")
 kb_app = typer.Typer(help="Knowledge-base commands")
@@ -25,17 +25,6 @@ def _setup() -> None:
 
     st = get_settings()
     setup_logging(st.log_level, st.log_format, st.log_file, st.log_max_mb, st.log_backups)
-
-BUILD_PATH = KB_DIR / "build" / "chunks.json"
-
-
-@kb_app.command("build")
-def kb_build(out: Path = BUILD_PATH) -> None:
-    """Parse the 4 pages and write the chunks."""
-    kb = build_kb()
-    write_kb(kb, out)
-    typer.echo(f"{len(kb.chunks)} chunks · hash {kb.kb_hash} → {out}")
-
 
 @kb_app.command("show")
 def kb_show(chunk_id: str = typer.Argument(None, help="Show one chunk in full")) -> None:

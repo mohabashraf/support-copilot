@@ -71,7 +71,3 @@ def build_kb(kb_dir: Path = KB_DIR) -> KnowledgeBase:
                                   "ms": round((time.perf_counter() - t0) * 1000, 1)})
     return KnowledgeBase(chunks=list(chunks.values()), kb_hash=kb_hash)
 
-
-def write_kb(kb: KnowledgeBase, out: Path) -> None:
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(kb.model_dump_json(indent=1), encoding="utf-8")
