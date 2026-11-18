@@ -197,7 +197,7 @@ The tracing tool is **not** the audit log: it is for debugging, may have limited
 Both phases are **built**, not only designed. Phase 1 is tagged in git (`v1-ship`) so reviewers can see the "ship ASAP" version on its own; Phase 2 builds on it.
 
 ### Phase 1: Ship ASAP (git tag `v1-ship`)
-- Whole KB in the prompt + multilingual embeddings for scoring (D1); LangGraph workflow with two LLM calls and deterministic gates (D3).
+- Top-k retrieval with multilingual embeddings (D1, revised); search returns vector and text together (D9); LangGraph workflow with two LLM calls and deterministic gates (D3).
 - CLI + web app (ticket view, KB explorer, search playground) (D5).
 - Evaluation set + benchmark (docs/BENCHMARK.md).
 

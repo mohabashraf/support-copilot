@@ -260,7 +260,7 @@ sequenceDiagram
     G->>G: policy_gate: allowed
     G->>V: embed ticket, score against KB chunks
     V-->>G: best chunk "deposit min-deposit", score 0.81
-    G->>L: draft(whole KB as labelled chunks + ticket)
+    G->>L: draft(top-k retrieved chunks, labelled + ticket)
     L-->>G: "Minimum deposit starts from 8 USD [How to deposit]. Fees: not covered."
     G->>G: post_check: "8 USD" in cited chunk, citation has page URL
     G->>G: route: auto_draft_ok + flag "partial: fees not in KB"
@@ -332,13 +332,12 @@ flowchart LR
     DEL --> VEC
     DIFF -->|"written last"| KBT
     subgraph SRV["SERVING: server / CLI search (read-only)"]
-        LOAD["load KB<br/>check vectors match<br/>(else: run kb index)"]
-        LOAD --> PROMPT["labelled KB block<br/>for the draft prompt"]
-        LOAD --> SEARCH["search"]
-        LOAD --> EXP["KB explorer page"]
+        SEARCH["search: ONE JOIN<br/>vector + chunk, same version<br/>→ top-k for the draft prompt"]
+        EXP["KB explorer + /health<br/>read kb_chunks per request"]
     end
-    KBT --> LOAD
-    VEC --> LOAD
+    KBT --> SEARCH
+    VEC --> SEARCH
+    KBT --> EXP
 ```
 
 Adding one page to a 1,000-chunk KB embeds only that page's chunks; an unchanged KB embeds nothing. `VECTOR_STORE=memory` (tests, no-Docker demo) builds everything in memory from the raw pages instead.
@@ -470,7 +469,7 @@ stateDiagram-v2
 | Processing | direct, in-process | Redis queue + workers, retries, DLQ |
 | Idempotency | not needed | ticket-ID keys in Postgres |
 | Return path | results.jsonl / web page | outbox → helpdesk REST API (private note) |
-| KB in prompt | whole KB (~2.5k tokens) | top-k from hybrid retrieval + reranker |
+| KB in prompt | top-k from vector search (D1) | top-k from hybrid retrieval + reranker |
 | KB updates | `copilot kb index`: incremental (per-chunk hash), only writer (D8) | same job, triggered on KB/SOP change (CI or scheduler) + conflict report |
 | Vector store | pgvector (Docker) or in-memory (tests) | pgvector + Postgres full-text for hybrid search |
 | Audit log | append-only JSONL | insert-only Postgres / write-once storage |
@@ -503,7 +502,7 @@ src/copilot/
 │       └── pages.py        HTML pages: ticket view, KB explorer (FR-9)
 │
 ├── db.py                   one Postgres connection pool per process (shared by store + index)  ✅
-├── services.py             load KB + retriever, READ-ONLY; KBWatcher hot reload (D8)   ✅
+├── services.py             KB reader + retriever, READ-ONLY, no KB snapshot (D8, D9)   ✅
 │
 ├── kb/                     ── RAG: INGESTION (offline) ──
 │   ├── models.py           Chunk, Source, KnowledgeBase, content hashes, diff  ✅
@@ -561,7 +560,7 @@ Full reasoning in [DECISIONS.md](DECISIONS.md).
 |---|---|
 | Helpdesk adapter in front of the core | Don't build a helpdesk; plug into the one they use. Phase 1 = JSONL mock. |
 | LangGraph as a workflow, two LLM calls, gate between (D3) | Hard rules enforced by code before any drafting; cheaper routed tickets; testable steps. |
-| Whole KB in prompt + embeddings (D1) | No retrieval misses at this size; embeddings give a measurable abstain signal and the explorer. |
+| Top-k retrieval only (D1, revised) | One path for Phase 1 and 2; tighter citations; the retrieval eval is the quality gate; whole-KB kept only as benchmark baseline C0. |
 | Model chosen by benchmark (D2) | Cheapest configuration with 0 violations; model cost is small vs agent time. |
 | Layered confidence (D4) | Rules + self-report + LLM judge; no single signal trusted alone. |
 | CLI + small web app (D5) | Runnable in one command; visual walkthrough. |

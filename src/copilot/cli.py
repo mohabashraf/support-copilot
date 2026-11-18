@@ -58,8 +58,8 @@ def kb_show(chunk_id: str = typer.Argument(None, help="Show one chunk in full"))
         typer.echo(f"{c.id:32} {len(c.sources)} page(s){flags}  {c.text[:70]}…")
 
 
-def _retriever(model: str | None, store: str | None):
-    """Read-only retriever, like the server's: settings from .env, flags override them."""
+def _services(model: str | None, store: str | None):
+    """Read-only services, like the server's: settings from .env, flags override them."""
     st = get_settings()
     st = st.model_copy(
         update={
@@ -71,11 +71,11 @@ def _retriever(model: str | None, store: str | None):
     if pool is not None:
         atexit.register(pool.close)  # the retriever uses it until the command ends
     try:
-        r = load_services(st, pool).retriever
+        services = load_services(st, pool)
     except NotIndexedError as err:
         typer.echo(str(err), err=True)
         raise typer.Exit(1) from None
-    return r, st.embedding_model, st.vector_store
+    return services, st.embedding_model, st.vector_store
 
 
 @kb_app.command("index")
@@ -95,7 +95,7 @@ def kb_index(
         d = index_kb(kb, embedder, index, KBStore(pool))
     typer.echo(
         f"kb {kb.kb_hash} · model {model} · added {len(d.added)} · changed {len(d.changed)} · "
-        f"removed {len(d.removed)} · unchanged {d.unchanged}"
+        f"removed {len(d.removed)} · unchanged {d.unchanged} · embedded {d.embedded}"
     )
 
 
@@ -104,9 +104,9 @@ def search(
     query: str, k: int = 5, model: str = typer.Option(None), store: str = typer.Option(None)
 ) -> None:
     """Search the KB: top-k chunks with similarity scores."""
-    r, model, store = _retriever(model, store)
-    for h in r.search(query, k=k):
-        typer.echo(f"{h.rank}. {h.score:.3f}  {h.chunk_id:30} {r.kb.get(h.chunk_id).section[:60]}")
+    services, model, store = _services(model, store)
+    for h in services.retriever.search(query, k=k):
+        typer.echo(f"{h.rank}. {h.score:.3f}  {h.chunk_id:30} {h.chunk.section[:60]}")
 
 
 @eval_app.command("retrieval")
@@ -120,8 +120,9 @@ def eval_retrieval(
     Runs eval/retrieval_queries.jsonl and the ticket texts in eval/tickets_labelled.jsonl.
     """
 
-    r, model, store = _retriever(model, store)
-    rep = retrieval_eval.run(r, model, store)
+    services, model, store = _services(model, store)
+    kb_hash, _ = services.kb.summary()
+    rep = retrieval_eval.run(services.retriever, model, store, kb_hash)
     q, t, a = rep["queries"], rep["tickets"], rep["abstain"]
     typer.echo(f"model {model} · store {store} · kb {rep['kb_hash']}")
     typer.echo(

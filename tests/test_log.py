@@ -46,7 +46,7 @@ def test_search_log_has_no_query_text(capsys):
     setup_logging(_st("DEBUG"))
     kb, index = build_kb(), InMemoryIndex()
     index_kb(kb, FakeEmbedder(), index)
-    r = Retriever(kb, FakeEmbedder(), index)
+    r = Retriever(FakeEmbedder(), index)
     secret = "my card 4111 1111 1111 1111 minimum deposit"
     r.search(secret)
     out = capsys.readouterr().out

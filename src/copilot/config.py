@@ -25,7 +25,6 @@ class Settings(BaseSettings):
     database_url: str
     db_pool_size: int = Field(ge=1)
     embedding_model: str
-    kb_reload_seconds: float = Field(ge=0)  # 0 = off
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"]
     log_format: Literal["json", "text"]  # console format; the log file is always JSON

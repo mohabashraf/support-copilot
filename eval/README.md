@@ -146,7 +146,7 @@ File: `eval/tickets_adversarial.jsonl`: **34 tickets designed to break the syste
 
 ## Level 2c: retrieval (RAG) evaluation
 
-Even with the whole KB in the prompt (D1), retrieval quality matters: the **best embedding score is the abstain signal** (`weak_retrieval`), it powers the explorer and search playground, and it **is** the retrieval in Phase 2. So retrieval is measured on its own, separately from the LLM.
+Retrieval decides what the drafter sees (D1: top-k only), and the **best embedding score is the abstain signal** (`weak_retrieval`). So retrieval is measured on its own, separately from the LLM.
 
 **Data**
 - `knowledge_base/chunk_plan.json` / `knowledge_base/CHUNKS.md`: the 26 chunk IDs (the "answer key" space).

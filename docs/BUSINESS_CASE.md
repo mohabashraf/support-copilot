@@ -53,5 +53,5 @@
 4. **The biggest risk is bad drafts that pass the gates**: small in minutes, large in compliance exposure. That is why hard-rule violations must be 0 and the `auto_draft_ok` precision is a release-gate metric.
 
 ## Recommended configuration (to be confirmed by the eval run)
-- Phase 1: whole KB in prompt + embeddings for scoring (D1); deterministic pre/post checks; **one model that passes the eval with 0 violations**, choosing the cheaper one if several pass; prompt caching on.
+- Phase 1: top-k retrieval (D1); deterministic pre/post checks; **one model that passes the eval with 0 violations**, choosing the cheaper one if several pass; prompt caching on.
 - Revisit when: volume grows ~5×, the KB passes ~20–30k tokens, or measured cost/latency exceeds target.

@@ -13,11 +13,14 @@
 ## Configurations
 | ID | Classification model | Drafting model | Effort | Prompt caching |
 |---|---|---|---|---|
+| C0 (baseline) | as C2, but the **whole KB** in the draft prompt, no retrieval (D1 superseded design) | | ___ | on |
 | C1 | `claude-haiku-5-5` | `claude-haiku-5-5` | ___ | on |
 | C2 | `claude-haiku-5-5` | `claude-sonnet-5-5` | ___ | on |
 | C3 | `claude-sonnet-5-5` | `claude-sonnet-5-5` | ___ | on |
 | C4 | `claude-opus-5-5` | `claude-opus-5-5` | ___ | on |
 | C2+J | `claude-haiku-5-5` | `claude-sonnet-5-5` + runtime `groundedness_judge` (different model, e.g. `claude-haiku-5-5` or `claude-opus-5-5`) | ___ | on |
+
+All configurations except C0 draft from the **top-k retrieved chunks** (D1). C0 only measures what retrieval costs in answer quality.
 
 Judge decision: keep the runtime judge only if C2+J catches unsafe/unsupported drafts that C2's deterministic post-checks miss, at acceptable latency.
 

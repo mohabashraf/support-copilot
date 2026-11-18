@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from copilot.kb.ingest import build_kb
+from copilot.kb.store import KBStore
 from copilot.retrieval.index import InMemoryIndex, PgVectorIndex
 from copilot.retrieval.indexer import index_kb
 from copilot.retrieval.search import Retriever
@@ -51,9 +52,9 @@ def kb():
     return build_kb()
 
 
-def _retriever(kb, index):
-    index_kb(kb, FakeEmbedder(), index)
-    return Retriever(kb, FakeEmbedder(), index)
+def _retriever(kb, index, store=None):
+    index_kb(kb, FakeEmbedder(), index, store)
+    return Retriever(FakeEmbedder(), index)
 
 
 def test_memory_index_finds_obvious_chunk(kb):
@@ -62,6 +63,7 @@ def test_memory_index_finds_obvious_chunk(kb):
     assert {h.chunk_id for h in hits[:2]} == {"faq#min-deposit", "open#faq-min-initial-deposit"}
     assert [h.rank for h in hits] == [1, 2, 3]
     assert hits[0].score >= hits[1].score >= hits[2].score
+    assert hits[0].chunk == kb.get(hits[0].chunk_id)  # each hit carries its chunk (D9)
 
 
 def test_exclude_flags(kb):
@@ -76,12 +78,14 @@ def test_exclude_flags(kb):
 
 @pytest.mark.skipif(not db_up(), reason="Postgres + pgvector not running (docker compose up -d)")
 def test_pgvector_matches_memory(kb, pool):
-    """Same vectors in both indexes → same ranking.
+    """Same vectors in both indexes → same ranking and the same chunks.
 
-    Proves the SQL (cosine, ORDER BY, flags filter) is right.
+    Proves the SQL (cosine, JOIN on the version, ORDER BY, flags filter) is right.
     """
-    mem = _retriever(kb, InMemoryIndex())
-    pg = _retriever(kb, PgVectorIndex(pool, "fake_test", FakeEmbedder.dim))
+    store = KBStore(pool, table="test_rank_chunks")
+    index = PgVectorIndex(pool, "fake_test", FakeEmbedder.dim, chunks_table="test_rank_chunks")
+    _truncate(pool, store.table, index.table)
+    mem, pg = _retriever(kb, InMemoryIndex()), _retriever(kb, index, store)
     for q in [
         "minimum deposit",
         "documents proof of address",
@@ -90,7 +94,14 @@ def test_pgvector_matches_memory(kb, pool):
     ]:
         a = [(h.chunk_id, round(h.score, 4)) for h in mem.search(q, k=5)]
         b = [(h.chunk_id, round(h.score, 4)) for h in pg.search(q, k=5)]
-        assert [x[0] for x in a][:1] == [x[0] for x in b][:1], q
+        assert a[:1] == b[:1], q
         assert [x[1] for x in a] == [x[1] for x in b], q
+        assert pg.search(q, k=1)[0].chunk == kb.get(b[0][0])  # text from the same row
     flt = [h.chunk_id for h in pg.search("withdrawal steps", k=26, exclude_flags=("defective",))]
     assert "withdraw#steps" not in flt
+
+
+def _truncate(pool, *tables):
+    with pool.connection() as conn:
+        for t in tables:
+            conn.execute(f"TRUNCATE {t}")

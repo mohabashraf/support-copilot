@@ -67,7 +67,7 @@ def _summary(rows: list[dict]) -> dict:
     return s
 
 
-def run(retriever: Retriever, model: str, store: str) -> dict:
+def run(retriever: Retriever, model: str, store: str, kb_hash: str) -> dict:
     queries = _load(QUERIES)
     q_items = [
         dict(
@@ -108,7 +108,7 @@ def run(retriever: Retriever, model: str, store: str) -> dict:
     return {
         "model": model,
         "store": store,
-        "kb_hash": retriever.kb.kb_hash,
+        "kb_hash": kb_hash,
         "queries": _summary(q_rows),
         "tickets": _summary(t_rows),
         "abstain": {

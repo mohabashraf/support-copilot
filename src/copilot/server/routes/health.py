@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends
 
-from copilot.kb.models import KnowledgeBase
+from copilot.kb.store import KBReader
 from copilot.server.deps import get_kb
 
 router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
-def health(kb: KnowledgeBase = Depends(get_kb)) -> dict:
-    return {"status": "ok", "kb_hash": kb.kb_hash, "chunks": len(kb.chunks)}
+def health(kb: KBReader = Depends(get_kb)) -> dict:
+    kb_hash, chunks = kb.summary()  # live: shows a new `kb index` run immediately
+    return {"status": "ok", "kb_hash": kb_hash, "chunks": chunks}

@@ -10,7 +10,6 @@ FULL = {
     "DATABASE_URL": "postgresql://u:p@localhost:5433/db",
     "DB_POOL_SIZE": "5",
     "EMBEDDING_MODEL": "multilingual-e5-small",
-    "KB_RELOAD_SECONDS": "30",
     "LOG_LEVEL": "INFO",
     "LOG_FORMAT": "text",
     "LOG_FILE": "logs/test.log",

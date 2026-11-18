@@ -3,26 +3,19 @@
 One entry per design decision. This file is shared with reviewers; it shows *why* the system is built this way.
 Template: Context → Options → Decision → Why → Trade-offs / revisit when.
 
-## D1. How the knowledge base reaches the model (Phase 1)
-- **Status:** decided (2026-11-17)
-- **Context:** KB = 4 pages, ~1,800 words (~2,500 tokens after cleaning and deduping the shared FAQ); ~10,000 tickets/month; citations required; abstention must be measurable; a KB explorer web view is required (FR-9).
-- **Options:** A) embeddings + vector DB · B) keyword search (BM25) · C) whole KB in the prompt
-- **Decision:** **C + embeddings.**
-  - The **whole cleaned KB goes into the prompt**, split into labelled chunks (`[deposit#min-deposit]`, ...), so the model can cite chunk IDs.
-  - The same chunks are **also embedded** and stored in a small local vector index. Each ticket is scored against them.
-- **Why:**
-  - **Ship fast and maximise recall:** with the whole KB in context, no relevant fact can be "missed by retrieval". At this size it is cheap (~2.5k input tokens per ticket).
-  - **Measurable abstain signal:** the top similarity score gives a deterministic `weak_retrieval` trigger (e.g. best score < threshold → abstain/route), independent of the model's self-reported confidence.
-  - **Citations check:** chunk IDs let the post-check confirm every cited chunk exists and contains the numbers used in the draft.
-  - **Explorer (FR-9):** embeddings power the search playground and the optional 2-D map, so support leads can see what the co-pilot knows.
-  - **Phase 2 ready:** when the KB and SOPs grow, the prompt switches from "whole KB" to "top-k retrieved chunks" with no change to the rest of the pipeline.
-- **Trade-offs / revisit when:**
-  - Sending the whole KB costs more tokens than top-k; acceptable now, measured in the business case. Prompt caching reduces it further.
-  - Embedding similarity on a tiny KB is a coarse signal; the threshold is tuned on the eval set, not guessed.
-  - **Switch to top-k retrieval (+ hybrid BM25 + reranker) when** the KB exceeds ~20–30k tokens, or cost/latency per ticket rises above target.
-- **Options rejected for Phase 1:**
-  - A alone (vector DB + top-k only): adds retrieval misses with no benefit at this size.
-  - B (BM25): weak on paraphrases and non-English tickets.
+## D1. How the knowledge base reaches the model
+- **Status:** **revised 2026-11-18** (first decided 2026-11-17; the original is kept below as superseded)
+- **Context:** KB = 4 pages, 26 chunks (~2,500 tokens) today; the brief says the KB **and SOPs will grow** and Phase 2 targets ~10,000 tickets/month; citations required; abstention must be measurable.
+- **Decision:** **top-k retrieval only.** The drafter sees the k best chunks for the ticket (labelled with chunk ID, page title and URL), never the whole KB. One code path for Phase 1 and Phase 2.
+- **Why (the owner challenged the first version):**
+  - **The KB grows:** whole-KB-in-prompt stops working as soon as the SOPs arrive; designing for it means rebuilding in Phase 2.
+  - **Tighter citations:** the drafter can only cite chunks it was given, so the post-check verifies a small set instead of any of N chunks; similar FAQs are mixed up less.
+  - **The retrieval eval becomes the real quality gate:** R@k, MRR and abstain AUROC (`copilot eval retrieval`) decide what the LLM sees, so they measure something that matters.
+  - **Cost and latency stay flat** as the KB grows.
+  - **Simpler serving (D9):** nothing needs the whole KB in memory, so the server keeps no KB snapshot.
+- **What it costs, and the mitigations:** retrieval misses (R@3 = 0.89, R@5 = 0.91 with multilingual-e5-small) → k chosen from the eval; chunks flagged `conflict` pull in the chunk they conflict with; Phase 2 adds hybrid BM25 + reranker; weak retrieval routes to a human instead of guessing (`weak_retrieval`, `not_in_kb`).
+- **Measured, not assumed:** whole-KB stays as benchmark baseline **C0** (docs/BENCHMARK.md), to report how much answer quality top-k loses, if any.
+- **Superseded first version (2026-11-17):** "whole cleaned KB in the prompt + embeddings for the abstain signal": maximised recall at this size (no retrieval misses) and was cheap with prompt caching, but did not survive the KB growing, and kept the whole KB in memory while serving.
 
 ## D2. LLM provider and model(s)
 - **Status:** decided as a *method*; final model filled from docs/BENCHMARK.md
@@ -138,6 +131,21 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
   - `VECTOR_STORE=memory` keeps the old build-everything-in-memory path for tests and the no-Docker demo.
 - **Follow-ups done (2026-11-18):**
   - **One connection pool per process** (`copilot/db.py`, `psycopg_pool`, size `DB_POOL_SIZE`), shared by `KBStore` and `PgVectorIndex`. Each call borrows a connection and returns it, so concurrent requests don't queue behind one connection and don't pay for a new connection each time.
-  - **Hot reload without restart** (`KBWatcher`, every `KB_RELOAD_SECONDS`, 0 = off): a cheap query compares the stored chunk hashes with the served KB. If they differ and the vectors are ready, a complete new `Services` is swapped in with **one assignment**, so a request never mixes an old KB with a new retriever. If the vectors aren't ready (indexer mid-run, other model), the old KB keeps serving and it retries next tick. Verified live: a flag change was indexed (1 chunk re-embedded) and served ~2 s later, with no restart.
+  - ~~**Hot reload without restart**~~ (superseded by D9 the same day: with no in-memory KB there is nothing to reload) (`KBWatcher`, every `KB_RELOAD_SECONDS`, 0 = off): a cheap query compares the stored chunk hashes with the served KB. If they differ and the vectors are ready, a complete new `Services` is swapped in with **one assignment**, so a request never mixes an old KB with a new retriever. If the vectors aren't ready (indexer mid-run, other model), the old KB keeps serving and it retries next tick. Verified live: a flag change was indexed (1 chunk re-embedded) and served ~2 s later, with no restart.
   - Not done: a `POST /admin/reload` endpoint (needs authentication first); with several server processes each one reloads on its own within one interval.
+
+## D9. Search reads vectors and chunk text together; no in-memory KB while serving
+- **Status:** decided (2026-11-18)
+- **Context:** after D8 the server kept the chunks in memory (refreshed by a watcher) but read the vectors live from Postgres. The owner spotted the gap: between `copilot kb index` writing vectors and the server refreshing its copy, search could return a chunk ID the server didn't know (→ HTTP 500) or rank by a new vector while citing old text. With D1 revised to top-k, the in-memory copy had no remaining purpose.
+- **Decision:**
+  - **Versioned vectors:** key `(chunk_id, content_hash)`. A changed chunk gets a new row next to the old one.
+  - **Search = one JOIN** of the vector table with `kb_chunks` **on the exact version**; each hit returns its chunk (text, section, page URLs, flags) from the same query (like a vector DB "payload").
+  - **Indexer order:** (1) add vectors for new versions (not searchable yet), (2) write chunks in one transaction (new versions searchable at once), (3) delete versions nothing matches.
+  - **No KB snapshot in the server:** the explorer and `/health` read `kb_chunks` per request; the hot-reload watcher (built earlier the same day) was removed. A `kb index` run is visible to every server process immediately.
+  - Startup still checks that the served model has vectors for every stored chunk (`require_indexed`), to catch "serving a model nobody indexed".
+- **Verified:** regression test runs a search between steps 1 and 2: every hit equals the stored version, text included, and a new chunk is not visible until step 2; a running app shows a new chunk on `/health`, `/kb/chunks/{id}` and `/search` with no reload. Retrieval eval unchanged (R@3 0.89, MRR 0.825).
+- **Trade-offs / revisit when:**
+  - Each explorer or health request reads Postgres (fine at this scale; add caching only if measured).
+  - HNSW + JOIN + flag filter can return fewer than k rows when many rows are filtered out; at our scale it doesn't, and pgvector's iterative index scans (`hnsw.iterative_scan`) are the fix if it does.
+  - The vector table may hold two versions of a chunk during a run (tiny: changed chunks only).
 

@@ -45,9 +45,9 @@ def search(
                 rank=h.rank,
                 chunk_id=h.chunk_id,
                 score=round(h.score, 4),
-                section=retriever.kb.get(h.chunk_id).section,
-                page_urls=retriever.kb.get(h.chunk_id).page_urls,
-                flags=list(retriever.kb.get(h.chunk_id).flags),
+                section=h.chunk.section,  # from the same row as the vector (D9)
+                page_urls=h.chunk.page_urls,
+                flags=list(h.chunk.flags),
             )
             for h in hits
         ],

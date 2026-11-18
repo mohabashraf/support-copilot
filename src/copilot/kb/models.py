@@ -46,24 +46,48 @@ class Chunk(BaseModel):
         return _hash(self.model_dump())
 
 
+Version = tuple[str, str]  # (chunk_id, content_hash): one exact version of one chunk
+
+
+def kb_fingerprint(versions: list[Version]) -> str:
+    """KB hash from the ordered chunk versions. Same value whether computed from a KnowledgeBase
+    in memory or from the (chunk_id, content_hash) columns in Postgres (no chunk data needed)."""
+    return _hash([list(v) for v in versions])
+
+
 class KnowledgeBase(BaseModel):
     chunks: list[Chunk]
     kb_hash: str  # changes only when the source pages or the config change
 
     @classmethod
     def from_chunks(cls, chunks: list[Chunk]) -> "KnowledgeBase":
-        return cls(chunks=chunks, kb_hash=_hash([c.model_dump() for c in chunks]))
+        return cls(chunks=chunks, kb_hash=kb_fingerprint([(c.id, c.content_hash) for c in chunks]))
 
     @property
     def chunk_hashes(self) -> dict[str, str]:
-        """chunk_id → content_hash: what an up-to-date index must contain."""
+        """chunk_id → content_hash."""
         return {c.id: c.content_hash for c in self.chunks}
+
+    @property
+    def versions(self) -> set[Version]:
+        """The exact chunk versions an index must hold to serve this KB."""
+        return {(c.id, c.content_hash) for c in self.chunks}
 
     def get(self, chunk_id: str) -> Chunk:
         for c in self.chunks:
             if c.id == chunk_id:
                 return c
         raise KeyError(chunk_id)
+
+    # ---- KBReader (see kb/store.py): what the explorer and /health need ----
+    def all_chunks(self) -> list[Chunk]:
+        return self.chunks
+
+    def get_chunk(self, chunk_id: str) -> Chunk | None:
+        return next((c for c in self.chunks if c.id == chunk_id), None)
+
+    def summary(self) -> tuple[str, int]:
+        return self.kb_hash, len(self.chunks)
 
 
 def _hash(obj: object) -> str:

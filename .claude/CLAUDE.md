@@ -35,7 +35,6 @@ docker compose up --build                     # whole stack: db → indexer → 
 | Chunk / KB models, hashes | `kb/models.py` |
 | KB in Postgres | `kb/store.py` |
 | Postgres connection pool | `src/copilot/db.py` (`open_pool`, shared by store + index) |
-| Hot reload of the KB | `services.py` `KBWatcher` + `server/app.py` `_watch` |
 | Embed + write vectors (the only writer) | `retrieval/indexer.py` |
 | Vector index (pgvector / memory) | `retrieval/index.py` |
 | Search | `retrieval/search.py` |
@@ -44,8 +43,9 @@ docker compose up --build                     # whole stack: db → indexer → 
 | Logging | `src/copilot/log.py` |
 
 ## Gotchas
-- After changing `knowledge_base/` run `copilot kb index`. A running server picks it up within `KB_RELOAD_SECONDS`; a starting server refuses an unindexed KB ("vectors do not match").
-- Routes read `app.state.services` (one object) via `server/deps.py`: never store KB or retriever separately on `app.state`, or a reload could mix versions.
+- After changing `knowledge_base/` run `copilot kb index`: running servers see it at once (no KB copy in memory, D9). A starting server refuses a model with no vectors.
+- Search hits carry their chunk (one JOIN, D9): never look a hit up elsewhere (`kb.get`) or text and vector can come from different versions.
+- The drafter gets top-k chunks only (D1 revised), never the whole KB.
 - Adding a setting: `.env.example` + `config.py` + your `.env`, all three (skill `add-setting`).
 - e5 embedding models need the `query: ` / `passage: ` prefixes (`retrieval/embeddings.py` `MODELS`).
 - Imports go at the top (Ruff PLC0415). The only exception is `sentence_transformers` (loads torch, ~9 s).
