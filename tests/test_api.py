@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from copilot.api.app import create_app
 
-client = TestClient(create_app())
+client = TestClient(create_app(with_retriever=False))  # no model download in unit tests
 
 
 def test_health():

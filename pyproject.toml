@@ -9,7 +9,12 @@ requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.15.0",
     "fastapi>=0.163.2",
+    "numpy>=2.5.5",
+    "pgvector>=0.5.1",
+    "psycopg[binary]>=3.3.9",
     "pydantic>=2.14.3",
+    "pydantic-settings>=2.16.3",
+    "sentence-transformers>=6.3.0",
     "typer>=0.29.1",
     "uvicorn[standard]>=0.54.0",
 ]

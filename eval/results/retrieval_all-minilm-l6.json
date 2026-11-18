@@ -1,0 +1,335 @@
+{
+ "model": "all-minilm-l6",
+ "store": "memory",
+ "kb_hash": "46229716470b7620",
+ "queries": {
+  "r1": 0.488,
+  "r3": 0.64,
+  "r5": 0.699,
+  "p3": 0.289,
+  "hit3": 0.676,
+  "ndcg5": 0.616,
+  "mrr": 0.623,
+  "hit3_by_lang": {
+   "ar": 0.333,
+   "en": 0.87,
+   "other": 0.2
+  },
+  "n": 68
+ },
+ "tickets": {
+  "r1": 0.494,
+  "r3": 0.601,
+  "r5": 0.643,
+  "p3": 0.238,
+  "hit3": 0.643,
+  "ndcg5": 0.569,
+  "mrr": 0.597,
+  "hit3_by_lang": {
+   "ar": 0.4,
+   "en": 0.933,
+   "other": 0.25
+  },
+  "n": 28
+ },
+ "abstain": {
+  "auroc": 0.606,
+  "chosen": {
+   "t": 0.0895,
+   "abstain_recall": 0.058823529411764705,
+   "false_abstain": 0.01639344262295082
+  },
+  "no_answer_best_scores": [
+   0.071,
+   0.209,
+   0.228,
+   0.24,
+   0.303,
+   0.311,
+   0.353,
+   0.364,
+   0.369,
+   0.405,
+   0.442,
+   0.457,
+   0.468,
+   0.526,
+   0.532,
+   0.533,
+   0.568
+  ],
+  "answerable_min_best": 0.08
+ },
+ "failures": [
+  {
+   "id": "R29",
+   "lang": "en",
+   "r3": 0.0,
+   "top3": [
+    "open#intro",
+    "open#faq-documents",
+    "open#steps"
+   ]
+  },
+  {
+   "id": "R31",
+   "lang": "ar",
+   "r3": 0.0,
+   "top3": [
+    "open#faq-islamic",
+    "open#intro",
+    "withdraw#intro"
+   ]
+  },
+  {
+   "id": "R32",
+   "lang": "ar",
+   "r3": 0.0,
+   "top3": [
+    "open#faq-islamic",
+    "faq#withdrawal-pending",
+    "notice#access"
+   ]
+  },
+  {
+   "id": "R34",
+   "lang": "ar",
+   "r3": 0.0,
+   "top3": [
+    "open#faq-islamic",
+    "notice#access",
+    "withdraw#intro"
+   ]
+  },
+  {
+   "id": "R36",
+   "lang": "ar",
+   "r3": 0.0,
+   "top3": [
+    "open#faq-islamic",
+    "faq#withdrawal-pending",
+    "notice#access"
+   ]
+  },
+  {
+   "id": "R37",
+   "lang": "ar",
+   "r3": 0.0,
+   "top3": [
+    "open#faq-islamic",
+    "notice#access",
+    "faq#withdrawal-pending"
+   ]
+  },
+  {
+   "id": "R38",
+   "lang": "ar",
+   "r3": 0.0,
+   "top3": [
+    "open#faq-islamic",
+    "faq#withdrawal-pending",
+    "withdraw#intro"
+   ]
+  },
+  {
+   "id": "R42",
+   "lang": "ru",
+   "r3": 0.0,
+   "top3": [
+    "withdraw#intro",
+    "open#faq-islamic",
+    "open#steps"
+   ]
+  },
+  {
+   "id": "R43",
+   "lang": "ru",
+   "r3": 0.0,
+   "top3": [
+    "verify#intro",
+    "open#faq-islamic",
+    "open#faq-documents"
+   ]
+  },
+  {
+   "id": "R44",
+   "lang": "th",
+   "r3": 0.0,
+   "top3": [
+    "withdraw#intro",
+    "faq#withdrawal-not-received",
+    "verify#intro"
+   ]
+  },
+  {
+   "id": "R45",
+   "lang": "id",
+   "r3": 0.0,
+   "top3": [
+    "open#faq-islamic",
+    "verify#steps",
+    "verify#intro"
+   ]
+  },
+  {
+   "id": "R47",
+   "lang": "es",
+   "r3": 0.0,
+   "top3": [
+    "deposit#intro",
+    "notice#access",
+    "verify#intro"
+   ]
+  },
+  {
+   "id": "R49",
+   "lang": "zh-TW",
+   "r3": 0.0,
+   "top3": [
+    "withdraw#intro",
+    "open#faq-islamic",
+    "verify#intro"
+   ]
+  },
+  {
+   "id": "R50",
+   "lang": "sw",
+   "r3": 0.0,
+   "top3": [
+    "verify#steps",
+    "open#faq-islamic",
+    "verify#intro"
+   ]
+  },
+  {
+   "id": "R66",
+   "lang": "ar",
+   "r3": 0.0,
+   "top3": [
+    "open#faq-islamic",
+    "withdraw#intro",
+    "faq#withdrawal-pending"
+   ]
+  },
+  {
+   "id": "R33",
+   "lang": "ar",
+   "r3": 0.0,
+   "top3": [
+    "open#faq-islamic",
+    "notice#access",
+    "verify#steps"
+   ]
+  },
+  {
+   "id": "R51",
+   "lang": "ckb",
+   "r3": 0.0,
+   "top3": [
+    "faq#withdrawal-not-received",
+    "withdraw#intro",
+    "faq#withdrawal-pending"
+   ]
+  },
+  {
+   "id": "R02",
+   "lang": "en",
+   "r3": 0.0,
+   "top3": [
+    "open#faq-account-type",
+    "open#faq-sign-up",
+    "faq#funds-available"
+   ]
+  },
+  {
+   "id": "R18",
+   "lang": "en",
+   "r3": 0.0,
+   "top3": [
+    "open#faq-opening-time",
+    "verify#steps",
+    "open#faq-documents"
+   ]
+  },
+  {
+   "id": "R28",
+   "lang": "en",
+   "r3": 0.0,
+   "top3": [
+    "verify#intro",
+    "faq#withdrawal-pending",
+    "faq#withdrawal-not-received"
+   ]
+  },
+  {
+   "id": "R55",
+   "lang": "en",
+   "r3": 0.0,
+   "top3": [
+    "faq#withdrawal-not-received",
+    "deposit#steps",
+    "withdraw#intro"
+   ]
+  },
+  {
+   "id": "R59",
+   "lang": "en",
+   "r3": 0.0,
+   "top3": [
+    "faq#withdrawal-not-received",
+    "verify#intro",
+    "withdraw#intro"
+   ]
+  },
+  {
+   "id": "R07",
+   "lang": "en",
+   "r3": 0.5,
+   "top3": [
+    "faq#withdrawal-not-received",
+    "faq#deposit-credit-time",
+    "faq#funds-available"
+   ]
+  },
+  {
+   "id": "R58",
+   "lang": "en",
+   "r3": 0.5,
+   "top3": [
+    "verify#intro",
+    "open#faq-sign-up",
+    "verify#steps"
+   ]
+  },
+  {
+   "id": "R08",
+   "lang": "en",
+   "r3": 0.5,
+   "top3": [
+    "faq#deposit-credit-time",
+    "faq#min-deposit",
+    "open#faq-min-initial-deposit"
+   ]
+  },
+  {
+   "id": "R09",
+   "lang": "en",
+   "r3": 0.5,
+   "top3": [
+    "faq#funds-available",
+    "open#faq-sign-up",
+    "open#faq-account-type"
+   ]
+  },
+  {
+   "id": "R26",
+   "lang": "en",
+   "r3": 0.5,
+   "top3": [
+    "verify#steps",
+    "withdraw#steps",
+    "open#intro"
+   ]
+  }
+ ]
+}

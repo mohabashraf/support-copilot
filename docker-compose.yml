@@ -1,0 +1,20 @@
+# Postgres + pgvector for retrieval (D7). Phase 2 adds audit, tickets and idempotency tables to the same database.
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: copilot
+      POSTGRES_PASSWORD: copilot  # local development only; real deployments use secrets
+      POSTGRES_DB: copilot
+    ports:
+      - "5433:5432"  # 5433 on the host to avoid clashing with a local Postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U copilot -d copilot"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:

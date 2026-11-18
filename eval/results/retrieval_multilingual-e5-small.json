@@ -1,0 +1,185 @@
+{
+ "model": "multilingual-e5-small",
+ "store": "memory",
+ "kb_hash": "46229716470b7620",
+ "queries": {
+  "r1": 0.657,
+  "r3": 0.89,
+  "r5": 0.912,
+  "p3": 0.417,
+  "hit3": 0.941,
+  "ndcg5": 0.803,
+  "mrr": 0.825,
+  "hit3_by_lang": {
+   "ar": 0.917,
+   "en": 0.935,
+   "other": 1.0
+  },
+  "n": 68
+ },
+ "tickets": {
+  "r1": 0.762,
+  "r3": 0.798,
+  "r5": 0.851,
+  "p3": 0.345,
+  "hit3": 0.893,
+  "ndcg5": 0.802,
+  "mrr": 0.86,
+  "hit3_by_lang": {
+   "ar": 0.6,
+   "en": 0.933,
+   "other": 1.0
+  },
+  "n": 28
+ },
+ "abstain": {
+  "auroc": 0.734,
+  "chosen": {
+   "t": 0.7362,
+   "abstain_recall": 0.058823529411764705,
+   "false_abstain": 0.01639344262295082
+  },
+  "no_answer_best_scores": [
+   0.734,
+   0.755,
+   0.761,
+   0.763,
+   0.811,
+   0.813,
+   0.817,
+   0.823,
+   0.829,
+   0.83,
+   0.833,
+   0.834,
+   0.834,
+   0.836,
+   0.843,
+   0.852,
+   0.852
+  ],
+  "answerable_min_best": 0.721
+ },
+ "failures": [
+  {
+   "id": "R29",
+   "lang": "en",
+   "r3": 0.0,
+   "top3": [
+    "open#faq-sign-up",
+    "open#intro",
+    "open#faq-documents"
+   ]
+  },
+  {
+   "id": "R33",
+   "lang": "ar",
+   "r3": 0.0,
+   "top3": [
+    "withdraw#intro",
+    "open#intro",
+    "faq#withdrawal-rejected"
+   ]
+  },
+  {
+   "id": "R02",
+   "lang": "en",
+   "r3": 0.0,
+   "top3": [
+    "faq#funds-available",
+    "open#intro",
+    "open#faq-sign-up"
+   ]
+  },
+  {
+   "id": "R28",
+   "lang": "en",
+   "r3": 0.5,
+   "top3": [
+    "faq#withdrawal-rejected",
+    "faq#withdrawal-pending",
+    "verify#steps"
+   ]
+  },
+  {
+   "id": "R34",
+   "lang": "ar",
+   "r3": 0.5,
+   "top3": [
+    "faq#withdrawal-not-received",
+    "open#intro",
+    "faq#deposit-credit-time"
+   ]
+  },
+  {
+   "id": "R55",
+   "lang": "en",
+   "r3": 0.5,
+   "top3": [
+    "faq#withdrawal-not-received",
+    "open#faq-islamic",
+    "faq#deposit-credit-time"
+   ]
+  },
+  {
+   "id": "R56",
+   "lang": "en",
+   "r3": 0.5,
+   "top3": [
+    "open#intro",
+    "withdraw#intro",
+    "notice#access"
+   ]
+  },
+  {
+   "id": "R07",
+   "lang": "en",
+   "r3": 0.5,
+   "top3": [
+    "faq#deposit-credit-time",
+    "faq#withdrawal-not-received",
+    "faq#withdrawal-rejected"
+   ]
+  },
+  {
+   "id": "R09",
+   "lang": "en",
+   "r3": 0.5,
+   "top3": [
+    "faq#funds-available",
+    "faq#withdrawal-not-received",
+    "open#faq-sign-up"
+   ]
+  },
+  {
+   "id": "R26",
+   "lang": "en",
+   "r3": 0.5,
+   "top3": [
+    "verify#steps",
+    "deposit#steps",
+    "open#steps"
+   ]
+  },
+  {
+   "id": "R51",
+   "lang": "ckb",
+   "r3": 0.5,
+   "top3": [
+    "verify#steps",
+    "deposit#steps",
+    "faq#how-to-deposit"
+   ]
+  },
+  {
+   "id": "R58",
+   "lang": "en",
+   "r3": 0.5,
+   "top3": [
+    "open#faq-sign-up",
+    "verify#steps",
+    "verify#intro"
+   ]
+  }
+ ]
+}
