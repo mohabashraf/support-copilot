@@ -29,7 +29,7 @@ class Services:
 
 
 def load_services(st: Settings) -> Services:
-
+    """KB + retriever for serving. Never writes: indexing is `copilot kb index` (D8)."""
     if st.vector_store == "memory":
         kb = build_kb()
         embedder, index = get_embedder(st.embedding_model), InMemoryIndex()
