@@ -12,6 +12,49 @@ Read first: `PRD.md` (requirements), `docs/ARCHITECTURE.md` (design), `docs/DECI
 4. The co-pilot never talks to customers. It only produces drafts for an agent.
 5. PII is replaced with typed placeholders before any LLM call; the mapping never reaches the LLM or the logs.
 
+## Commands
+```bash
+uv run pytest -q                              # tests (pgvector tests skip if the db is down)
+uv run ruff format . && uv run ruff check .   # PEP 8 (hook + CI enforce it)
+docker compose up -d db                       # database only, for local development
+uv run copilot kb index                       # INGESTION: after any change to knowledge_base/ (D8)
+uv run python -m copilot.main                 # server: http://127.0.0.1:8000/docs
+uv run copilot search "minimum deposit"       # read-only search
+uv run copilot eval retrieval                 # recall / precision / MRR; compare with eval/results/
+docker compose up --build                     # whole stack: db → indexer → app
+```
+
+## Where is X
+| Need | File |
+|---|---|
+| Start the server | `src/copilot/main.py` (runs) → `server/app.py` `create_app()` (builds) |
+| CLI commands | `src/copilot/cli.py` |
+| Settings | `.env` (truth) → `src/copilot/config.py` (types, no defaults) |
+| Load KB + retriever (read-only) | `src/copilot/services.py` |
+| HTML → chunks, IDs, flags | `kb/parse.py`, `kb/ingest.py`, `knowledge_base/kb_config.toml` |
+| Chunk / KB models, hashes | `kb/models.py` |
+| KB in Postgres | `kb/store.py` |
+| Embed + write vectors (the only writer) | `retrieval/indexer.py` |
+| Vector index (pgvector / memory) | `retrieval/index.py` |
+| Search | `retrieval/search.py` |
+| Retrieval metrics | `eval/metrics.py`, `eval/retrieval.py`, data in `eval/*.jsonl` |
+| HTTP routes | `server/routes/` |
+| Logging | `src/copilot/log.py` |
+
+## Gotchas
+- After changing `knowledge_base/` run `copilot kb index`, or the server refuses to start ("vectors do not match").
+- Adding a setting: `.env.example` + `config.py` + your `.env`, all three (skill `add-setting`).
+- e5 embedding models need the `query: ` / `passage: ` prefixes (`retrieval/embeddings.py` `MODELS`).
+- Imports go at the top (Ruff PLC0415). The only exception is `sentence_transformers` (loads torch, ~9 s).
+- Never log ticket or query text (PII): log lengths, IDs, scores and timings.
+- Vector tables are derived data: on a schema change drop them and re-run `kb index`. Not true for future audit tables.
+- Colima has no BuildKit: no `RUN --mount` in the Dockerfile.
+
+## Skills and agents in this repo
+- Skill `kb-update`: add or change a help page / FAQ / flag, end to end.
+- Skill `add-setting`: add a new setting the `.env`-first way.
+- Agent `hard-rules-reviewer`: run it on any change to prompts, routing, the workflow or reply templates.
+
 ## Engineering rules
 - Python 3.12, `uv` for dependencies, type hints, Pydantic models for all data crossing a boundary.
 - **PEP 8, enforced by Ruff** (config in `pyproject.toml`, line length 99). Run `uv run ruff format . && uv run ruff check .` before committing; the pre-commit hook and CI refuse unformatted code. Never disable a rule inline without a comment saying why.

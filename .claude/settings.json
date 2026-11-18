@@ -1,0 +1,45 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run pytest *)",
+      "Bash(uv run pytest)",
+      "Bash(uv run ruff *)",
+      "Bash(uv run copilot *)",
+      "Bash(uv sync *)",
+      "Bash(uv sync)",
+      "Bash(git status *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git diff)",
+      "Bash(git log *)",
+      "Bash(docker compose ps *)",
+      "Bash(docker compose ps)",
+      "Bash(docker compose logs *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*.local)",
+      "Edit(./.env)",
+      "Bash(cat .env*)",
+      "Bash(less .env*)",
+      "Bash(head .env*)",
+      "Bash(tail .env*)",
+      "Edit(./knowledge_base/raw/**)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in *.py) cd \"$CLAUDE_PROJECT_DIR\" && uv run ruff format -q \"$f\" && uv run ruff check --fix -q \"$f\";; esac; } 2>/dev/null || true",
+            "timeout": 30,
+            "statusMessage": "ruff format + fix"
+          }
+        ]
+      }
+    ]
+  }
+}
