@@ -342,13 +342,23 @@ flowchart LR
 
 Adding one page to a 1,000-chunk KB embeds only that page's chunks; an unchanged KB embeds nothing. `VECTOR_STORE=memory` (tests, no-Docker demo) builds everything in memory from the raw pages instead.
 
+**Chunk kinds** (`BlockKind` in `kb/models.py`, what part of the page a chunk was cut from; each has a rule in `kb/parse.py`): `intro` · `steps` · `faq` · `promo` · `notice`.
+
+**Flags** (`Flag` in `kb/models.py`): set by a human in `kb_config.toml [flags]`, reason recorded in `KB_FINDINGS.md`. Both lists are **closed on purpose**: an unknown value fails ingestion, so a new flag can't enter the KB without the workflow rule that handles it. Handling below is enforced by the ticket workflow (§4).
+
 | Flag | Example | Handling |
 |---|---|---|
-| `defective` | withdraw steps copy-pasted from deposit ("amount to deposit", "Start Trading!") | kept, visible in explorer, never used for withdrawal answers |
-| `duplicate` | 9-question FAQ on both deposit and withdraw pages | stored once, cites both page URLs |
-| `conflict` | "instant" vs "within 60 minutes"; withdrawals "instant" vs "pending" queue | conservative statement + `kb_conflict` flag to agent |
-| `rule_sensitive` | "What leverage should I select?" | may state documented max (1:2000), never suggest a setting |
-| gap (no chunk) | fees, payment methods, withdrawal limits | abstain → `not_in_kb` |
+| `conflict` | "instant" vs "within 60 minutes"; withdrawals "instant" vs "pending" queue | conservative statement + `kb_conflict` reason code to the agent |
+| `defective` | withdraw steps copy-pasted from deposit ("amount to deposit", "Start Trading!") | kept, visible in explorer, **never used for an answer** |
+| `rule_sensitive` | "What leverage should I select?", "Why was my withdrawal rejected?" | may state documented facts (max 1:2000), never suggest a setting or decide an outcome |
+| `compliance` | access notice: who may use the site | never interpreted for a customer; eligibility questions → `aml_compliance` → compliance team |
+| `gap_link` | "Click here" / "see account types" to a page not in the KB | answer only what the chunk itself says; missing part → partial answer + flag (FR-3.2b) |
+| `route` | "I have not received my funds…" (KB says contact support) | draft the KB guidance, route to a human (`account_action_required`) |
+| `promo` | "Trade from every device" | never cited as an answer |
+
+Not flags: a **duplicate** FAQ (same question on deposit and withdraw pages) is stored once with both page URLs; a **gap** (fees, payment methods, withdrawal limits) has no chunk at all → abstain → `not_in_kb`.
+
+**Adding a kind or flag (Phase 1):** add the value to the Literal in `kb/models.py`, add its handling (parse rule for a kind; workflow rule for a flag), a test, and a row here. Content changes that reuse existing kinds and flags (new pages, new FAQs, edited text) need no code change; see `.claude/skills/kb-update`.
 
 ---
 
@@ -434,6 +444,34 @@ flowchart TB
     OTEL -.-> LF
     OTEL -.-> MET
 ```
+
+### 10b. Phase 2: kinds and flags at scale
+
+Phase 1 keeps kinds and flags as code (closed `Literal` lists) and flags in `kb_config.toml`: right for 4 pages and one engineer, because every new value comes with its handling. With a growing KB, SOPs and content owners outside engineering, three things change:
+
+1. **Flag → action policy table.** Flags move to a Postgres table, each mapped to a small, fixed set of **actions** the workflow already implements: `exclude_from_answers` · `facts_only` · `route_to(<destination>)` · `warn_agent(<reason_code>)` · `answer_only_chunk_text`. Content teams can add a flag (e.g. `outdated`, `region_specific`) and pick its actions without a deploy. A **new action** still needs code + tests; a flag with no action is rejected.
+2. **Flags suggested automatically, confirmed by a human.** Ingestion proposes flags and a reviewer approves them in the KB explorer:
+   - `conflict`: two chunks state different numbers/times for the same thing (e.g. "instant" vs "60 minutes").
+   - `defective`: a chunk on page A is near-identical to a chunk on page B but talks about the other topic (the withdraw/deposit copy-paste).
+   - `gap_link`: a link or "click here" pointing to a page not in the KB.
+   - `promo` / `compliance`: by page section or source type.
+   Every flag keeps who set it, when and why (replaces `KB_FINDINGS.md`), and the audit log records which flags affected each reply.
+3. **Kinds from a generic parser.** New source types (SOP PDFs, tables, internal wiki) get a parser per source type with a heading-aware fallback, and chunk IDs are generated from page + heading (config only for overrides), so a new FAQ is indexed straight away and shown in a review list instead of failing ingestion.
+
+Safety stays the same: unknown flags and unconfirmed `defective`/`compliance` suggestions are treated conservatively (excluded from answers until reviewed).
+
+**Parser plan.** `kb/parse.py` is written for these 4 pages: it finds parts by the site's CSS class names. Phase 1 safety net: `tests/test_kb_ingest.py` expects exactly the planned 26 chunks, so a site change fails loudly instead of shipping an empty or partial KB. Limits and fixes, most important first:
+
+| Weakness today | What goes wrong | Phase 2 fix |
+|---|---|---|
+| Depends on CSS class names (`accordion__item`, `seps-list__content-wrap`) | a redesign renames them → parser finds nothing | parse by document **structure** (h1–h4, lists, paragraphs); class rules kept only as a fast path |
+| Unknown sections are skipped silently | a new section (e.g. a fee table) never reaches the KB, nobody notices | **coverage check**: compare the page's visible text with the text in its chunks; warn above a threshold (e.g. > 10% missing) |
+| HTML only | SOPs arrive as PDF / Word / wiki | one parser per source type behind the same `parse() → blocks` interface |
+| Tables and links flattened | a fee table becomes a run-on sentence; "click here" loses its target | tables kept as labelled rows ("Account: Standard · Min deposit: 8 USD"); link URLs kept (also feeds automatic `gap_link`) |
+| Steps always one block | a 30-step SOP becomes one huge chunk with a blurry embedding | split long sections by size, repeating the heading on each piece |
+| English pages only | the help site exists in 13 languages | parse each language version, store the language per chunk |
+
+`Source` generalises at the same time: `title`, `location` (URL or document id), `source_type` (web_page / pdf / sop …), optional `locator` ("page 4", "§2.1") and `public`: internal SOPs are cited **to the agent only**, never in the customer reply.
 
 ---
 

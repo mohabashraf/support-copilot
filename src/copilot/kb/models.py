@@ -7,7 +7,31 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+# Closed lists on purpose: an unknown value fails validation at ingestion, so nothing new enters
+# the KB until someone has decided how it is handled.
+# Meanings and handling: docs/ARCHITECTURE.md §7. Phase 2 (policy table): §10b.
+
+# What a chunk IS (which part of the page it was cut from). Each kind has a rule in kb/parse.py.
+#   intro   page title + first paragraph
+#   steps   the "Step 1, Step 2 ..." list, joined into one chunk
+#   faq     one question + its answer
+#   promo   marketing banner ("Trade from every device")
+#   notice  the legal access popup shown on every page
+# New kind (e.g. a table or a PDF section): add it here + a parse rule in kb/parse.py + a test.
 BlockKind = Literal["intro", "steps", "faq", "promo", "notice"]
+
+# How carefully the workflow must USE a chunk. Set by a human in knowledge_base/kb_config.toml
+# [flags]; the reason is written in knowledge_base/KB_FINDINGS.md.
+#   conflict        pages disagree ("instant" vs "within 60 minutes") → state the conservative
+#                   version and tell the agent (reason code kb_conflict)
+#   defective       broken text (withdraw steps copied from deposit) → never used for an answer
+#   rule_sensitive  close to a hard rule (leverage, rejection reasons) → facts only, no advice
+#   compliance      legal/regulatory text (who may use the site) → never interpreted for a customer
+#   gap_link        says "click here" to a page we don't have → answer only what the chunk says
+#   route           the KB itself says "contact support" → route to a human
+#   promo           marketing, not policy → never cited as an answer
+# New flag: add it here + the workflow rule that handles it + a test + a row in ARCHITECTURE §7.
+# A flag with no handling code would be silently ignored, which is what the closed list prevents.
 Flag = Literal[
     "conflict", "defective", "rule_sensitive", "compliance", "gap_link", "route", "promo"
 ]

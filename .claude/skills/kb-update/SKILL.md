@@ -37,6 +37,10 @@ findings. Only `copilot kb index` writes the KB to Postgres (D8).
    don't have) · rule_sensitive (touches a hard rule) · route (the KB itself says contact support) ·
    compliance (jurisdiction/regulatory) · promo (marketing, not policy).
    Record **why** in `knowledge_base/KB_FINDINGS.md` (what it says, where, how the co-pilot handles it).
+   **A new flag or kind** (not in the Literal yet) is a code change, not a content change: add it to
+   `Flag`/`BlockKind` in `kb/models.py`, add its handling (workflow rule for a flag, parse rule in
+   `kb/parse.py` for a kind), a test, and a row in `docs/ARCHITECTURE.md` §7. Never add a flag
+   without handling: it would be silently ignored. Phase 2 plan: `docs/ARCHITECTURE.md` §10b.
 
 6. **Index (incremental):** `uv run copilot kb index` (Docker: `docker compose run --rm indexer`).
    Expect only the new/changed chunks under `added`/`changed`; everything else `unchanged`.
