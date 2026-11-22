@@ -471,6 +471,15 @@ Safety stays the same: unknown flags and unconfirmed `defective`/`compliance` su
 | Steps always one block | a 30-step SOP becomes one huge chunk with a blurry embedding | split long sections by size, repeating the heading on each piece |
 | English pages only | the help site exists in 13 languages | parse each language version, store the language per chunk |
 
+**Ingestion at 100k chunks.** Embedding is already incremental (only versions without a vector). The rest of a run is still O(KB size): `build_kb` parses every page, `KBStore.sync` rewrites every text row (because `position` is global, one insert shifts every later chunk), and `/health` recomputes the KB hash from every row. Free at 26 chunks, wasteful at 100k. Fixes:
+
+1. **Order per page:** store `page_slug` + `position_in_page` instead of a global `position`, so a new FAQ shifts only that page's rows.
+2. **Write only the diff:** `sync` already computes added/changed/removed; upsert and delete only those rows, still in one transaction (atomic swap kept).
+3. **Parse only changed sources:** keep a hash per source file and skip unchanged files.
+4. **Store the KB hash once:** the indexer writes it to a one-row `kb_meta` table inside the same transaction; `/health` and startup checks read that row instead of the whole table.
+
+Result: a one-FAQ edit in a 100k-chunk KB parses one file, embeds one chunk and writes a few rows.
+
 `Source` generalises at the same time: `title`, `location` (URL or document id), `source_type` (web_page / pdf / sop …), optional `locator` ("page 4", "§2.1") and `public`: internal SOPs are cited **to the agent only**, never in the customer reply.
 
 ---
