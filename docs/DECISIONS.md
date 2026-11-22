@@ -13,7 +13,7 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
   - **The retrieval eval becomes the real quality gate:** R@k, MRR and abstain AUROC (`copilot eval retrieval`) decide what the LLM sees, so they measure something that matters.
   - **Cost and latency stay flat** as the KB grows.
   - **Simpler serving (D9):** nothing needs the whole KB in memory, so the server keeps no KB snapshot.
-- **What it costs, and the mitigations:** retrieval misses (R@3 = 0.89, R@5 = 0.91 with multilingual-e5-small) → k chosen from the eval; chunks flagged `conflict` pull in the chunk they conflict with; Phase 2 adds hybrid BM25 + reranker; weak retrieval routes to a human instead of guessing (`weak_retrieval`, `not_in_kb`).
+- **What it costs, and the mitigations:** retrieval misses (R@3 = 0.90, R@5 = 0.93 with bge-m3; 0.89 / 0.91 with multilingual-e5-small) → k chosen from the eval; chunks flagged `conflict` pull in the chunk they conflict with; Phase 2 adds hybrid BM25 + reranker; weak retrieval routes to a human instead of guessing (`weak_retrieval`, `not_in_kb`).
 - **Measured, not assumed:** whole-KB stays as benchmark baseline **C0** (docs/BENCHMARK.md), to report how much answer quality top-k loses, if any.
 - **Superseded first version (2026-11-17):** "whole cleaned KB in the prompt + embeddings for the abstain signal": maximised recall at this size (no retrieval misses) and was cheap with prompt caching, but did not survive the KB growing, and kept the whole KB in memory while serving.
 
@@ -24,7 +24,8 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
   - **Provider:** Anthropic (Claude) for Phase 1, behind a small provider-agnostic LLM interface; structured outputs for classification.
   - **Model:** chosen by **benchmark**, not opinion. Candidates: `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5`, plus a split (Haiku classifies, Sonnet drafts). Model IDs are config, not code.
   - **Rule:** 0 hard-rule violations and passing all gates → cheapest configuration wins.
-  - **Embeddings:** a **local multilingual, cross-lingual** model (e.g. bge-m3 or multilingual-e5), because tickets arrive in many languages while the KB is English, and no ticket text leaves for embeddings. Anthropic has no embeddings API; an English-only model (e.g. all-MiniLM) would fail cross-lingual matching.
+  - **Embeddings:** a **local multilingual, cross-lingual** model, because tickets arrive in many languages while the KB is English, and no ticket text leaves for embeddings. Anthropic has no embeddings API; an English-only model (all-MiniLM) fails cross-lingual matching (Arabic Hit@3 0.33).
+  - **Embedding model: `bge-m3` (decided 2026-11-22, from docs/BENCHMARK.md finding 4).** Same Recall@3 as multilingual-e5-small (0.90 vs 0.89) but better ranking (Recall@1 0.75 vs 0.66, MRR 0.88 vs 0.83), Arabic Hit@3 1.00 vs 0.92 and a better abstain signal (AUROC 0.79 vs 0.73). Costs accepted: +33 ms per query (small next to the LLM call), ~2.2 GB RAM, slower indexing. Judgement call for a multilingual-first product; e5-small is the fallback (`EMBEDDING_MODEL` + one `kb index`). Retrieval thresholds are per model.
 - **Why:** makes the trade-off visible to the business with numbers (docs/BENCHMARK.md).
 - **Trade-offs / revisit when:** a small eval set can't prove a rate of 0 (rule of three); revisit with production data, new model releases, or price changes.
 
