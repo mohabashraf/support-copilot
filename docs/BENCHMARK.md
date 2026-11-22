@@ -52,16 +52,17 @@ Data: `eval/retrieval_queries.jsonl` (56 answerable + 14 no-answer) and `relevan
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | all-MiniLM-L6-v2 (English-only baseline) | 0.488 | 0.64 | 0.699 | 0.289 | 0.623 | 0.333 | 0.2 | 0.06 | 0.02 | 0.606 | 0.0895 |
 | multilingual-e5-small | 0.657 | 0.89 | 0.912 | 0.417 | 0.825 | 0.917 | 1.0 | 0.06 | 0.02 | 0.734 | 0.7362 |
-| bge-m3 | | | | | | | | | | | |
+| bge-m3 | 0.745 | 0.90 | 0.926 | 0.441 | 0.88 | 1.0 | 1.0 | 0.06 | 0.05 | 0.791 | 0.4427 |
 | Phase 2: hybrid (vector + BM25, RRF) | | | | | | | | | | | |
 | Phase 2: hybrid + reranker | | | | | | | | | | | |
 
-Run 2026-11-18, KB hash `46229716470b7620`, in-memory index (pgvector returns identical rankings: `tests/test_retrieval.py::test_pgvector_matches_memory`). Full reports: `eval/results/retrieval_*.json`. Ticket-text Recall@3: MiniLM 0.601 → e5-small 0.798.
+Run 2026-11-18, KB hash `46229716470b7620`; bge-m3 and a re-run of e5-small on 2026-11-19, KB hash `27685a121349f624` (e5-small numbers identical on both KBs), in-memory index (pgvector returns identical rankings: `tests/test_retrieval.py::test_pgvector_matches_memory`). Full reports: `eval/results/retrieval_*.json`. Ticket-text Recall@3: MiniLM 0.601 → e5-small 0.798.
 
 **Findings**
 1. **Multilingual embeddings are required (confirms D2).** Hit@3 in Arabic rises from 0.33 to 0.92 and in other languages from 0.20 to 1.00; MRR from 0.62 to 0.83. The English-only model sends almost every Arabic query to `open#faq-islamic`.
 2. **The embedding score alone is a weak abstain signal (confirms D4).** With e5-small every best score falls in 0.72–0.85; no-answer queries (fees, PayPal, spreads) score 0.73–0.85, overlapping answerable ones. At ≤ 2% false abstain it catches only 6% of no-answer queries (AUROC 0.73). So `weak_retrieval` is a minor signal; abstention must come mainly from the drafting LLM ("not in KB") plus deterministic checks. Phase 2 test: does a cross-encoder reranker separate the scores better?
 3. **Remaining e5-small misses** (12 of 68 with Recall@3 < 1) are mostly one side of a conflict pair or a secondary required chunk (R07, R09, R26, R34), plus R02 ("start trading with 5 dollars" → funds-available), R29 (jurisdiction → notice) and R33 (Arabic euros). Candidates for bge-m3 and the reranker.
+4. **bge-m3 is better at ranking but not at finding, and is heavier (keep e5-small for Phase 1; bge-m3 is a fair alternative).** On the same KB: Recall@1 0.66 → 0.75 and MRR 0.83 → 0.88 (the right chunk moves to rank 1 more often), Arabic Hit@3 0.92 → 1.00, AUROC 0.73 → 0.79. But **Recall@3 barely moves (0.89 → 0.90)**, and the drafter gets the top-k chunks, not only rank 1, so the answer quality gain is small. It fails on the same queries as e5-small (12 misses, mostly the same IDs: R02, R29, conflict pairs), so a bigger embedder does not fix them; hybrid search or a reranker is the next test. Cost, measured on this laptop (CPU): query embedding p50 **45 ms vs 12 ms**, indexing 26 chunks 2.9 s vs 0.2 s, model ~2.2 GB vs ~0.5 GB, vectors 1024 vs 384 dims (2.7× storage). The query cost is paid on **every** request (questions must use the same model as the index); the +33 ms is small next to the drafting LLM call (seconds), so the deciding factors are the equal Recall@3 and the lighter server, not latency. Switching = re-embed the whole KB into that model's table (one command). Revisit if Arabic/low-resource misses show up in production samples, or on a GPU where the latency gap shrinks.
 
 ## How to read small-sample results (important for the business)
 - **0 violations in 40 tickets does not prove 0%.** Rule of three: with 0 failures in N tests, the true rate could still be up to about **3/N** (95% confidence) → up to **~7.5%** for N = 40. More tickets narrow this: N = 300 → ≤ 1%.

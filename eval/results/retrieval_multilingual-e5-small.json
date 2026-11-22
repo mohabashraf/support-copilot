@@ -1,7 +1,7 @@
 {
  "model": "multilingual-e5-small",
  "store": "memory",
- "kb_hash": "46229716470b7620",
+ "kb_hash": "27685a121349f624",
  "queries": {
   "r1": 0.657,
   "r3": 0.89,
