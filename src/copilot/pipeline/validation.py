@@ -95,7 +95,8 @@ def merge(safety: dict, triage: dict) -> tuple[Classification, list[str]]:
     category = strictest([t.category, *topics])
     if category != t.category:
         fixes.append(f"category {t.category}→{category} (strictest intent)")
-    elif t.category not in topics:  # triage is stricter than safety: kept, but they disagree
+    elif t.category not in topics and set(topics) != {"other"}:
+        # triage is stricter than safety: kept, but they disagree
         fixes.append(f"category {t.category} kept (safety topics: {', '.join(topics)})")
 
     urgency = t.urgency
@@ -179,7 +180,10 @@ def confidence(
     if unquoted_intents:  # the safety model quoted words that are not in the ticket
         r.signals.append(f"safety:unquoted_intents={unquoted_intents}")
     # the two calls disagree on the topic (merge had to correct one of them)
-    if disagree := [f for f in fixes if f.startswith("category ") or ".topic " in f]:
+    # 'other' = "nothing specific" (e.g. a thank-you), not a different topic: never counts
+    disagree = [f for f in fixes if (f.startswith("category ") or ".topic " in f)
+                and not f.startswith("category other→")]  # fmt: skip
+    if disagree:
         r.signals.append("llm_disagreement:" + "; ".join(disagree))
     # the local classifier, when SURE, disagrees with every topic the LLMs found
     if risk and (cat := risk.get("category")) and cat != "other":

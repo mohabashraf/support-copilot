@@ -140,7 +140,7 @@ def build_deps(st, risk, guard, retriever) -> Deps:
         st.confidence_threshold,
         tuple(st.low_resource_languages),
         retriever,
-        chat_model(st.llm_draft_model, st.anthropic_api_key, st.llm_timeout_s),
+        chat_model(st.llm_draft_model, st.anthropic_api_key, st.llm_timeout_s, max_tokens=2048),
         st.retrieval_top_k,
         st.weak_retrieval_threshold,
     )
@@ -366,10 +366,13 @@ def policy_gate(state: State) -> dict:
     }
 
 
-def template_reply(state: State) -> dict:
+def template_reply(state: State, runtime: Runtime[Deps]) -> dict:
     """Fixed texts for the blocked intents (pipeline/templates.py), in the reply language.
-    No LLM writes them. A language without approved text gets English + a note for the agent."""
+    No LLM writes them. A language without approved text, or a low-resource one, gets English +
+    a note for the agent."""
     lang = state["classification"].reply_language
+    if lang in _deps(runtime).low_resource_languages:
+        lang = "en"
     texts, notes = [], list(state.get("notes_for_agent", []))
     for key in state.get("template_parts", []):
         text, translated = templates.render(key, lang)
@@ -410,12 +413,16 @@ def draft(state: State, runtime: Runtime[Deps]) -> dict:
     questions = [f'"{it.text}" ({it.topic})' for it in allowed if it.text.strip()]
     fails = state.get("post_check_failures", [])  # set → this is the redraft
     has_question = bool(c.search_query.strip())
+    deps = _deps(runtime)
+    # PRD FR-5.1: low-resource language → an ENGLISH draft for the agent, not a weak translation
+    low_resource = c.reply_language in deps.low_resource_languages
+    lang = "en" if low_resource else c.reply_language
     r = structured(
-        _deps(runtime).draft_llm,
+        deps.draft_llm,
         DraftOut,
         prompts.DRAFT_SYSTEM,
         prompts.draft_user(
-            c.reply_language,
+            lang,
             questions if has_question else [],
             len(blocked),
             sources,
@@ -428,8 +435,11 @@ def draft(state: State, runtime: Runtime[Deps]) -> dict:
     d = grounding.check_draft(r.parsed, {s["id"] for s in sources}, has_question)
     cited = {s["id"]: s for s in sources if s["id"] in d.cited_chunk_ids}
     reasons, notes = [], list(state.get("notes_for_agent", []))
-    if d.abstain or d.partial:
-        reasons.append("not_in_kb")
+    if d.abstain:
+        reasons.append("not_in_kb")  # partial: answered + the gap in a note (FR-3.2b), not routed
+    if low_resource:
+        notes.append(f"Draft is in English ({c.reply_language} is a low-resource language): "
+                     "translate, or have a native speaker reply.")  # fmt: skip
     if any("conflict" in s["flags"] for s in cited.values()):
         reasons.append("kb_conflict")
     if any("route" in s["flags"] for s in cited.values()):

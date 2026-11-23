@@ -221,6 +221,31 @@ def eval_safety() -> None:
     typer.echo(f"\nsaved {safety_eval.save(rep)}")
 
 
+@eval_app.command("e2e")
+def eval_e2e(
+    limit: int = typer.Option(None, help="Only the first N tickets"),
+    workers: int = typer.Option(4, help="Tickets in parallel"),
+) -> None:
+    """The whole workflow on the 76 labelled tickets with the REAL models (~$0.06)."""
+    from copilot.eval import e2e  # noqa: PLC0415
+    from copilot.pipeline.pii import Masker  # noqa: PLC0415
+    from copilot.pipeline.workflow import build_graph, default_deps  # noqa: PLC0415
+
+    rep = e2e.run(build_graph(), default_deps(), Masker.from_settings(get_settings()),
+                  workers=workers, limit=limit)  # fmt: skip
+    s = rep["summary"]
+    for k, v in s.items():
+        if k not in ("over_routed", "reasons", "by_suite"):
+            typer.echo(f"{k:24} {v}")
+    typer.echo(f"{'by_suite':24} {s['by_suite']}")
+    typer.echo(f"{'reasons':24} {s['reasons']}")
+    for o in s["over_routed"]:
+        typer.echo(f"  OVER  {o['id']:5} {o['reasons']}")
+    typer.echo(
+        f"\nRELEASE GATE: {'PASS' if s['release_gate'] else 'FAIL'}   saved {e2e.save(rep)}"
+    )
+
+
 @eval_app.command("injection")
 def eval_injection() -> None:
     """Injection gate: patterns, our bge-m3 head and the guard model, alone and combined."""

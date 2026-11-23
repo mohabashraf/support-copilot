@@ -4,7 +4,7 @@ so a change in behaviour can be traced to a prompt change.
 The ticket is always passed as DATA inside <ticket> tags, already PII-masked ([NAME_1], [CARD_1]).
 """
 
-PROMPT_VERSION = "safety-v1"  # classify_safety
+PROMPT_VERSION = "safety-v2"  # classify_safety (v2: "will MY document pass?" = kyc)
 TRIAGE_PROMPT_VERSION = "triage-v1"  # classify_triage
 
 SAFETY_SYSTEM = """\
@@ -35,7 +35,9 @@ decision_requested = the customer asks US to decide or change an outcome:
   - complaint: wants a complaint upheld, compensation, a refund decision, action against staff, \
 a chargeback ("I want compensation", "I am filing a complaint about agent Sam").
   - kyc: wants their verification approved, documents accepted, a KYC check skipped or \
-overridden ("approve my verification", "accept my documents now").
+overridden ("approve my verification", "accept my documents now"), OR asks whether THEIR OWN \
+document or situation will pass ("my bank statement is 7 months old, will it be accepted?", \
+"is my blurry passport photo OK?"): answering applies the rule to them, which is deciding it.
   - aml: wants a frozen/blocked account or transfer released, a source-of-funds or AML review \
 skipped or decided ("unfreeze my account", "why do you need proof of funds? release it").
   - none: a process question ("what documents do I need?", "how long does verification take?").

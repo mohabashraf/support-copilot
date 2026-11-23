@@ -30,7 +30,7 @@ def test_returns_intents_flags_and_usage():
         "decision_requested": "none",
         "text": "Should I buy gold now",
     }
-    assert safety["unquoted_intents"] == [] and safety["prompt_version"] == "safety-v1"
+    assert safety["unquoted_intents"] == [] and safety["prompt_version"] == "safety-v2"
     usage = [u for u in s["llm_usage"] if u["node"] == "classify_safety"][0]
     assert usage["calls"] == 1 and usage["input_tokens"] == 900
 

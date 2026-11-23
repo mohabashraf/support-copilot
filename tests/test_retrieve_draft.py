@@ -80,11 +80,11 @@ def test_citing_a_conflict_chunk_flags_kb_conflict():
     assert any("Pages disagree" in n for n in s["notes_for_agent"])
 
 
-def test_partial_answer_lists_what_is_missing_for_the_agent():
+def test_partial_answer_is_drafted_with_the_gap_as_a_note_not_routed():
     out = _d(partial=True, reply="The minimum is in the FAQ.", cited_chunk_ids=["faq#min-deposit"],
              uncovered=["crypto fees"])  # fmt: skip
     s = _run("What is the minimum deposit and the crypto fee?", _Draft(out))
-    assert "not_in_kb" in s["routing"].reasons
+    assert "not_in_kb" not in s["routing"].reasons  # FR-3.2b: answer the part, flag the gap
     assert "Not covered by the help pages: crypto fees" in s["notes_for_agent"]
 
 
@@ -150,3 +150,13 @@ def test_mixed_ticket_without_a_grounded_answer_keeps_the_template_and_says_what
     out = wf.compose(state)
     assert out["reply"] == TEMPLATES["ack_kyc"]["en"]
     assert out["notes_for_agent"] == ['Draft is INCOMPLETE: add an answer to "withdraw to Visa?"']
+
+
+def test_low_resource_language_gets_an_english_draft_for_the_agent():
+    llm = _Draft()
+    chat = FakeChat()
+    chat.triage_overrides = {"language": "ckb", "reply_language": "ckb"}
+    s = _run("What is the minimum deposit?", llm, chat)
+    assert "<reply_language>en</reply_language>" in llm.prompts[0]
+    assert "low_resource_language" in s["routing"].reasons
+    assert any("Draft is in English (ckb" in n for n in s["notes_for_agent"])

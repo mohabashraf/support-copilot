@@ -194,3 +194,10 @@ def test_triage_stricter_than_safety_is_kept_but_flagged():
     assert c.category == "aml_compliance"
     assert fixes == ["category aml_compliance kept (safety topics: complaint)"]
     assert _gate(c, fixes=fixes).signals[0].startswith("llm_disagreement:")
+
+
+def test_triage_other_against_a_specific_topic_is_not_a_disagreement():
+    """Real case E22: a thank-you about a withdrawal → triage 'other', safety 'withdrawal'."""
+    c, fixes = v.merge(_safety(("withdrawal", "none", "Thanks a lot")), _triage(category="other"))
+    assert c.category == "withdrawal"
+    assert _gate(c, fixes=fixes).passed
