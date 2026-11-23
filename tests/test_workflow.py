@@ -23,7 +23,8 @@ def test_clean_ticket_passes_the_injection_gate_then_risks_then_two_llm_calls_in
     assert out["steps"][:3] == ["pattern_check", "injection_check", "risk_classifier"]
     assert set(out["steps"][3:5]) == set(wf.LLM_CLASSIFIERS)  # parallel: any order
     assert out["steps"][5:] == [
-        "policy_gate", "retrieve", "draft", "post_check", "compose", "route", "audit"
+        "validate_classification", "confidence_gate",
+        "policy_gate", "retrieve", "draft", "post_check", "compose", "route", "audit",
     ]  # fmt: skip
 
 
@@ -104,6 +105,9 @@ def test_only_implemented_nodes_are_marked_implemented():
         "injection_check",
         "risk_classifier",
         "classify_safety",
+        "classify_triage",
+        "validate_classification",
+        "confidence_gate",
         "route",
     }
 

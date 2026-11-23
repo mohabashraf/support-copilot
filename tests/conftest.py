@@ -68,45 +68,102 @@ class FakeInjectionGuard:
         return GuardScore(0.01, None, "fake-guard")
 
 
+class _Bound:
+    """What `with_structured_output(schema)` returns: the schema travels with the call, so the
+    two classifiers running in parallel threads can share one FakeChat."""
+
+    def __init__(self, chat, schema):
+        self.chat, self.schema = chat, schema
+
+    def invoke(self, messages, config=None):
+        return self.chat.invoke(messages, config, schema=self.schema)
+
+
 class FakeChat:
     """Stand-in for ChatAnthropic in unit tests (no network, no cost). Answers classify_safety
-    from keywords; the real model's quality is measured by the end-to-end eval, not here.
-    `calls` counts invocations; `fail_next` makes the next N calls return invalid output."""
+    and classify_triage from keywords; the real model's quality is measured by the evals.
+    `calls` / `fail_next` count and break the SAFETY call (as before); `triage_calls` /
+    `triage_fail_next` do the same for triage. `triage_overrides` sets triage fields."""
 
     def __init__(self):
         self.model, self.calls, self.fail_next = "fake-haiku", 0, 0
+        self.triage_calls, self.triage_fail_next = 0, 0
+        self.triage_overrides: dict = {}
 
     def with_structured_output(self, schema, method=None, include_raw=False):
-        return self
+        return _Bound(self, schema)
 
-    def invoke(self, messages, config=None):
+    def invoke(self, messages, config=None, schema=None):
         from langchain_core.messages import AIMessage  # noqa: PLC0415
 
-        from copilot.pipeline.schemas import Intent, SafetyOut  # noqa: PLC0415
+        from copilot.pipeline.schemas import TriageOut  # noqa: PLC0415
 
-        self.calls += 1
         raw = AIMessage("{}", usage_metadata={"input_tokens": 900, "output_tokens": 60,
                                               "total_tokens": 960})  # fmt: skip
+        body = messages[-1].content.split("<body>")[1].split("</body>")[0]
+        if schema is TriageOut:
+            self.triage_calls += 1
+            if self.triage_fail_next:
+                self.triage_fail_next -= 1
+                return {"raw": raw, "parsed": None, "parsing_error": ValueError("bad json")}
+            return {"raw": raw, "parsed": _fake_triage(body, self.triage_overrides),
+                    "parsing_error": None}  # fmt: skip
+        self.calls += 1
         if self.fail_next:
             self.fail_next -= 1
             return {"raw": raw, "parsed": None, "parsing_error": ValueError("bad json")}
-        body = messages[-1].content.split("<body>")[1].split("</body>")[0]
-        low = body.lower()
-        topic, decision = "other", "none"
-        if "buy" in low:
-            topic = "trading_advice_request"
-        elif "complaint" in low:
-            topic, decision = "complaint", "complaint"
-        elif "approve" in low:
-            topic, decision = "verification", "kyc"
-        quote = body.split(".")[0].split("?")[0].strip() or body.strip() or "-"
-        parsed = SafetyOut(
-            intents=[Intent(topic=topic, decision_requested=decision, text=quote)],
-            vulnerable_customer="lost everything" in low,
-            security_sensitive="email" in low or "2fa" in low,
-            injection_suspected="as the ai" in low,
-        )
-        return {"raw": raw, "parsed": parsed, "parsing_error": None}
+        return {"raw": raw, "parsed": _fake_safety(body), "parsing_error": None}
+
+
+def _topic(low: str) -> tuple[str, str]:
+    if "buy" in low:
+        return "trading_advice_request", "none"
+    if "complaint" in low:
+        return "complaint", "complaint"
+    if "approve" in low:
+        return "verification", "kyc"
+    if "withdraw" in low:
+        return "withdrawal", "none"
+    if "deposit" in low:
+        return "deposit", "none"
+    return "other", "none"
+
+
+def _fake_safety(body: str):
+    from copilot.pipeline.schemas import Intent, SafetyOut  # noqa: PLC0415
+
+    low = body.lower()
+    topic, decision = _topic(low)
+    if "minimum deposit" in low:  # kept as before: tests rely on it being "other"
+        topic = "other"
+    quote = body.split(".")[0].split("?")[0].strip() or body.strip() or "-"
+    return SafetyOut(
+        intents=[Intent(topic=topic, decision_requested=decision, text=quote)],
+        vulnerable_customer="lost everything" in low,
+        security_sensitive="email" in low or "2fa" in low,
+        injection_suspected="as the ai" in low,
+    )
+
+
+def _fake_triage(body: str, overrides: dict):
+    from copilot.pipeline.schemas import TriageOut  # noqa: PLC0415
+
+    low = body.lower()
+    topic, _ = _topic(low)
+    if "minimum deposit" in low:
+        topic = "other"
+    arabic = any("\u0600" <= ch <= "\u06ff" for ch in body)
+    fields = {
+        "category": topic,
+        "urgency": "critical" if "blocked" in low else "low",
+        "language": "ar" if arabic else "en",
+        "reply_language": "ar" if arabic else "en",
+        "sentiment": "angry" if "worst" in low else "neutral",
+        "needs_account_action": "not received" in low,
+        "search_query": body.strip()[:80] or "-",
+        "confidence": 0.9,
+    }
+    return TriageOut(**{**fields, **overrides})
 
 
 @pytest.fixture(autouse=True)

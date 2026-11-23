@@ -63,9 +63,9 @@ class _Fixed(FakeChat):
         super().__init__()
         self.out = out
 
-    def invoke(self, messages, config=None):
-        r = super().invoke(messages, config)
-        return {**r, "parsed": self.out}
+    def invoke(self, messages, config=None, schema=None):
+        r = super().invoke(messages, config, schema)
+        return {**r, "parsed": self.out} if schema is SafetyOut else r
 
 
 def test_business_rule_no_intents_is_invalid():

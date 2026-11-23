@@ -70,7 +70,8 @@ def test_worker_runs_the_graph_and_records_every_step(store):
     assert done.steps[1:3] == ["injection_check", "risk_classifier"]
     assert set(done.steps[3:5]) == {"classify_safety", "classify_triage"}
     assert done.steps[5:] == [
-        "policy_gate", "retrieve", "draft", "post_check", "compose", "route", "audit"
+        "validate_classification", "confidence_gate",
+        "policy_gate", "retrieve", "draft", "post_check", "compose", "route", "audit",
     ]  # fmt: skip
     # No drafter yet: routing (real) sends it to a person and says why; still not complete.
     assert done.result["routing"]["reasons"] == ["no_draft"]
@@ -140,7 +141,8 @@ def test_a_failed_ticket_resumes_from_the_failed_step_not_from_the_start(
     store, saver, monkeypatch
 ):
     """policy_gate fails on attempt 1. Attempt 2 must continue from policy_gate: the steps that
-    finished (classifier, the LLM calls once they are real) are not run, or paid for, again."""
+    finished (classifier, both LLM calls, validation, the confidence gate) are not run, or
+    paid for, again."""
     calls = {"risk": 0, "gate": 0}
 
     class Counting(FakeRiskClassifier):
@@ -167,7 +169,7 @@ def test_a_failed_ticket_resumes_from_the_failed_step_not_from_the_start(
     assert run_once(store, deps=deps, app=app)
     first = store.get(rec.number)
     assert first.status == "queued" and "LLM timed out" in first.error
-    assert first.steps[-1] in ("classify_safety", "classify_triage")  # done before the failure
+    assert first.steps[-1] == "confidence_gate"  # the last step done before the failure
 
     assert run_once(store, deps=deps, app=app)
     done = store.get(rec.number)

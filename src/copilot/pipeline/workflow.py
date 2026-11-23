@@ -7,8 +7,11 @@
                       (model: catches      (bge-m3 + LR,    │  no AI draft               │
                        what patterns miss) 6 risks, D12)    │                            │
                                                             └─► classify_safety ─┐       │
-                                                            └─► classify_triage ─┴► policy_gate
-                                                                                      │
+                                                            └─► classify_triage ─┤       │
+                                                                                 ▼       │
+                                  validate_classification ─► confidence_gate ─► policy_gate
+                                  (merge both, fix toward    (self-report AND     │
+                                   the stricter value)        rule signals)       │
              ┌─ all blocked ─► template_reply ──────────────────────────────► compose ┤
     policy_gate                                                                ▲       │
              └─► retrieve ─► draft ─► post_check ──────────────────────────────┘       │
@@ -22,7 +25,8 @@ PII is masked BEFORE the graph runs (tickets/service.py `intake`), so the graph 
 traces and the LLM only ever see placeholders; the placeholder → value mapping never enters
 the state. The background worker runs this graph (tickets/worker.py).
 
-Implemented: pattern_check, injection_check, risk_classifier, route. The other nodes are
+Implemented: pattern_check, injection_check, risk_classifier, classify_safety, classify_triage,
+validate_classification, confidence_gate, route. The other nodes are
 marked @placeholder: they produce nothing and monitoring reports them as placeholders, never as
 work done.
 Dependencies (the risk classifier, later the LLM clients) come in through LangGraph's runtime
@@ -45,11 +49,11 @@ from copilot import telemetry as tel
 from copilot.log import get_logger
 from copilot.pipeline import injection as injection_gate
 from copilot.pipeline import patterns as pattern_rules
-from copilot.pipeline import prompts
+from copilot.pipeline import prompts, validation
 from copilot.pipeline import routing as routing_rules
 from copilot.pipeline.llm import LLMOutputError, structured
 from copilot.pipeline.risk_classifier import load_injection_rules
-from copilot.pipeline.schemas import Classification, DraftOut, Routing, SafetyOut
+from copilot.pipeline.schemas import Classification, DraftOut, Routing, SafetyOut, TriageOut
 
 log = get_logger(__name__)
 
@@ -85,6 +89,11 @@ class State(InputState, OutputState, total=False):
     patterns: dict  # pattern_check: {"hits": [{kind, pattern}], "spam_reason": str | None}
     injection: dict  # injection_check: {"detected", "evidence": [...], "model": {probability...}}
     safety: dict  # classify_safety: SafetyOut + checks (unquoted intents)
+    triage: dict  # classify_triage: TriageOut (validated)
+    classification_fixes: list[
+        str
+    ]  # validate_classification: corrections toward the stricter value
+    confidence: dict  # confidence_gate: self-reported, threshold, signals, passed
     llm_usage: Annotated[list[dict], operator.add]  # one Usage per LLM call (tokens, cost)
     risk: dict  # risk_classifier: signals, probabilities, category (+ probability, margin)
     classification: Classification | None
@@ -94,7 +103,8 @@ class State(InputState, OutputState, total=False):
     draft: DraftOut | None
     draft_attempts: int
     post_check_failures: list[str]
-    reasons: list[str]  # routing reason codes collected along the way
+    # routing reason codes collected along the way (reducer: each node appends its own)
+    reasons: Annotated[list[str], operator.add]
     # `steps` uses a reducer: each node APPENDS its name, so the path through the graph is visible
     steps: Annotated[list[str], operator.add]
 
@@ -106,6 +116,8 @@ class Deps:
     risk_classifier: Any = None  # pipeline.risk_classifier.RiskClassifier (or a test fake)
     injection_guard: Any = None  # pipeline.injection_guard.InjectionGuard (or a test fake)
     classify_llm: Any = None  # ChatAnthropic for the classification calls (or a test fake)
+    confidence_threshold: float = 0.7  # PRD FR-5.1 low_confidence (CONFIDENCE_THRESHOLD)
+    low_resource_languages: tuple[str, ...] = ("ckb", "sw")  # LOW_RESOURCE_LANGUAGES
 
 
 @lru_cache
@@ -130,6 +142,8 @@ def default_deps() -> Deps:
             st.huggingface_api_key.get_secret_value() if st.huggingface_api_key else None,
         ),
         chat_model(st.llm_classify_model, st.anthropic_api_key, st.llm_timeout_s),
+        st.confidence_threshold,
+        tuple(st.low_resource_languages),
     )
 
 
@@ -237,11 +251,65 @@ def _norm(s: str) -> str:
     return " ".join(s.lower().split()).strip(" .,!?;:'\"")
 
 
-@placeholder
-def classify_triage(state: State) -> dict:
-    # TODO: LLM call 2 (triage): category, urgency, sentiment, language, reply_language,
-    # needs_account_action, confidence.
-    return {"steps": ["classify_triage"]}  # placeholder: produces nothing
+def classify_triage(state: State, runtime: Runtime[Deps]) -> dict:
+    """LLM call 1b, in parallel with safety: category, urgency, language, reply_language,
+    sentiment, needs_account_action, search_query, confidence. Validated: structured output,
+    Pydantic, then validation.check_triage (bad language code, NaN confidence → retry)."""
+    r = structured(
+        _deps(runtime).classify_llm,
+        TriageOut,
+        prompts.TRIAGE_SYSTEM,
+        prompts.triage_user(state.get("subject", ""), state.get("body", "")),
+        name="classify_triage",
+    )
+    out = validation.check_triage(r.parsed)
+    return {
+        "steps": ["classify_triage"],
+        "triage": {
+            **out.model_dump(),
+            "prompt_version": prompts.TRIAGE_PROMPT_VERSION,
+            "model": r.model,
+        },
+        "llm_usage": [{"node": "classify_triage", **r.usage.model_dump()}],
+    }
+
+
+def validate_classification(state: State) -> dict:
+    """Both answers → ONE Classification (validation.merge). Contradictions are resolved toward
+    the stricter value (decision → topic, strictest category, vulnerable → critical) and every
+    correction is kept: the agent sees it and confidence_gate counts it as a signal."""
+    clean = {k: v for k, v in (state.get("safety") or {}).items() if k in SafetyOut.model_fields}
+    tri = {k: v for k, v in (state.get("triage") or {}).items() if k in TriageOut.model_fields}
+    c, fixes = validation.merge(clean, tri)
+    return {"steps": ["validate_classification"], "classification": c,
+            "classification_fixes": fixes}  # fmt: skip
+
+
+def confidence_gate(state: State, runtime: Runtime[Deps]) -> dict:
+    """Self-reported confidence is never trusted alone: rule signals (the two LLMs disagree,
+    the local classifier is sure of something else, quotes not in the ticket, language code vs
+    script) back it up. Any signal → low_confidence. Also low_resource_language. Routing only:
+    the draft is still written, a person reviews it with the reasons shown."""
+    deps = _deps(runtime)
+    r = validation.confidence(
+        state["classification"],
+        text=_text(state),
+        risk=state.get("risk"),
+        unquoted_intents=(state.get("safety") or {}).get("unquoted_intents", []),
+        fixes=state.get("classification_fixes", []),
+        threshold=deps.confidence_threshold,
+        low_resource_languages=list(deps.low_resource_languages),
+    )
+    return {
+        "steps": ["confidence_gate"],
+        "confidence": {
+            "self_reported": r.self_reported,
+            "threshold": r.threshold,
+            "signals": r.signals,
+            "passed": r.passed,
+        },  # fmt: skip
+        "reasons": r.reasons,
+    }
 
 
 @placeholder
@@ -369,6 +437,8 @@ NODES = [
     ("risk_classifier", risk_classifier),
     ("classify_safety", classify_safety),
     ("classify_triage", classify_triage),
+    ("validate_classification", validate_classification),
+    ("confidence_gate", confidence_gate),
     ("policy_gate", policy_gate),
     ("template_reply", template_reply),
     ("retrieve", retrieve),
@@ -396,7 +466,7 @@ LLM_RETRY = RetryPolicy(
         anthropic.InternalServerError,
     ),
 )
-RETRY = {"classify_safety": LLM_RETRY}
+RETRY = {"classify_safety": LLM_RETRY, "classify_triage": LLM_RETRY}
 
 
 def build_graph(checkpointer=None):
@@ -408,7 +478,9 @@ def build_graph(checkpointer=None):
     g.add_conditional_edges("pattern_check", after_patterns)
     g.add_edge("injection_check", "risk_classifier")
     g.add_conditional_edges("risk_classifier", after_risk, [*LLM_CLASSIFIERS, "route"])
-    g.add_edge(LLM_CLASSIFIERS, "policy_gate")  # waits for both
+    g.add_edge(LLM_CLASSIFIERS, "validate_classification")  # waits for both
+    g.add_edge("validate_classification", "confidence_gate")
+    g.add_edge("confidence_gate", "policy_gate")
     g.add_conditional_edges("policy_gate", after_gate)
     g.add_edge("retrieve", "draft")
     g.add_edge("draft", "post_check")
