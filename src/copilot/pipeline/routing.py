@@ -41,8 +41,15 @@ _RANK = {"support_agent": 0, "senior_support": 1, "compliance": 2}
 
 
 def injection_evidence(state: dict) -> list[str]:
-    """The injection gate's evidence (pipeline/injection.py): detector names + scores."""
-    return list((state.get("injection") or {}).get("evidence", []))
+    """The injection gate's evidence (pipeline/injection.py): detector names + scores. On the
+    spam path the gate doesn't run, so exact injection patterns are read from pattern_check."""
+    if state.get("injection") is not None:
+        return list(state["injection"].get("evidence", []))
+    return [
+        f"pattern:{h['pattern']}"
+        for h in (state.get("patterns") or {}).get("hits", [])
+        if h["kind"] == "prompt_injection"
+    ]
 
 
 def decide(state: dict) -> Routing:
