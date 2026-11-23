@@ -126,3 +126,62 @@ def test_placeholder_nodes_are_reported_as_placeholders_not_as_work_done(store):
         assert step["implemented"] == NODE_IMPLEMENTED[step["node"]]
     expected = [n for n in done.steps if not NODE_IMPLEMENTED[n]]
     assert done.result["placeholder_nodes"] == expected
+
+
+# ---- Inbox query and agent decisions (memory AND Postgres) ----------------------------------
+
+
+def _done(store, ticket_id: str, destination: str | None):
+    rec, _ = service.intake(Ticket(id=ticket_id, body="hi"), MASKER, None, store)
+    claimed = store.claim()
+    routing = {"decision": "human_required", "destination": destination, "reasons": []}
+    store.finish(claimed.number, {"routing": routing if destination else None})
+    return rec.number
+
+
+def test_inbox_filters_by_status_and_queue_newest_first(store):
+    a = _done(store, "A", "compliance")
+    b = _done(store, "B", "senior_support")
+    c = _done(store, "C", None)  # not decided
+    service.intake(Ticket(id="D", body="hi"), MASKER, None, store)  # still queued
+    assert [r.number for r in store.list(status="done")] == [c, b, a]
+    assert [r.number for r in store.list(destination="compliance")] == [a]
+    assert [r.external_id for r in store.list(status="queued")] == ["D"]
+    assert len(store.list(limit=2)) == 2
+    assert store.counts() == {"done": 3, "queued": 1}
+
+
+def test_agent_decision_is_stored(store):
+    n = _done(store, "A", "support_agent")
+    store.decide(n, "edited", "sara", "Dear [NAME_1], sorry.")
+    r = store.get(n)
+    assert (r.agent_decision, r.agent_name, r.final_text_masked) == (
+        "edited",
+        "sara",
+        "Dear [NAME_1], sorry.",
+    )
+    assert r.decided_at is not None
+
+
+# ---- Concurrency: two workers at the same time never take the same ticket -------------------
+
+
+def test_parallel_claims_never_take_the_same_ticket(store):
+    import threading  # noqa: PLC0415
+
+    for i in range(30):
+        service.intake(Ticket(id=f"P{i}", body="hi"), MASKER, None, store)
+    taken: list[int] = []
+    lock = threading.Lock()
+
+    def worker():
+        while (rec := store.claim()) is not None:
+            with lock:
+                taken.append(rec.number)
+
+    threads = [threading.Thread(target=worker) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(taken) == 30 and len(set(taken)) == 30  # every ticket exactly once

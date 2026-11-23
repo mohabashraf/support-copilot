@@ -251,7 +251,7 @@ def logs_cmd(
 def pii_report(
     since: str = typer.Option(None, help="Only events after this ISO time, e.g. 2026-11-23T10:00"),
 ) -> None:
-    """Masking monitor: summary of the 'pii masked' log events (counts only, never values)."""
+    """Masking monitor: summary of the masking log events (counts only, never values)."""
     path = get_settings().log_file
     if path is None or not path.exists():
         typer.echo(f"no log file ({path})", err=True)
@@ -262,7 +262,10 @@ def pii_report(
             rec = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if rec.get("msg") != "pii masked" or (since and rec.get("ts", "") < since):
+        # "ticket queued" since the queue (D11) carries the masking summary; "pii masked" is older.
+        if rec.get("msg") not in ("ticket queued", "pii masked") or (
+            since and rec.get("ts", "") < since
+        ):
             continue
         tickets += 1
         ms.append(rec.get("pii_ms", 0))
