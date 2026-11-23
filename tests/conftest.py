@@ -30,6 +30,7 @@ from copilot.pipeline.risk_classifier import (  # noqa: E402
     RiskResult,
     RiskSignal,
 )
+from copilot.tickets import service as _service  # noqa: E402
 
 _FAKE_WORDS = {"buy": "trading_advice", "complaint": "complaint", "approve": "kyc_decision"}
 
@@ -59,3 +60,11 @@ class FakeRiskClassifier:
 def _fake_risk_classifier(monkeypatch):
     """Graph runs without explicit Deps use the fake instead of loading bge-m3."""
     monkeypatch.setattr(_wf, "default_deps", lambda: _wf.Deps(FakeRiskClassifier()))
+
+
+@pytest.fixture(autouse=True)
+def _fresh_checkpoints():
+    """Ticket numbers restart in every test: never resume another test's checkpoint."""
+    _service.default_app.cache_clear()
+    yield
+    _service.default_app.cache_clear()

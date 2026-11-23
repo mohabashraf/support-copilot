@@ -144,8 +144,12 @@ http://localhost:9090 → Graph:
 - **Possible PII miss:** body `My card 4111 1111 1111 1112 failed` (fails the checksum) → WARNING
   in Loki, **Possible PII misses** stat, `copilot pii-report` lists it.
 - **Arabic:** body `أنا محمد علي، سحبت فلوسي بقالها ٣ أيام` → `[NAME_1]` in the masked message.
-- **A failure and retries:** stop the worker mid-way (Ctrl+C) and start it again: the ticket is
-  picked up again (lease); `attempts` goes up.
+- **A failure and retries:** Ctrl+C stops the worker cleanly *after* the current ticket. A hard
+  crash mid-ticket (`kill -9`) leaves it `processing`; after the 5-minute lease another worker
+  takes it, `attempts` goes up, and it **resumes** from the step that hadn't finished:
+  `result.resumed_from` names it, and each step in `tickets_steps` has its `attempt`. (Today a
+  ticket takes milliseconds, so this is easier to see once the LLM steps exist; the test
+  `test_a_failed_ticket_resumes_from_the_failed_step_not_from_the_start` shows it now.)
 - **Wrong key:** helpdesk key on `/customer-details` → 403; no key → 401.
 
 ## Today's limits

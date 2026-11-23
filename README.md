@@ -95,7 +95,7 @@ LangGraph:  pattern_check ─┬─ spam ─────────────
                              │                └── redraft once ───┘
                              └─► template_reply ───────────────────► compose
 ```
-Each node's completion is saved, so `GET /tickets/{number}` shows live progress. Errors are retried (max 3), then `failed`; a ticket whose worker died is picked up again when its lease expires.
+Each node's completion is saved, so `GET /tickets/{number}` shows live progress. Errors are retried (max 3), then `failed`; a ticket whose worker died is picked up again when its lease expires. **A retry resumes from the step that failed** (LangGraph Postgres checkpointer), so finished steps and LLM calls already paid for are not repeated.
 
 Hard rules are enforced by **code at fixed points**: `policy_gate` before any reply is written (trading advice, complaint/KYC/AML decisions never reach the drafter), `post_check` after (numbers not in the cited text, missing citations, advice wording). See [docs/DECISIONS.md](docs/DECISIONS.md) D3, D4.
 

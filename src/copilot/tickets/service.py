@@ -6,6 +6,12 @@
 Why split: the API answers in milliseconds whatever the LLM does; a crash or LLM timeout never
 loses a ticket (it is in Postgres and is retried); workers scale by starting more of them.
 
+Resume after a failure: the graph runs with a checkpointer (thread = the ticket number). LangGraph
+saves the state after every step, so a retry continues from the step that failed instead of
+starting over: finished steps (and LLM calls already paid for) are not run again. The worker uses
+Postgres (PostgresSaver); tests and scripts use memory. The checkpoint is deleted once the ticket
+is done; a failed ticket keeps it for debugging.
+
 Each half has its own LangSmith trace and OpenTelemetry span; both carry the ticket number.
 Never ticket text or PII values in traces, metrics or logs: IDs, types, counts, timings only.
 """
@@ -13,7 +19,9 @@ Never ticket text or PII values in traces, metrics or logs: IDs, types, counts, 
 import time
 import traceback
 import uuid
+from functools import lru_cache
 
+from langgraph.checkpoint.memory import InMemorySaver
 from langsmith import trace
 
 from copilot import telemetry as tel
@@ -22,7 +30,7 @@ from copilot.log import get_logger
 from copilot.pipeline.pii import Masker
 from copilot.pipeline.pii_vault import PiiVault
 from copilot.pipeline.schemas import Ticket
-from copilot.pipeline.workflow import NODE_IMPLEMENTED, Deps, graph
+from copilot.pipeline.workflow import NODE_IMPLEMENTED, Deps, build_graph
 from copilot.tickets.store import TicketRecord, TicketStore
 
 log = get_logger(__name__)
@@ -113,13 +121,30 @@ def intake(
     return record, created
 
 
+@lru_cache
+def default_app():
+    """The workflow with an in-memory checkpointer (tests, scripts). The worker passes its own
+    app with PostgresSaver so resume survives a crash."""
+    return build_graph(checkpointer=InMemorySaver())
+
+
+def thread_id(record: TicketRecord) -> str:
+    """One LangGraph thread per ticket. The helpdesk ID is included so a thread can never be
+    picked up by another ticket that happens to get the same number (e.g. a recreated table)."""
+    return f"ticket-{record.number}-{record.external_id}"
+
+
 def process(
     record: TicketRecord,
     store: TicketStore,
     audit: AuditLog | None = None,
     deps: Deps | None = None,
+    app=None,
 ) -> None:
-    """Run the workflow on one claimed ticket, saving each node as it finishes."""
+    """Run the workflow on one claimed ticket, saving each node as it finishes. If an earlier
+    attempt failed part-way, continue from its checkpoint."""
+    app = app or default_app()
+    config = {"configurable": {"thread_id": thread_id(record)}}
     t0 = time.perf_counter()
     run_id = uuid.uuid4()
     wait_ms = (
@@ -146,22 +171,35 @@ def process(
             },  # noqa: E501
         ) as root,
     ):
-        state: dict = {}
-        _steps_seen: list[str] = []
         try:
-            t_prev = time.perf_counter()
-            for node, update in _stream(record, deps):
-                now = time.perf_counter()
-                state.update({k: v for k, v in (update or {}).items() if k != "steps"})
-                store.set_step(
-                    record.number,
-                    node,
-                    trace_id=str(run_id),
-                    ms=round((now - t_prev) * 1000, 1),
-                    implemented=NODE_IMPLEMENTED.get(node, True),
+            snap = app.get_state(config)
+            # resume_from = the steps still to run after a failed attempt (None = fresh run)
+            resume_from = sorted(snap.next) if snap.values and snap.next else None
+            finished_before = bool(snap.values) and not snap.next  # crashed before saving
+            if resume_from:
+                log.info(
+                    "ticket resumed",
+                    extra={**ids, "attempt": record.attempts, "from": resume_from},
                 )
-                t_prev = now
-                _steps_seen.append(node)
+            elif not finished_before:
+                store.reset_steps(record.number)
+            root.add_metadata({"resumed_from": resume_from})
+            t_prev = time.perf_counter()
+            if not finished_before:
+                for node, _update in _stream(record, deps, app, config, resume=bool(resume_from)):
+                    now = time.perf_counter()
+                    store.set_step(
+                        record.number,
+                        node,
+                        trace_id=str(run_id),
+                        ms=round((now - t_prev) * 1000, 1),
+                        implemented=NODE_IMPLEMENTED.get(node, True),
+                        attempt=record.attempts,
+                    )
+                    t_prev = now
+            # The full state from the checkpoint: includes steps finished by earlier attempts.
+            state = app.get_state(config).values
+            _steps_seen = list(state.get("steps", []))
             routing = state.get("routing")
             classification = state.get("classification")
             placeholders = [n for n in _steps_seen if not NODE_IMPLEMENTED.get(n, True)]
@@ -180,8 +218,11 @@ def process(
                 "complete": not placeholders,
                 "steps_completed": len(_steps_seen) - len(placeholders),  # real work only
                 "placeholder_nodes": placeholders,
+                "resumed_from": resume_from,  # null = ran from the start
+                "attempt": record.attempts,
             }
             store.finish(record.number, result)
+            _drop_checkpoint(app, config, ids)
             root.end(outputs={"routing": result["routing"]})
             if audit is not None:
                 audit.write(
@@ -203,6 +244,7 @@ def process(
                     routing=result["routing"],  # null when no real routing was made
                     complete=result["complete"],
                     placeholder_nodes=result["placeholder_nodes"],
+                    resumed_from=resume_from,
                     trace_id=str(run_id),
                     intake_trace_id=record.intake_trace_id,
                 )
@@ -265,11 +307,20 @@ def process(
     )
 
 
-def _stream(record: TicketRecord, deps: Deps | None = None):
-    """Yield (node, update) as each node finishes, so GET /tickets/{n} shows live progress."""
-    inp = {"ticket_id": record.external_id, **record.masked}
-    for chunk in graph.stream(inp, stream_mode="updates", context=deps):
+def _stream(record: TicketRecord, deps: Deps | None, app, config: dict, resume: bool = False):
+    """Yield (node, update) as each node finishes, so GET /tickets/{n} shows live progress.
+    resume=True: input None = continue from the last checkpoint of this ticket's thread."""
+    inp = None if resume else {"ticket_id": record.external_id, **record.masked}
+    for chunk in app.stream(inp, config, stream_mode="updates", context=deps):
         yield from chunk.items()
+
+
+def _drop_checkpoint(app, config: dict, ids: dict) -> None:
+    """Done: the checkpoint is no longer needed (the result is in the tickets table)."""
+    try:
+        app.checkpointer.delete_thread(config["configurable"]["thread_id"])
+    except Exception:  # never fail a finished ticket over cleanup
+        log.warning("checkpoint not deleted", extra=ids)
 
 
 def _record_pii_metrics(report) -> None:

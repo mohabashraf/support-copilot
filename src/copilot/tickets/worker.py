@@ -16,12 +16,14 @@ from copilot.tickets.store import TicketStore
 log = get_logger(__name__)
 
 
-def run_once(store: TicketStore, audit: AuditLog | None = None, deps: Deps | None = None) -> bool:
+def run_once(
+    store: TicketStore, audit: AuditLog | None = None, deps: Deps | None = None, app=None
+) -> bool:
     """Process one ticket if there is one. Returns False when the queue is empty."""
     record = store.claim()
     if record is None:
         return False
-    process(record, store, audit, deps)
+    process(record, store, audit, deps, app)
     return True
 
 
@@ -30,6 +32,7 @@ def run_forever(
     poll_s: float = 0.5,
     audit: AuditLog | None = None,
     deps: Deps | None = None,
+    app=None,
 ) -> None:
     stopping = False
 
@@ -42,6 +45,6 @@ def run_forever(
     signal.signal(signal.SIGINT, stop)
     log.info("worker started", extra={"poll_s": poll_s})
     while not stopping:
-        if not run_once(store, audit, deps):
+        if not run_once(store, audit, deps, app):
             time.sleep(poll_s)  # Phase 2: LISTEN/NOTIFY instead of polling
     log.info("worker stopped")

@@ -12,6 +12,8 @@ Life of a ticket:   queued ──claim──► processing ──► done
   webhook returns the existing ticket instead of creating a second one (PRD NFR-4d).
 - Leases: a claimed ticket has `lease_until`; if a worker dies, the ticket becomes claimable
   again when the lease expires, so nothing is silently dropped (PRD NFR-7).
+- Retries RESUME (service.py, LangGraph checkpointer): a claim keeps the steps of earlier
+  attempts; only a fresh run clears them (`reset_steps`). Each step records its attempt.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -70,6 +72,7 @@ class TicketStore(Protocol):
     ) -> tuple[TicketRecord, bool]: ...
     def get(self, number: int) -> TicketRecord | None: ...
     def claim(self) -> TicketRecord | None: ...
+    def reset_steps(self, number: int) -> None: ...  # a fresh run (not a resume)
     def set_step(
         self,
         number: int,
@@ -77,6 +80,7 @@ class TicketStore(Protocol):
         trace_id: str | None = None,
         ms: float | None = None,
         implemented: bool = True,
+        attempt: int | None = None,
     ) -> None: ...
     def finish(self, number: int, result: dict) -> None: ...
     def fail(self, number: int, error: str) -> Status: ...
@@ -180,7 +184,8 @@ class PgTicketStore:
             conn.execute(
                 f"""CREATE VIEW {table}_steps AS SELECT
                     t.number, s.ord::int AS ord, s.e->>'node' AS node, (s.e->>'ms')::float AS ms,
-                    COALESCE((s.e->>'implemented')::bool, false) AS implemented
+                    COALESCE((s.e->>'implemented')::bool, false) AS implemented,
+                    (s.e->>'attempt')::int AS attempt
                 FROM {table} t, jsonb_array_elements(t.step_times) WITH ORDINALITY AS s(e, ord)"""
             )
             # One row per risk signal: exact patterns (pattern name) and classifier signals
@@ -267,7 +272,7 @@ class PgTicketStore:
         return self._one(
             f"""UPDATE {self.t} SET status = 'processing', attempts = attempts + 1,
                     started_at = now(), lease_until = now() + %s, error = NULL,
-                    steps = '[]', step_times = '[]', current_step = NULL
+                    current_step = NULL
                 WHERE number = (
                     SELECT number FROM {self.t}
                     WHERE status = 'queued' OR (status = 'processing' AND lease_until < now())
@@ -278,8 +283,14 @@ class PgTicketStore:
             (LEASE,),
         )
 
-    def set_step(self, number, step, trace_id=None, ms=None, implemented=True):
-        entry = {"node": step, "ms": ms, "implemented": implemented}
+    def reset_steps(self, number):
+        with self.pool.connection() as conn:
+            conn.execute(
+                f"UPDATE {self.t} SET steps = '[]', step_times = '[]' WHERE number = %s", (number,)
+            )
+
+    def set_step(self, number, step, trace_id=None, ms=None, implemented=True, attempt=None):
+        entry = {"node": step, "ms": ms, "implemented": implemented, "attempt": attempt}
         with self.pool.connection() as conn:
             conn.execute(
                 f"""UPDATE {self.t} SET current_step = %s, steps = steps || %s,
@@ -384,15 +395,18 @@ class InMemoryTicketStore:
             if rec.status == "queued" or expired:
                 rec.status, rec.attempts = "processing", rec.attempts + 1
                 rec.started_at, rec.lease_until = now, now + LEASE
-                rec.error, rec.steps, rec.current_step = None, [], None
-                rec.step_times = []
+                rec.error, rec.current_step = None, None
                 return rec.model_copy()
         return None
 
-    def set_step(self, number, step, trace_id=None, ms=None, implemented=True):
+    def reset_steps(self, number):
+        self.rows[number].steps, self.rows[number].step_times = [], []
+
+    def set_step(self, number, step, trace_id=None, ms=None, implemented=True, attempt=None):
         rec = self.rows[number]
         rec.current_step, rec.steps = step, [*rec.steps, step]
-        rec.step_times = [*rec.step_times, {"node": step, "ms": ms, "implemented": implemented}]
+        entry = {"node": step, "ms": ms, "implemented": implemented, "attempt": attempt}
+        rec.step_times = [*rec.step_times, entry]
         rec.lease_until = datetime.now(UTC) + LEASE
         rec.trace_id = trace_id or rec.trace_id
 

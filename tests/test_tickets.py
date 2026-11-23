@@ -5,13 +5,16 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from cryptography.fernet import Fernet
+from langgraph.checkpoint.memory import InMemorySaver
 
+from copilot.pipeline import workflow as wf
 from copilot.pipeline.pii import Masker
 from copilot.pipeline.pii_vault import InMemoryPiiVault
 from copilot.pipeline.schemas import Ticket
 from copilot.tickets import service
 from copilot.tickets.store import MAX_ATTEMPTS, InMemoryTicketStore, PgTicketStore
 from copilot.tickets.worker import run_once
+from tests.conftest import FakeRiskClassifier
 from tests.pg import db_up
 
 MASKER = Masker(ner="spacy")
@@ -78,7 +81,7 @@ def test_worker_runs_the_graph_and_records_every_step(store):
 
 
 def test_errors_are_retried_then_marked_failed(store, monkeypatch):
-    def boom(record, deps=None):
+    def boom(record, deps=None, app=None, config=None, resume=False):
         raise TimeoutError("LLM timed out")
         yield  # makes it a generator like the real _stream
 
@@ -90,6 +93,66 @@ def test_errors_are_retried_then_marked_failed(store, monkeypatch):
         assert r.attempts == attempt and "LLM timed out" in r.error
         assert r.status == ("failed" if attempt == MAX_ATTEMPTS else "queued")
     assert run_once(store) is False  # failed tickets are not picked up again
+
+
+@pytest.fixture(params=["memory", "postgres"])
+def saver(request):
+    if request.param == "memory":
+        return InMemorySaver()
+    if not db_up():
+        pytest.skip("Postgres not running")
+    from langgraph.checkpoint.postgres import PostgresSaver  # noqa: PLC0415
+
+    s = PostgresSaver(request.getfixturevalue("pool"))
+    s.setup()
+    return s
+
+
+def test_a_failed_ticket_resumes_from_the_failed_step_not_from_the_start(
+    store, saver, monkeypatch
+):
+    """policy_gate fails on attempt 1. Attempt 2 must continue from policy_gate: the steps that
+    finished (classifier, the LLM calls once they are real) are not run, or paid for, again."""
+    calls = {"risk": 0, "gate": 0}
+
+    class Counting(FakeRiskClassifier):
+        def predict(self, text):
+            calls["risk"] += 1
+            return super().predict(text)
+
+    def flaky_gate(state):
+        calls["gate"] += 1
+        if calls["gate"] == 1:
+            raise TimeoutError("LLM timed out")
+        return {"steps": ["policy_gate"], "blocked_intents": [], "template_parts": []}
+
+    flaky_gate.implemented = False
+    nodes = [(n, flaky_gate if n == "policy_gate" else fn) for n, fn in wf.NODES]
+    monkeypatch.setattr(wf, "NODES", nodes)
+    app = wf.build_graph(checkpointer=saver)
+    deps = wf.Deps(Counting())
+
+    rec, _ = service.intake(
+        Ticket(id="R1", body="What is the minimum deposit?"), MASKER, None, store
+    )
+    app.checkpointer.delete_thread(service.thread_id(rec))  # left by an earlier run
+    assert run_once(store, deps=deps, app=app)
+    first = store.get(rec.number)
+    assert first.status == "queued" and "LLM timed out" in first.error
+    assert first.steps[-1] in ("classify_safety", "classify_triage")  # done before the failure
+
+    assert run_once(store, deps=deps, app=app)
+    done = store.get(rec.number)
+    assert done.status == "done" and done.attempts == 2
+    assert done.result["resumed_from"] == ["policy_gate"]
+    assert calls["risk"] == 1  # NOT re-run on attempt 2
+    assert len(done.steps) == len(set(done.steps))  # every step once, across both attempts
+    assert done.steps[-1] == "audit"
+    assert done.result["routing"]["reasons"] == ["no_draft"]  # survived the checkpoint
+    by_attempt = {e["node"]: e["attempt"] for e in done.step_times}
+    assert by_attempt["risk_classifier"] == 1 and by_attempt["policy_gate"] == 2
+    # Finished: the checkpoint is deleted (the result lives in the tickets table).
+    assert not app.get_state({"configurable": {"thread_id": service.thread_id(rec)}}).values
 
 
 def test_two_claims_never_get_the_same_ticket(store):

@@ -308,7 +308,7 @@ NODES = [
 NODE_IMPLEMENTED = {name: getattr(fn, "implemented", True) for name, fn in NODES}
 
 
-def build_graph():
+def build_graph(checkpointer=None):
     g = StateGraph(State, context_schema=Deps, input_schema=InputState, output_schema=OutputState)
     for name, fn in NODES:
         g.add_node(name, _observed(name, fn))
@@ -326,7 +326,7 @@ def build_graph():
     g.add_edge("compose", "route")
     g.add_edge("route", "audit")
     g.add_edge("audit", END)
-    return g.compile()
+    return g.compile(checkpointer=checkpointer)
 
 
 # Module-level compiled graph: what LangGraph Studio loads (langgraph.json).

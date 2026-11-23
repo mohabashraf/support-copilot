@@ -384,9 +384,23 @@ def worker_cmd(
         typer.echo(str(err), err=True)
         raise typer.Exit(1) from None
     tel.register_queue_gauge(services.tickets)
-    from copilot.pipeline.workflow import Deps  # noqa: PLC0415
+    from copilot.pipeline.workflow import Deps, build_graph  # noqa: PLC0415
 
-    run_forever(services.tickets, poll_s=poll, audit=services.audit, deps=Deps(services.risk))
+    # Checkpoints in Postgres: a retry resumes from the failed step, even after a crash.
+    app_graph = None
+    if pool is not None:
+        from langgraph.checkpoint.postgres import PostgresSaver  # noqa: PLC0415
+
+        saver = PostgresSaver(pool)
+        saver.setup()  # creates the checkpoint tables once (idempotent)
+        app_graph = build_graph(checkpointer=saver)
+    run_forever(
+        services.tickets,
+        poll_s=poll,
+        audit=services.audit,
+        deps=Deps(services.risk),
+        app=app_graph,
+    )
 
 
 @keys_app.command("new")
