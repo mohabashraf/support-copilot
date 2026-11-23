@@ -225,6 +225,8 @@ def process(
                 # and the nearest TRAINING example as evidence).
                 "patterns": state.get("patterns"),
                 "injection": state.get("injection"),  # the injection gate: detected + evidence
+                "safety": state.get("safety"),  # classify_safety (LLM): intents + flags
+                "llm_usage": state.get("llm_usage", []),  # tokens + cost per LLM call
                 "risk": state.get("risk"),
                 # Honest completeness: did every node the ticket passed through do real work?
                 "complete": not placeholders,
@@ -252,6 +254,8 @@ def process(
                     cited_chunks=[c.get("chunk_id") for c in result["citations"] or []],
                     patterns=result["patterns"],
                     injection=result["injection"],
+                    safety=result["safety"],
+                    llm_cost_usd=round(sum(u["cost_usd"] for u in result["llm_usage"]), 6),
                     risk_signals=(result["risk"] or {}).get("signals"),
                     routing=result["routing"],  # null when no real routing was made
                     complete=result["complete"],

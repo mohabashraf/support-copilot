@@ -99,7 +99,13 @@ def test_pattern_evidence_is_the_pattern_name_never_the_text():
 
 def test_only_implemented_nodes_are_marked_implemented():
     done = {n for n, impl in wf.NODE_IMPLEMENTED.items() if impl}
-    assert done == {"pattern_check", "injection_check", "risk_classifier", "route"}
+    assert done == {
+        "pattern_check",
+        "injection_check",
+        "risk_classifier",
+        "classify_safety",
+        "route",
+    }
 
 
 def _cls(n: int) -> Classification:

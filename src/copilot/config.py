@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     api_keys: str  # name:role:sha256,... (server/auth.py); empty = everything locked
 
     # Ticket workflow (D2, D3, D4). Model IDs and thresholds are config, never code.
+    anthropic_api_key: SecretStr  # never logged
     llm_classify_model: str
     llm_draft_model: str
     llm_timeout_s: float = Field(gt=0)

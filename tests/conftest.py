@@ -68,11 +68,54 @@ class FakeInjectionGuard:
         return GuardScore(0.01, None, "fake-guard")
 
 
+class FakeChat:
+    """Stand-in for ChatAnthropic in unit tests (no network, no cost). Answers classify_safety
+    from keywords; the real model's quality is measured by the end-to-end eval, not here.
+    `calls` counts invocations; `fail_next` makes the next N calls return invalid output."""
+
+    def __init__(self):
+        self.model, self.calls, self.fail_next = "fake-haiku", 0, 0
+
+    def with_structured_output(self, schema, method=None, include_raw=False):
+        return self
+
+    def invoke(self, messages, config=None):
+        from langchain_core.messages import AIMessage  # noqa: PLC0415
+
+        from copilot.pipeline.schemas import Intent, SafetyOut  # noqa: PLC0415
+
+        self.calls += 1
+        raw = AIMessage("{}", usage_metadata={"input_tokens": 900, "output_tokens": 60,
+                                              "total_tokens": 960})  # fmt: skip
+        if self.fail_next:
+            self.fail_next -= 1
+            return {"raw": raw, "parsed": None, "parsing_error": ValueError("bad json")}
+        body = messages[-1].content.split("<body>")[1].split("</body>")[0]
+        low = body.lower()
+        topic, decision = "other", "none"
+        if "buy" in low:
+            topic = "trading_advice_request"
+        elif "complaint" in low:
+            topic, decision = "complaint", "complaint"
+        elif "approve" in low:
+            topic, decision = "verification", "kyc"
+        quote = body.split(".")[0].split("?")[0].strip() or body.strip() or "-"
+        parsed = SafetyOut(
+            intents=[Intent(topic=topic, decision_requested=decision, text=quote)],
+            vulnerable_customer="lost everything" in low,
+            security_sensitive="email" in low or "2fa" in low,
+            injection_suspected="as the ai" in low,
+        )
+        return {"raw": raw, "parsed": parsed, "parsing_error": None}
+
+
 @pytest.fixture(autouse=True)
 def _fake_risk_classifier(monkeypatch):
     """Graph runs without explicit Deps use the fakes instead of loading the real models."""
     monkeypatch.setattr(
-        _wf, "default_deps", lambda: _wf.Deps(FakeRiskClassifier(), FakeInjectionGuard())
+        _wf,
+        "default_deps",
+        lambda: _wf.Deps(FakeRiskClassifier(), FakeInjectionGuard(), FakeChat()),
     )
 
 

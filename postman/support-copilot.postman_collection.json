@@ -656,6 +656,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -675,7 +676,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -741,6 +742,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -760,7 +762,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -826,6 +828,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -845,7 +848,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -911,6 +914,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -930,7 +934,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -996,6 +1000,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -1015,7 +1020,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1087,6 +1092,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -1106,7 +1112,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1172,6 +1178,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -1191,7 +1198,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1257,6 +1264,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -1276,7 +1284,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1342,6 +1350,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -1361,7 +1370,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1427,6 +1436,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -1446,7 +1456,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1518,6 +1528,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -1537,7 +1548,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1603,6 +1614,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -1622,7 +1634,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1688,6 +1700,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -1707,7 +1720,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1773,6 +1786,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -1792,7 +1806,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1858,6 +1872,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -1877,7 +1892,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1949,6 +1964,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -1968,7 +1984,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2034,6 +2050,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -2053,7 +2070,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2119,6 +2136,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -2138,7 +2156,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2210,6 +2228,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -2229,7 +2248,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2295,6 +2314,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -2314,7 +2334,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2380,6 +2400,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -2399,7 +2420,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2465,6 +2486,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -2484,7 +2506,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2550,6 +2572,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -2569,7 +2592,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2635,6 +2658,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -2654,7 +2678,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2720,6 +2744,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -2739,7 +2764,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2811,6 +2836,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -2830,7 +2856,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2896,6 +2922,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -2915,7 +2942,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2981,6 +3008,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -3000,7 +3028,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -3066,6 +3094,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -3085,7 +3114,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -3157,6 +3186,7 @@
                       "  console.log(\"pattern_check:  \", JSON.stringify(pat));",
                       "  console.log(\"injection_check:\", inj ? JSON.stringify(inj) : \"skipped\");",
                       "  console.log(\"risk_classifier:\", sig.length ? sig.map(s => `${s.kind} ${s.probability} (${s.strength})`).join(\", \") : \"no risk\");",
+                      "  console.log(\"classify_safety:\", r.safety ? JSON.stringify({intents: r.safety.intents.map(i => `${i.topic}${i.decision_requested !== \"none\" ? \" (decide \" + i.decision_requested + \")\" : \"\"}`), vulnerable: r.safety.vulnerable_customer, security: r.safety.security_sensitive, injection: r.safety.injection_suspected}) : \"not run\");",
                       "  console.log(\"ROUTE:  \", `${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
                       "",
                       "  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
@@ -3176,7 +3206,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|llm|error):/)));",
                       "});",
                       "get(10);"
                     ]

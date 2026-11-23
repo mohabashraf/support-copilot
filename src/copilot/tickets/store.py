@@ -173,6 +173,22 @@ class PgTicketStore:
                     (result->'injection'->>'detected')::bool AS injection_detected,
                     (result->'injection'->'model'->>'probability')::float AS injection_score,
                     (result->'injection'->'guard'->>'probability')::float AS injection_guard_score,
+                    (SELECT string_agg(i->>'topic'
+                            || CASE WHEN i->>'decision_requested' <> 'none'
+                               THEN ' (decide ' || (i->>'decision_requested') || ')'
+                               ELSE '' END, ', ')
+                     FROM jsonb_array_elements(COALESCE(result->'safety'->'intents', '[]')) i)
+                        AS safety_intents,  -- topics only: never the quoted customer text
+                    concat_ws(' · ',
+                        CASE WHEN (result->'safety'->>'vulnerable_customer')::bool
+                             THEN 'vulnerable' END,
+                        CASE WHEN (result->'safety'->>'security_sensitive')::bool
+                             THEN 'security' END,
+                        CASE WHEN (result->'safety'->>'injection_suspected')::bool
+                             THEN 'INJECTION' END) AS safety_flags,
+                    (SELECT sum((u->>'cost_usd')::float)
+                     FROM jsonb_array_elements(COALESCE(result->'llm_usage', '[]')) u)
+                        AS llm_cost_usd,
                     (result->'routing'->'evidence')::text AS evidence,
                     agent_decision, agent_name, error IS NOT NULL AS has_error,
                     jsonb_array_length(pii_detections) AS pii_count,

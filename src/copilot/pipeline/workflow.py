@@ -36,16 +36,20 @@ from dataclasses import asdict, dataclass
 from functools import lru_cache
 from typing import Annotated, Any, Literal, TypedDict
 
+import anthropic
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
+from langgraph.types import RetryPolicy
 
 from copilot import telemetry as tel
 from copilot.log import get_logger
 from copilot.pipeline import injection as injection_gate
 from copilot.pipeline import patterns as pattern_rules
+from copilot.pipeline import prompts
 from copilot.pipeline import routing as routing_rules
+from copilot.pipeline.llm import LLMOutputError, structured
 from copilot.pipeline.risk_classifier import load_injection_rules
-from copilot.pipeline.schemas import Classification, DraftOut, Routing
+from copilot.pipeline.schemas import Classification, DraftOut, Routing, SafetyOut
 
 log = get_logger(__name__)
 
@@ -80,6 +84,8 @@ class State(InputState, OutputState, total=False):
 
     patterns: dict  # pattern_check: {"hits": [{kind, pattern}], "spam_reason": str | None}
     injection: dict  # injection_check: {"detected", "evidence": [...], "model": {probability...}}
+    safety: dict  # classify_safety: SafetyOut + checks (unquoted intents)
+    llm_usage: Annotated[list[dict], operator.add]  # one Usage per LLM call (tokens, cost)
     risk: dict  # risk_classifier: signals, probabilities, category (+ probability, margin)
     classification: Classification | None
     blocked_intents: list[int]  # indexes into classification.intents
@@ -99,6 +105,7 @@ class Deps:
 
     risk_classifier: Any = None  # pipeline.risk_classifier.RiskClassifier (or a test fake)
     injection_guard: Any = None  # pipeline.injection_guard.InjectionGuard (or a test fake)
+    classify_llm: Any = None  # ChatAnthropic for the classification calls (or a test fake)
 
 
 @lru_cache
@@ -107,6 +114,7 @@ def default_deps() -> Deps:
     Loads bge-m3 (~10 s) once. The worker passes its own Deps instead."""
     from copilot.config import get_settings  # noqa: PLC0415
     from copilot.pipeline.injection_guard import InjectionGuard  # noqa: PLC0415
+    from copilot.pipeline.llm import chat_model  # noqa: PLC0415
     from copilot.pipeline.risk_classifier import (  # noqa: PLC0415
         RiskClassifier,
         load_injection_rules,
@@ -121,6 +129,7 @@ def default_deps() -> Deps:
             {"weak": rules["guard_weak"], "strong": rules["guard_strong"]},
             st.huggingface_api_key.get_secret_value() if st.huggingface_api_key else None,
         ),
+        chat_model(st.llm_classify_model, st.anthropic_api_key, st.llm_timeout_s),
     )
 
 
@@ -130,6 +139,7 @@ def _deps(runtime: Runtime | None) -> Deps:
         isinstance(ctx, Deps)
         and ctx.risk_classifier is not None
         and ctx.injection_guard is not None
+        and ctx.classify_llm is not None
     )
     return ctx if ok else default_deps()
 
@@ -190,12 +200,41 @@ def placeholder(fn):
     return fn
 
 
-@placeholder
-def classify_safety(state: State) -> dict:
-    # TODO: LLM call 1 (safety, tuned for recall): intents + decision_requested, vulnerable,
-    # security. Second line against injection: it also flags instructions aimed at the AI
-    # (→ reason prompt_injection, no draft). Never reached when the injection gate fired.
-    return {"steps": ["classify_safety"]}  # placeholder: produces nothing
+MAX_INTENTS = 5
+
+
+def classify_safety(state: State, runtime: Runtime[Deps]) -> dict:
+    """LLM call 1a (recall first): which parts of the ticket touch a hard rule: intents with
+    topic + decision_requested, vulnerable, security, and a 2nd line against injection.
+    Never reached when the injection gate fired. Validated in 4 layers: structured output,
+    Pydantic, business rules below, and fail closed (an error is never "safe")."""
+    r = structured(
+        _deps(runtime).classify_llm,
+        SafetyOut,
+        prompts.SAFETY_SYSTEM,
+        prompts.safety_user(state.get("subject", ""), state.get("body", "")),
+        name="classify_safety",
+    )
+    out: SafetyOut = r.parsed
+    if not 1 <= len(out.intents) <= MAX_INTENTS:
+        raise LLMOutputError(f"classify_safety: {len(out.intents)} intents (expected 1-5)")
+    ticket = _norm(_text(state))
+    unquoted = [i for i, it in enumerate(out.intents) if _norm(it.text) not in ticket]
+    return {
+        "steps": ["classify_safety"],
+        "safety": {
+            **out.model_dump(),
+            "unquoted_intents": unquoted,  # quotes not found in the ticket: shown to the agent
+            "prompt_version": prompts.PROMPT_VERSION,
+            "model": r.model,
+        },
+        "llm_usage": [{"node": "classify_safety", **r.usage.model_dump()}],
+    }
+
+
+def _norm(s: str) -> str:
+    """Lowercase, one space, no edge punctuation: for checking a quote is in the ticket."""
+    return " ".join(s.lower().split()).strip(" .,!?;:'\"")
 
 
 @placeholder
@@ -283,8 +322,11 @@ def after_risk(state: State) -> list[str] | Literal["route"]:
     return LLM_CLASSIFIERS
 
 
-def after_gate(state: State) -> Literal["retrieve", "template_reply"]:
-    """All intents blocked → only a template reply. Anything answerable → grounded draft."""
+def after_gate(state: State) -> Literal["route", "retrieve", "template_reply"]:
+    """2nd line: the safety LLM suspects an injection the gate missed → no draft, a person.
+    All intents blocked → only a template reply. Anything answerable → grounded draft."""
+    if (state.get("safety") or {}).get("injection_suspected"):
+        return "route"
     c = state.get("classification")
     n_intents = len(c.intents) if c else 1
     if len(state.get("blocked_intents", [])) >= n_intents:
@@ -340,10 +382,27 @@ NODES = [
 NODE_IMPLEMENTED = {name: getattr(fn, "implemented", True) for name, fn in NODES}
 
 
+# LLM nodes: one retry inside the graph on an invalid answer or a transient API error (PRD:
+# "invalid JSON after one retry → technical_failure"). After that the node fails, the worker
+# retries the ticket (resuming at this node) and, after 3 attempts, hands it to a person.
+LLM_RETRY = RetryPolicy(
+    max_attempts=2,
+    initial_interval=1.0,
+    retry_on=(
+        LLMOutputError,
+        anthropic.APIConnectionError,
+        anthropic.APITimeoutError,
+        anthropic.RateLimitError,
+        anthropic.InternalServerError,
+    ),
+)
+RETRY = {"classify_safety": LLM_RETRY}
+
+
 def build_graph(checkpointer=None):
     g = StateGraph(State, context_schema=Deps, input_schema=InputState, output_schema=OutputState)
     for name, fn in NODES:
-        g.add_node(name, _observed(name, fn))
+        g.add_node(name, _observed(name, fn), retry_policy=RETRY.get(name))
 
     g.add_edge(START, "pattern_check")
     g.add_conditional_edges("pattern_check", after_patterns)

@@ -41,11 +41,13 @@ _RANK = {"support_agent": 0, "senior_support": 1, "compliance": 2}
 
 
 def injection_evidence(state: dict) -> list[str]:
-    """The injection gate's evidence (pipeline/injection.py): detector names + scores. On the
-    spam path the gate doesn't run, so exact injection patterns are read from pattern_check."""
+    """Every injection signal: the gate's evidence (patterns, guard, head) and the 2nd line, the
+    safety LLM (classify_safety). On the spam path the gate doesn't run, so exact injection
+    patterns are read from pattern_check."""
+    llm = ["llm:classify_safety"] if (state.get("safety") or {}).get("injection_suspected") else []
     if state.get("injection") is not None:
-        return list(state["injection"].get("evidence", []))
-    return [
+        return list(state["injection"].get("evidence", [])) + llm
+    return llm + [
         f"pattern:{h['pattern']}"
         for h in (state.get("patterns") or {}).get("hits", [])
         if h["kind"] == "prompt_injection"

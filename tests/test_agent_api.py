@@ -41,7 +41,7 @@ def test_inbox_lists_tickets_with_counts_and_filters(env):
     assert inbox["counts"] == {"done": 1}
     row = inbox["items"][0]
     assert row["ticket_number"] == n and not row["handled_by_agent"]
-    assert row["steps_completed"] == "4/12" and row["complete"] is False
+    assert row["steps_completed"] == "5/12" and row["complete"] is False
     # Routing ran before the fixture added a draft, so it saw none: a person writes it.
     assert row["decision"] == "human_required" and row["queue"] == "support_agent"
     assert row["reasons"] == ["no_draft"]
