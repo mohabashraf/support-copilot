@@ -41,7 +41,7 @@ def test_inbox_lists_tickets_with_counts_and_filters(env):
     assert inbox["counts"] == {"done": 1}
     row = inbox["items"][0]
     assert row["ticket_number"] == n and not row["handled_by_agent"]
-    assert row["steps_passed"] == "8/8" and row["steps_real"] == "0/8" and row["complete"] is False
+    assert row["steps_completed"] == "0/8" and row["complete"] is False
     assert row["queue"] is None and row["decision"] is None  # nothing decided: no fake routing
     assert client.get("/tickets", params={"status": "queued"}, headers=SARA).json()["items"] == []
     assert (

@@ -70,15 +70,20 @@ class AgentAction(BaseModel):
     final_text_masked: str  # what was sent, re-masked (empty when handled manually)
 
 
+class StepOut(BaseModel):
+    node: str
+    status: Literal["completed", "placeholder"]  # placeholder = not implemented, did NOTHING
+    ms: float | None
+
+
 class TicketSummary(BaseModel):
     """One inbox row."""
 
     ticket_number: int
     ticket_id: str
     status: Status
-    steps_passed: str  # "8/8": nodes the ticket went through (incl. placeholders)
-    steps_real: str  # "0/8": nodes that did real work (not placeholders)
-    complete: bool | None  # True only if every node passed did real work; None while running
+    steps_completed: str  # "3/8": workflow steps that did REAL work (placeholders don't count)
+    complete: bool | None  # True only if every step did real work; None while running
     current_step: str | None
     category: str | None
     urgency: str | None
@@ -100,11 +105,9 @@ class TicketStatus(BaseModel):
     ticket_id: str
     status: Status  # queued → processing → done | failed (queued again while retrying)
     current_step: str | None
-    steps_done: list[str]
-    steps_passed: str  # "8/8": nodes the ticket went through (incl. placeholders)
-    steps_real: str  # "0/8": nodes that did real work
-    complete: bool | None  # True only if every node passed did real work; None while running
-    placeholder_nodes: list[str]  # nodes that only passed the ticket on (not implemented yet)
+    steps_completed: str  # "3/8": workflow steps that did REAL work (placeholders don't count)
+    complete: bool | None  # True only if every step did real work; None while running
+    steps: list[StepOut]  # in order, each with its own status: completed | placeholder
     attempts: int
     max_attempts: int
     created_at: datetime
@@ -268,28 +271,36 @@ def _fill(vault: PiiVault | None, ticket_id: str, placeholder: str) -> str:
     return display_value(placeholder, value) if value else placeholder
 
 
-def _work(r: TicketRecord) -> tuple[str, str, bool | None, list[str]]:
-    """steps_passed, steps_real, complete, placeholder_nodes, from what the worker recorded.
+def _work(r: TicketRecord) -> tuple[str, bool | None, list[StepOut]]:
+    """steps_completed, complete, per-step status, from what the worker recorded.
+    A placeholder step (not implemented) did nothing, so it never counts as completed.
     Steps saved without the flag (before 2026-11-23) were all placeholders."""
-    total = len(PIPELINE)
-    placeholders = [s["node"] for s in r.step_times if not s.get("implemented", False)]
-    real = len(r.step_times) - len(placeholders)
+    steps = [
+        StepOut(
+            node=s["node"],
+            status="completed" if s.get("implemented", False) else "placeholder",
+            ms=s.get("ms"),
+        )
+        for s in r.step_times
+    ]
+    done = sum(s.status == "completed" for s in steps)
     complete = (
-        None if r.status in ("queued", "processing") else (r.status == "done" and not placeholders)
+        None
+        if r.status in ("queued", "processing")
+        else (r.status == "done" and done == len(steps) > 0)
     )
-    return f"{len(r.steps)}/{total}", f"{real}/{total}", complete, placeholders
+    return f"{done}/{len(PIPELINE)}", complete, steps
 
 
 def _summary(r: TicketRecord) -> TicketSummary:
     routing = (r.result or {}).get("routing") or {}
     cls = (r.result or {}).get("classification") or {}
-    passed, real, complete, _ = _work(r)
+    completed, complete, _ = _work(r)
     return TicketSummary(
         ticket_number=r.number,
         ticket_id=r.external_id,
         status=r.status,
-        steps_passed=passed,
-        steps_real=real,
+        steps_completed=completed,
         complete=complete,
         current_step=r.current_step,
         category=cls.get("category"),
@@ -307,7 +318,7 @@ def _status(r: TicketRecord) -> TicketStatus:
     def secs(a: datetime | None, b: datetime | None) -> float | None:
         return round((b - a).total_seconds(), 3) if a and b else None
 
-    passed, real, complete, placeholders = _work(r)
+    completed, complete, steps = _work(r)
     action = None
     if r.agent_decision and r.decided_at:
         action = AgentAction(
@@ -321,11 +332,9 @@ def _status(r: TicketRecord) -> TicketStatus:
         ticket_id=r.external_id,
         status=r.status,
         current_step=r.current_step,
-        steps_done=r.steps,
-        steps_passed=passed,
-        steps_real=real,
+        steps_completed=completed,
         complete=complete,
-        placeholder_nodes=placeholders,
+        steps=steps,
         attempts=r.attempts,
         max_attempts=MAX_ATTEMPTS,
         created_at=r.created_at,

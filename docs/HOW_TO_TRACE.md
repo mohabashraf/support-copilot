@@ -39,9 +39,9 @@ N=<your number>
 curl -s http://127.0.0.1:8000/tickets/$N -H "Authorization: Bearer $SARA_KEY" | python3 -m json.tool
 ```
 - `status`: queued → processing → done (or failed after 3 attempts)
-- `current_step` / `steps_done`: where it is in the 8 steps
-- `steps_passed` vs `steps_real`, `complete`, `placeholder_nodes`: how much REAL work was done
-  (placeholder = not implemented yet; it produces nothing, so `routing` etc. stay `null`)
+- `current_step`: where it is now
+- `steps_completed` (e.g. `0/8`, real work only), `complete`, and `steps`: each step with its status
+  `completed` or `placeholder` (not implemented yet: did nothing, so `routing` etc. stay `null`)
 - `message`: the customer's text **masked** (`[NAME_1]`, `[CARD_1]`, `[PHONE_1]`)
 - `trace_id`: its LangSmith run (step 6)
 

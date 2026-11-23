@@ -442,7 +442,7 @@
     },
     {
       "type": "table",
-      "title": "Latest tickets (passed = steps gone through, real = steps that did real work; no ticket text)",
+      "title": "Latest tickets (steps completed = real work only; no ticket text)",
       "id": 30,
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -464,7 +464,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT number AS \"#\", ticket_id AS \"ticket\", status,\n  steps_done || '/8' AS \"passed\", steps_real || '/8' AS \"real\", CASE WHEN complete THEN 'yes' ELSE 'no' END AS \"complete\", COALESCE(current_step,'') AS \"now\",\n  COALESCE(category,'\u2014') AS category, COALESCE(urgency,'\u2014') AS urgency, COALESCE(decision,'not decided') AS decision, COALESCE(queue,'not decided') AS queue, reasons,\n  COALESCE(agent_decision,'open') AS \"agent\", COALESCE(agent_name,'') AS \"by\",\n  attempts, round(queue_seconds::numeric,2) AS \"queue s\", round(processing_seconds::numeric,2) AS \"processing s\",\n  created_at AS \"received\"\nFROM tickets_monitoring ORDER BY number DESC LIMIT 100"
+          "rawSql": "SELECT number AS \"#\", ticket_id AS \"ticket\", status,\n  steps_completed || '/8' AS \"steps completed\", CASE WHEN complete THEN 'yes' ELSE 'no' END AS \"complete\", COALESCE(current_step,'') AS \"now\",\n  COALESCE(category,'\u2014') AS category, COALESCE(urgency,'\u2014') AS urgency, COALESCE(decision,'not decided') AS decision, COALESCE(queue,'not decided') AS queue, reasons,\n  COALESCE(agent_decision,'open') AS \"agent\", COALESCE(agent_name,'') AS \"by\",\n  attempts, round(queue_seconds::numeric,2) AS \"queue s\", round(processing_seconds::numeric,2) AS \"processing s\",\n  created_at AS \"received\"\nFROM tickets_monitoring ORDER BY number DESC LIMIT 100"
         }
       ],
       "fieldConfig": {
@@ -1225,7 +1225,7 @@
     },
     {
       "type": "stat",
-      "title": "Real work (nodes)",
+      "title": "Steps completed",
       "id": 50,
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -1247,7 +1247,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT sum(implemented::int) || ' of ' || count(*) AS real_work FROM tickets_steps WHERE number = $ticket"
+          "rawSql": "SELECT sum(implemented::int) || '/8' AS real_work FROM tickets_steps WHERE number = $ticket"
         }
       ],
       "fieldConfig": {
@@ -1256,7 +1256,7 @@
             {
               "type": "regex",
               "options": {
-                "pattern": "^0 of .*",
+                "pattern": "^0/.*",
                 "result": {
                   "color": "orange",
                   "index": 0
@@ -1266,10 +1266,20 @@
             {
               "type": "regex",
               "options": {
-                "pattern": ".+",
+                "pattern": "^8/8$",
                 "result": {
                   "color": "green",
                   "index": 1
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".+",
+                "result": {
+                  "color": "yellow",
+                  "index": 2
                 }
               }
             }
@@ -1388,7 +1398,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT 'received (API: masked + queued)' AS event, created_at AS at, NULL::numeric AS seconds FROM tickets_monitoring WHERE number = $ticket\nUNION ALL SELECT 'worker started (attempt ' || attempts || ')', started_at, round(queue_seconds::numeric,3) FROM tickets_monitoring WHERE number = $ticket AND started_at IS NOT NULL\nUNION ALL SELECT 'workflow finished: ' || steps_done || '/8 passed, ' || steps_real || ' real' || CASE WHEN complete THEN '' ELSE ' (INCOMPLETE)' END, finished_at, round(processing_seconds::numeric,3) FROM tickets_monitoring WHERE number = $ticket AND finished_at IS NOT NULL\nUNION ALL SELECT 'agent: ' || agent_decision || ' by ' || agent_name, decided_at, NULL FROM tickets_monitoring WHERE number = $ticket AND decided_at IS NOT NULL\nORDER BY at"
+          "rawSql": "SELECT 'received (API: masked + queued)' AS event, created_at AS at, NULL::numeric AS seconds FROM tickets_monitoring WHERE number = $ticket\nUNION ALL SELECT 'worker started (attempt ' || attempts || ')', started_at, round(queue_seconds::numeric,3) FROM tickets_monitoring WHERE number = $ticket AND started_at IS NOT NULL\nUNION ALL SELECT 'workflow finished: ' || steps_completed || '/8 steps completed' || CASE WHEN complete THEN '' ELSE ', ' || (steps_visited - steps_completed) || ' placeholders (INCOMPLETE)' END, finished_at, round(processing_seconds::numeric,3) FROM tickets_monitoring WHERE number = $ticket AND finished_at IS NOT NULL\nUNION ALL SELECT 'agent: ' || agent_decision || ' by ' || agent_name, decided_at, NULL FROM tickets_monitoring WHERE number = $ticket AND decided_at IS NOT NULL\nORDER BY at"
         }
       ],
       "options": {
@@ -1424,7 +1434,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "WITH g(id, title, ord) AS (VALUES\n  ('start','POST /tickets (API)',0),('pii_mask','pii_mask (API, BEFORE the graph)',1),('queue','queue (Postgres)',2),\n  ('classify','classify (LLM 1)',3),('policy_gate','policy_gate (hard rules)',4),('retrieve','retrieve (KB search)',5),\n  ('template_reply','template_reply (decline / ack)',5),('draft','draft (LLM 2)',6),('post_check','post_check (numbers, citations)',7),\n  ('compose','compose',8),('route','route (who handles it)',9),('audit','audit',10),('end','done',11)),\nt AS (SELECT * FROM tickets_monitoring WHERE number = $ticket),\ns AS (SELECT node, sum(ms) AS ms, count(*) AS runs, bool_and(implemented) AS implemented FROM tickets_steps WHERE number = $ticket GROUP BY node)\nSELECT g.id, g.title,\n  CASE\n    WHEN g.id = 'start' THEN (SELECT ticket_id FROM t)\n    WHEN g.id = 'pii_mask' THEN (SELECT COALESCE(round(pii_ms)::text || ' ms \u00b7 ' || pii_count || ' PII masked', 'no data') FROM t)\n    WHEN g.id = 'queue' THEN (SELECT COALESCE(round(queue_seconds::numeric * 1000) || ' ms waiting', 'waiting\u2026') FROM t)\n    WHEN g.id = 'end' THEN (SELECT status FROM t)\n    WHEN s.node IS NULL THEN 'not taken'\n    WHEN NOT s.implemented THEN 'PLACEHOLDER \u00b7 ' || round(s.ms::numeric, 1) || ' ms'\n    ELSE round(s.ms::numeric, 1) || ' ms' END AS mainstat,\n  CASE\n    WHEN g.id = 'pii_mask' THEN (SELECT CASE WHEN pii_residual = '[]' THEN 'no possible misses' ELSE 'possible miss: ' || pii_residual END FROM t)\n    WHEN s.node IS NOT NULL AND NOT s.implemented THEN 'not implemented: passed through'\n    WHEN s.runs > 1 THEN s.runs || ' runs (redraft)' ELSE '' END AS secondarystat,\n  CASE\n    WHEN g.id IN ('start','pii_mask') AND EXISTS (SELECT 1 FROM t) THEN 1\n    WHEN g.id = 'queue' AND (SELECT started_at IS NOT NULL FROM t) THEN 1\n    WHEN g.id = 'end' AND (SELECT status IN ('done','failed') FROM t) THEN 1\n    WHEN s.node IS NOT NULL AND s.implemented THEN 1 ELSE 0 END AS arc__taken,\n  CASE WHEN s.node IS NOT NULL AND NOT s.implemented THEN 1 ELSE 0 END AS arc__placeholder\nFROM g LEFT JOIN s ON s.node = g.id ORDER BY g.ord"
+          "rawSql": "WITH g(id, title, ord) AS (VALUES\n  ('start','POST /tickets (API)',0),('pii_mask','pii_mask (API, BEFORE the graph)',1),('queue','queue (Postgres)',2),\n  ('classify','classify (LLM 1)',3),('policy_gate','policy_gate (hard rules)',4),('retrieve','retrieve (KB search)',5),\n  ('template_reply','template_reply (decline / ack)',5),('draft','draft (LLM 2)',6),('post_check','post_check (numbers, citations)',7),\n  ('compose','compose',8),('route','route (who handles it)',9),('audit','audit',10),('end','done',11)),\nt AS (SELECT * FROM tickets_monitoring WHERE number = $ticket),\ns AS (SELECT node, sum(ms) AS ms, count(*) AS runs, bool_and(implemented) AS implemented FROM tickets_steps WHERE number = $ticket GROUP BY node)\nSELECT g.id, g.title,\n  CASE\n    WHEN g.id = 'start' THEN (SELECT ticket_id FROM t)\n    WHEN g.id = 'pii_mask' THEN (SELECT COALESCE(round(pii_ms)::text || ' ms \u00b7 ' || pii_count || ' PII masked', 'no data') FROM t)\n    WHEN g.id = 'queue' THEN (SELECT COALESCE(round(queue_seconds::numeric * 1000) || ' ms waiting', 'waiting\u2026') FROM t)\n    WHEN g.id = 'end' THEN (SELECT status FROM t)\n    WHEN s.node IS NULL THEN 'not taken'\n    WHEN NOT s.implemented THEN 'PLACEHOLDER \u00b7 ' || round(s.ms::numeric, 1) || ' ms'\n    ELSE round(s.ms::numeric, 1) || ' ms' END AS mainstat,\n  CASE\n    WHEN g.id = 'pii_mask' THEN (SELECT CASE WHEN pii_residual = '[]' THEN 'no possible misses' ELSE 'possible miss: ' || pii_residual END FROM t)\n    WHEN s.node IS NOT NULL AND NOT s.implemented THEN 'not implemented: did nothing'\n    WHEN s.runs > 1 THEN s.runs || ' runs (redraft)' ELSE '' END AS secondarystat,\n  CASE\n    WHEN g.id IN ('start','pii_mask') AND EXISTS (SELECT 1 FROM t) THEN 1\n    WHEN g.id = 'queue' AND (SELECT started_at IS NOT NULL FROM t) THEN 1\n    WHEN g.id = 'end' AND (SELECT status IN ('done','failed') FROM t) THEN 1\n    WHEN s.node IS NOT NULL AND s.implemented THEN 1 ELSE 0 END AS arc__taken,\n  CASE WHEN s.node IS NOT NULL AND NOT s.implemented THEN 1 ELSE 0 END AS arc__placeholder\nFROM g LEFT JOIN s ON s.node = g.id ORDER BY g.ord"
         },
         {
           "refId": "edges",
@@ -1501,7 +1511,7 @@
     },
     {
       "type": "table",
-      "title": "Steps in order (ms)",
+      "title": "Steps in order: status and ms",
       "id": 49,
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -1523,7 +1533,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT ord AS \"#\", node, CASE WHEN implemented THEN 'real' ELSE 'PLACEHOLDER' END AS work, round(ms::numeric, 1) AS ms FROM tickets_steps WHERE number = $ticket ORDER BY ord"
+          "rawSql": "SELECT ord AS \"#\", node, CASE WHEN implemented THEN 'completed' ELSE 'placeholder (did nothing)' END AS status, round(ms::numeric, 1) AS ms FROM tickets_steps WHERE number = $ticket ORDER BY ord"
         }
       ],
       "options": {
@@ -1559,7 +1569,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "work"
+              "options": "status"
             },
             "properties": [
               {
@@ -1574,11 +1584,11 @@
                   {
                     "type": "value",
                     "options": {
-                      "real": {
+                      "completed": {
                         "color": "green",
                         "index": 0
                       },
-                      "PLACEHOLDER": {
+                      "placeholder (did nothing)": {
                         "color": "orange",
                         "index": 1
                       }

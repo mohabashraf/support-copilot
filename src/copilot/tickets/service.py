@@ -168,8 +168,7 @@ def process(record: TicketRecord, store: TicketStore, audit: AuditLog | None = N
                 "routing": routing.model_dump() if routing else None,
                 # Honest completeness: did every node the ticket passed through do real work?
                 "complete": not placeholders,
-                "steps_real": len(_steps_seen) - len(placeholders),
-                "steps_passed": len(_steps_seen),
+                "steps_completed": len(_steps_seen) - len(placeholders),  # real work only
                 "placeholder_nodes": placeholders,
             }
             store.finish(record.number, result)

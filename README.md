@@ -53,7 +53,7 @@ uv run pytest -q                      # tests (Postgres tests skip if the db is 
 
 ## API: only what the business uses (D5)
 - `POST /tickets` `{id, subject, body, ...}` → **202** `{ticket_number, status: "queued", status_url}` in ~200 ms (PII masked, mapping stored encrypted, ticket queued). The same `id` again → **200** with the same number (webhooks are redelivered; nothing is queued twice).
-- `GET /tickets/{number}` → where it stands: `status` (queued → processing → done | failed), `current_step`, `steps_done`, **`steps_passed` vs `steps_real` and `complete`** (a node that is not implemented yet is reported as a placeholder, never as work done; it produces nothing, so `routing`/`classification`/`reply` stay `null` instead of fake values), `attempts` (max 3), timings (`seconds_in_queue`, `seconds_processing`), the LangSmith `trace_id`, and when done the `result` (classification, reply, citations, routing). On errors: `error`, retried automatically, `failed` after 3 attempts.
+- `GET /tickets/{number}` → where it stands: `status` (queued → processing → done | failed), `current_step`, **`steps_completed`** (real work only, e.g. `0/8`), **`complete`** and **`steps`** (each step with its own status: `completed`, or `placeholder` = not implemented, did nothing; placeholders produce nothing, so `routing`/`classification`/`reply` stay `null` instead of fake values), `attempts` (max 3), timings (`seconds_in_queue`, `seconds_processing`), the LangSmith `trace_id`, and when done the `result` (classification, reply, citations, routing). On errors: `error`, retried automatically, `failed` after 3 attempts.
 - `GET /health` → used by Docker's healthcheck.
 
 No response ever contains ticket text or a real PII value.

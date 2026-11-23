@@ -133,6 +133,7 @@ class PgTicketStore:
                 "step_times jsonb NOT NULL DEFAULT '[]'",  # [{node, ms}] per finished node
             ):
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col}")
+            # steps_visited counts placeholders too, so it is never shown as progress.
             # Monitoring view for Grafana: derived, NON-TEXT columns only (no message, draft, final
             # text or error text). The read-only role `grafana_ro` may read this view and nothing
             # else (observability/postgres/grafana_readonly.sql), so Grafana can't show PII.
@@ -144,9 +145,9 @@ class PgTicketStore:
             conn.execute(
                 f"""CREATE VIEW {table}_monitoring AS SELECT
                     number, external_id AS ticket_id, status, current_step,
-                    jsonb_array_length(steps) AS steps_done,
+                    jsonb_array_length(steps) AS steps_visited,
                     (SELECT count(*) FROM jsonb_array_elements(step_times) e
-                     WHERE COALESCE((e->>'implemented')::bool, false)) AS steps_real,
+                     WHERE COALESCE((e->>'implemented')::bool, false)) AS steps_completed,
                     COALESCE((result->>'complete')::bool, false) AS complete, attempts,
                     pii_types::text AS pii_types,
                     result->'classification'->>'category' AS category,
