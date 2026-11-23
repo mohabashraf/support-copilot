@@ -50,7 +50,10 @@ def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
     done = client.get(f"/tickets/{n}", headers=HELPDESK).json()
     assert done["status"] == "done"
     assert done["steps_done"][0] == "classify" and done["steps_done"][-1] == "audit"
-    assert done["result"]["routing"] is not None and done["seconds_processing"] is not None
+    assert done["seconds_processing"] is not None
+    # Honest: placeholder nodes produce nothing, so no routing and the ticket is not complete.
+    assert done["result"]["routing"] is None and done["complete"] is False
+    assert done["steps_passed"] == "8/8" and done["placeholder_nodes"] == done["steps_done"]
     assert "4111" not in str(done)
 
 

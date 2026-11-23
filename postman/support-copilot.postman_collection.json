@@ -181,7 +181,7 @@
                   "const b = pm.response.json();",
                   "pm.test(\"done (is the worker running? uv run copilot worker)\", () => pm.expect(b.status).to.eql(\"done\"));",
                   "pm.test(\"every workflow step recorded\", () => pm.expect(b.steps_done).to.eql([\"classify\",\"policy_gate\",\"retrieve\",\"draft\",\"post_check\",\"compose\",\"route\",\"audit\"]));",
-                  "pm.test(\"result with routing\", () => pm.expect(b.result.routing).to.have.property(\"decision\"));",
+                  "pm.test(\"honest result: complete flag + placeholder nodes listed (null = not produced)\", () => { pm.expect(b).to.have.property(\"complete\"); pm.expect(b.placeholder_nodes).to.be.an(\"array\"); if (!b.complete) pm.expect(b.placeholder_nodes.length).to.be.above(0); });",
                   "pm.test(\"timings\", () => { pm.expect(b.seconds_in_queue).to.be.a(\"number\"); pm.expect(b.seconds_processing).to.be.a(\"number\"); });",
                   "pm.test(\"no real PII value\", () => [\"4111\", \"Ahmed Hassan\", \"A12345678\"].forEach(v => pm.expect(pm.response.text()).to.not.include(v)));",
                   "console.log(\"LangSmith trace:\", b.trace_id);"
@@ -423,7 +423,7 @@
                   "pm.test(\"200\", () => pm.response.to.have.status(200));",
                   "const b = pm.response.json();",
                   "pm.test(\"counts + items\", () => { pm.expect(b.counts).to.be.an(\"object\"); pm.expect(b.items).to.be.an(\"array\"); });",
-                  "pm.test(\"rows carry progress and routing\", () => b.items.slice(0,5).forEach(r => { pm.expect(r.progress).to.match(/^\\d\\/8$/); pm.expect(r).to.have.property(\"queue\"); }));",
+                  "pm.test(\"rows say how much real work was done\", () => b.items.slice(0,5).forEach(r => { pm.expect(r.steps_real).to.match(/^\\d\\/8$/); pm.expect(r).to.have.property(\"complete\"); }));",
                   "pm.test(\"no real PII value\", () => pm.expect(pm.response.text()).to.not.include(\"4111 1111 1111 1111\"));"
                 ]
               }

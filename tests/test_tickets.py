@@ -73,7 +73,8 @@ def test_worker_runs_the_graph_and_records_every_step(store):
         "route",
         "audit",
     ]
-    assert done.result["routing"]["decision"] in ("auto_draft_ok", "human_required")
+    # Today every node is a placeholder: nothing is decided, and the result says so.
+    assert done.result["routing"] is None and done.result["complete"] is False
     assert done.trace_id and done.finished_at
     assert run_once(store) is False  # queue empty
 
@@ -112,3 +113,16 @@ def test_a_crashed_workers_ticket_is_claimed_again_after_its_lease(store):
             conn.execute("UPDATE tickets_test SET lease_until = now() - interval '1 second'")
     again = store.claim()
     assert again.number == rec.number and again.attempts == 2
+
+
+def test_placeholder_nodes_are_reported_as_placeholders_not_as_work_done(store):
+    """Monitoring must never report work that didn't happen."""
+    from copilot.pipeline.workflow import NODE_IMPLEMENTED  # noqa: PLC0415
+
+    rec, _ = service.intake(Ticket(id="T1", body="hi"), MASKER, None, store)
+    run_once(store)
+    done = store.get(rec.number)
+    for step in done.step_times:
+        assert step["implemented"] == NODE_IMPLEMENTED[step["node"]]
+    expected = [n for n in done.steps if not NODE_IMPLEMENTED[n]]
+    assert done.result["placeholder_nodes"] == expected

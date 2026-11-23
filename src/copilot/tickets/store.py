@@ -41,7 +41,7 @@ class TicketRecord(BaseModel):
     pii_detections: list[dict] = []
     pii_residual: list[str] = []  # possible misses left after masking (long_number, ...)
     pii_ms: float | None = None
-    step_times: list[dict] = []  # [{"node": "classify", "ms": 812.4}, ...] in order
+    step_times: list[dict] = []  # [{"node", "ms", "implemented"}, ...] in order
     result: dict[str, Any] | None = None  # classification, reply, citations, routing
     error: str | None = None
     intake_trace_id: str | None = None  # LangSmith trace of the intake (masking)
@@ -71,7 +71,12 @@ class TicketStore(Protocol):
     def get(self, number: int) -> TicketRecord | None: ...
     def claim(self) -> TicketRecord | None: ...
     def set_step(
-        self, number: int, step: str, trace_id: str | None = None, ms: float | None = None
+        self,
+        number: int,
+        step: str,
+        trace_id: str | None = None,
+        ms: float | None = None,
+        implemented: bool = True,
     ) -> None: ...
     def finish(self, number: int, result: dict) -> None: ...
     def fail(self, number: int, error: str) -> Status: ...
@@ -139,7 +144,10 @@ class PgTicketStore:
             conn.execute(
                 f"""CREATE VIEW {table}_monitoring AS SELECT
                     number, external_id AS ticket_id, status, current_step,
-                    jsonb_array_length(steps) AS steps_done, attempts,
+                    jsonb_array_length(steps) AS steps_done,
+                    (SELECT count(*) FROM jsonb_array_elements(step_times) e
+                     WHERE COALESCE((e->>'implemented')::bool, false)) AS steps_real,
+                    COALESCE((result->>'complete')::bool, false) AS complete, attempts,
                     pii_types::text AS pii_types,
                     result->'classification'->>'category' AS category,
                     result->'classification'->>'urgency' AS urgency,
@@ -164,9 +172,11 @@ class PgTicketStore:
                 FROM {table} t, jsonb_array_elements(t.pii_detections) AS d"""
             )
             # One row per workflow node the ticket went through, in order, with its duration.
+            # Steps saved without the flag (before 2026-11-23) were all placeholders → false.
             conn.execute(
                 f"""CREATE VIEW {table}_steps AS SELECT
-                    t.number, s.ord::int AS ord, s.e->>'node' AS node, (s.e->>'ms')::float AS ms
+                    t.number, s.ord::int AS ord, s.e->>'node' AS node, (s.e->>'ms')::float AS ms,
+                    COALESCE((s.e->>'implemented')::bool, false) AS implemented
                 FROM {table} t, jsonb_array_elements(t.step_times) WITH ORDINALITY AS s(e, ord)"""
             )
             conn.execute(
@@ -240,14 +250,15 @@ class PgTicketStore:
             (LEASE,),
         )
 
-    def set_step(self, number, step, trace_id=None, ms=None):
+    def set_step(self, number, step, trace_id=None, ms=None, implemented=True):
+        entry = {"node": step, "ms": ms, "implemented": implemented}
         with self.pool.connection() as conn:
             conn.execute(
                 f"""UPDATE {self.t} SET current_step = %s, steps = steps || %s,
                         step_times = step_times || %s,
                         lease_until = now() + %s, trace_id = COALESCE(%s, trace_id)
                     WHERE number = %s""",
-                (step, Jsonb([step]), Jsonb([{"node": step, "ms": ms}]), LEASE, trace_id, number),
+                (step, Jsonb([step]), Jsonb([entry]), LEASE, trace_id, number),
             )
 
     def finish(self, number, result):
@@ -350,10 +361,10 @@ class InMemoryTicketStore:
                 return rec.model_copy()
         return None
 
-    def set_step(self, number, step, trace_id=None, ms=None):
+    def set_step(self, number, step, trace_id=None, ms=None, implemented=True):
         rec = self.rows[number]
         rec.current_step, rec.steps = step, [*rec.steps, step]
-        rec.step_times = [*rec.step_times, {"node": step, "ms": ms}]
+        rec.step_times = [*rec.step_times, {"node": step, "ms": ms, "implemented": implemented}]
         rec.lease_until = datetime.now(UTC) + LEASE
         rec.trace_id = trace_id or rec.trace_id
 

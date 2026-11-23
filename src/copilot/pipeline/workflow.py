@@ -77,27 +77,40 @@ class State(InputState, OutputState, total=False):
 # ---- Nodes (placeholders) -------------------------------------------------------------------
 
 
+def placeholder(fn):
+    """Marks a node that is not implemented yet. Monitoring reports it as a placeholder (amber
+    in Grafana, listed in the ticket result) instead of as real work done. Remove the decorator
+    when the node is implemented."""
+    fn.implemented = False
+    return fn
+
+
+@placeholder
 def classify(state: State) -> dict:
     # TODO step 2+3: deterministic rules (rules.py) + LLM call 1 (structured Classification)
-    return {"steps": ["classify"], "classification": None, "rule_signals": []}
+    return {"steps": ["classify"]}  # placeholder: no classification produced
 
 
+@placeholder
 def policy_gate(state: State) -> dict:
     # TODO step 4: block intents that touch a hard rule (advice, complaint/KYC/AML decision,
     # vulnerable customer, security request). Code, not a prompt.
     return {"steps": ["policy_gate"], "blocked_intents": [], "template_parts": []}
 
 
+@placeholder
 def template_reply(state: State) -> dict:
     # TODO step 4: fixed decline / neutral acknowledgement (templates.py); no LLM writes it
     return {"steps": ["template_reply"]}
 
 
+@placeholder
 def retrieve(state: State) -> dict:
     # TODO step 7: top-k search with the existing Retriever (defective/promo chunks excluded)
     return {"steps": ["retrieve"], "retrieved": []}
 
 
+@placeholder
 def draft(state: State) -> dict:
     # TODO step 3: LLM call 2: answer only from the retrieved chunks, cite chunk IDs, or abstain
     return {
@@ -107,24 +120,26 @@ def draft(state: State) -> dict:
     }
 
 
+@placeholder
 def post_check(state: State) -> dict:
     # TODO step 5: numbers not in cited text, missing citations, advice wording, unknown chunk IDs
     return {"steps": ["post_check"], "post_check_failures": []}
 
 
+@placeholder
 def compose(state: State) -> dict:
     # TODO step 7: merge the grounded draft and any template parts; build page citations
-    return {"steps": ["compose"], "reply": "", "citations": []}
+    return {"steps": ["compose"]}  # placeholder: no reply produced (null), not an empty one
 
 
+@placeholder
 def route(state: State) -> dict:
     # TODO step 6: every reason code that fires → auto_draft_ok or human_required + destination
-    return {
-        "steps": ["route"],
-        "routing": Routing(decision="human_required", destination="support_agent", reasons=[]),
-    }
+    # A placeholder decides NOTHING: no routing is produced (null = not decided), never a fake one.
+    return {"steps": ["route"]}
 
 
+@placeholder
 def audit(state: State) -> dict:
     # TODO step 7: append one masked record to the audit log (the legal record, not LangSmith)
     return {"steps": ["audit"]}
@@ -153,15 +168,37 @@ def _observed(name: str, fn):
     """Each node gets an OpenTelemetry span (Grafana/Tempo) and a duration metric.
     LangSmith traces the same nodes on its own (LangGraph integration)."""
 
+    implemented = getattr(fn, "implemented", True)
+
     @functools.wraps(fn)
     def run(state: State) -> dict:
         t0 = time.perf_counter()
-        with tel.tracer.start_as_current_span(f"node.{name}"):
+        with tel.tracer.start_as_current_span(
+            f"node.{name}", attributes={"node.implemented": implemented}
+        ):
             out = fn(state)
-        tel.NODE_MS.record((time.perf_counter() - t0) * 1000, {"node": name})
+        tel.NODE_MS.record(
+            (time.perf_counter() - t0) * 1000,
+            {"node": name, "implemented": str(implemented).lower()},
+        )
         return out
 
     return run
+
+
+NODES = [
+    ("classify", classify),
+    ("policy_gate", policy_gate),
+    ("template_reply", template_reply),
+    ("retrieve", retrieve),
+    ("draft", draft),
+    ("post_check", post_check),
+    ("compose", compose),
+    ("route", route),
+    ("audit", audit),
+]
+# node → implemented? (read by the worker so monitoring never reports a placeholder as real work)
+NODE_IMPLEMENTED = {name: getattr(fn, "implemented", True) for name, fn in NODES}
 
 
 def build_graph():

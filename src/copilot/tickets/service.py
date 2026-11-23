@@ -22,7 +22,7 @@ from copilot.log import get_logger
 from copilot.pipeline.pii import Masker
 from copilot.pipeline.pii_vault import PiiVault
 from copilot.pipeline.schemas import Ticket
-from copilot.pipeline.workflow import graph
+from copilot.pipeline.workflow import NODE_IMPLEMENTED, graph
 from copilot.tickets.store import TicketRecord, TicketStore
 
 log = get_logger(__name__)
@@ -149,17 +149,28 @@ def process(record: TicketRecord, store: TicketStore, audit: AuditLog | None = N
                 now = time.perf_counter()
                 state.update({k: v for k, v in (update or {}).items() if k != "steps"})
                 store.set_step(
-                    record.number, node, trace_id=str(run_id), ms=round((now - t_prev) * 1000, 1)
+                    record.number,
+                    node,
+                    trace_id=str(run_id),
+                    ms=round((now - t_prev) * 1000, 1),
+                    implemented=NODE_IMPLEMENTED.get(node, True),
                 )
                 t_prev = now
                 _steps_seen.append(node)
             routing = state.get("routing")
             classification = state.get("classification")
+            placeholders = [n for n in _steps_seen if not NODE_IMPLEMENTED.get(n, True)]
             result = {
+                # null = not produced (by a placeholder node or not reached), never a fake value
                 "classification": classification.model_dump() if classification else None,
-                "reply": state.get("reply", ""),
-                "citations": state.get("citations", []),
+                "reply": state.get("reply"),
+                "citations": state.get("citations"),
                 "routing": routing.model_dump() if routing else None,
+                # Honest completeness: did every node the ticket passed through do real work?
+                "complete": not placeholders,
+                "steps_real": len(_steps_seen) - len(placeholders),
+                "steps_passed": len(_steps_seen),
+                "placeholder_nodes": placeholders,
             }
             store.finish(record.number, result)
             root.end(outputs={"routing": result["routing"]})
@@ -176,8 +187,10 @@ def process(record: TicketRecord, store: TicketStore, audit: AuditLog | None = N
                     steps=list(_steps_seen),
                     classification=result["classification"],
                     ai_draft=result["reply"],  # produced from masked text: placeholders only
-                    cited_chunks=[c.get("chunk_id") for c in result["citations"]],
-                    routing=result["routing"],
+                    cited_chunks=[c.get("chunk_id") for c in result["citations"] or []],
+                    routing=result["routing"],  # null when no real routing was made
+                    complete=result["complete"],
+                    placeholder_nodes=result["placeholder_nodes"],
                     trace_id=str(run_id),
                     intake_trace_id=record.intake_trace_id,
                 )
@@ -198,14 +211,16 @@ def process(record: TicketRecord, store: TicketStore, audit: AuditLog | None = N
             return
 
     ms = (time.perf_counter() - t0) * 1000
-    decision = routing.decision if routing else "none"
+    decision = routing.decision if routing else "not_decided"
+    complete = not result["placeholder_nodes"]
     tel.TICKETS.add(
         1,
         {
             "decision": decision,
-            "destination": (routing.destination if routing else None) or "none",
+            "destination": (routing.destination if routing else None) or "not_decided",
+            "complete": str(complete).lower(),
         },
-    )  # noqa: E501
+    )
     tel.TICKET_MS.record(ms)
     for reason in routing.reasons if routing else []:
         tel.ROUTING_REASONS.add(1, {"reason": reason})
@@ -216,6 +231,8 @@ def process(record: TicketRecord, store: TicketStore, audit: AuditLog | None = N
             "trace_id": str(run_id),
             "decision": decision,
             "reasons": routing.reasons if routing else [],
+            "complete": complete,
+            "placeholder_nodes": result["placeholder_nodes"],
             "ms": round(ms, 1),
             "queue_wait_ms": round(wait_ms),
         },  # noqa: E501

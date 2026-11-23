@@ -76,12 +76,14 @@ class TicketSummary(BaseModel):
     ticket_number: int
     ticket_id: str
     status: Status
-    progress: str  # "5/8"
+    steps_passed: str  # "8/8": nodes the ticket went through (incl. placeholders)
+    steps_real: str  # "0/8": nodes that did real work (not placeholders)
+    complete: bool | None  # True only if every node passed did real work; None while running
     current_step: str | None
     category: str | None
     urgency: str | None
-    decision: str | None  # auto_draft_ok | human_required
-    queue: str | None  # support_agent | senior_support | compliance
+    decision: str | None  # auto_draft_ok | human_required | null = not decided
+    queue: str | None  # support_agent | senior_support | compliance | null = not decided
     reasons: list[str]
     pii_types: list[str]
     handled_by_agent: bool
@@ -99,7 +101,10 @@ class TicketStatus(BaseModel):
     status: Status  # queued → processing → done | failed (queued again while retrying)
     current_step: str | None
     steps_done: list[str]
-    progress: str
+    steps_passed: str  # "8/8": nodes the ticket went through (incl. placeholders)
+    steps_real: str  # "0/8": nodes that did real work
+    complete: bool | None  # True only if every node passed did real work; None while running
+    placeholder_nodes: list[str]  # nodes that only passed the ticket on (not implemented yet)
     attempts: int
     max_attempts: int
     created_at: datetime
@@ -110,7 +115,9 @@ class TicketStatus(BaseModel):
     trace_id: str | None  # LangSmith run of the processing (agent support-copilot / local)
     message: dict[str, str]  # the customer's subject/body, MASKED ([NAME_1], [CARD_1], ...)
     pii_types: list[str]
-    result: dict[str, Any] | None  # classification, reply (draft), citations, routing
+    result: (
+        dict[str, Any] | None
+    )  # classification, reply, citations, routing (null = not produced)
     agent_action: AgentAction | None
     error: str | None  # last error (when retrying or failed)
 
@@ -216,7 +223,7 @@ def decide(
         raise HTTPException(409, f"ticket {number} is {r.status}: wait until the co-pilot is done")
     if r.agent_decision:
         raise HTTPException(409, f"ticket {number} was already handled by {r.agent_name}")
-    draft = (r.result or {}).get("reply", "")
+    draft = (r.result or {}).get("reply") or ""
     if body.action == "manual":
         decision, sent_masked = "manual", ""
     else:
@@ -261,14 +268,29 @@ def _fill(vault: PiiVault | None, ticket_id: str, placeholder: str) -> str:
     return display_value(placeholder, value) if value else placeholder
 
 
+def _work(r: TicketRecord) -> tuple[str, str, bool | None, list[str]]:
+    """steps_passed, steps_real, complete, placeholder_nodes, from what the worker recorded.
+    Steps saved without the flag (before 2026-11-23) were all placeholders."""
+    total = len(PIPELINE)
+    placeholders = [s["node"] for s in r.step_times if not s.get("implemented", False)]
+    real = len(r.step_times) - len(placeholders)
+    complete = (
+        None if r.status in ("queued", "processing") else (r.status == "done" and not placeholders)
+    )
+    return f"{len(r.steps)}/{total}", f"{real}/{total}", complete, placeholders
+
+
 def _summary(r: TicketRecord) -> TicketSummary:
     routing = (r.result or {}).get("routing") or {}
     cls = (r.result or {}).get("classification") or {}
+    passed, real, complete, _ = _work(r)
     return TicketSummary(
         ticket_number=r.number,
         ticket_id=r.external_id,
         status=r.status,
-        progress=f"{len(r.steps)}/{len(PIPELINE)}",
+        steps_passed=passed,
+        steps_real=real,
+        complete=complete,
         current_step=r.current_step,
         category=cls.get("category"),
         urgency=cls.get("urgency"),
@@ -285,6 +307,7 @@ def _status(r: TicketRecord) -> TicketStatus:
     def secs(a: datetime | None, b: datetime | None) -> float | None:
         return round((b - a).total_seconds(), 3) if a and b else None
 
+    passed, real, complete, placeholders = _work(r)
     action = None
     if r.agent_decision and r.decided_at:
         action = AgentAction(
@@ -299,7 +322,10 @@ def _status(r: TicketRecord) -> TicketStatus:
         status=r.status,
         current_step=r.current_step,
         steps_done=r.steps,
-        progress=f"{len(r.steps)}/{len(PIPELINE)}",
+        steps_passed=passed,
+        steps_real=real,
+        complete=complete,
+        placeholder_nodes=placeholders,
         attempts=r.attempts,
         max_attempts=MAX_ATTEMPTS,
         created_at=r.created_at,
