@@ -198,6 +198,29 @@ def eval_pii(
         typer.echo(f"report → {out}")
 
 
+@eval_app.command("safety")
+def eval_safety() -> None:
+    """classify_safety with the REAL model (~$0.04): recall per hard rule, LLM vs classifier."""
+    from copilot.eval import safety as safety_eval  # noqa: PLC0415
+    from copilot.pipeline.llm import chat_model  # noqa: PLC0415
+    from copilot.pipeline.pii import Masker  # noqa: PLC0415
+    from copilot.pipeline.risk_classifier import RiskClassifier  # noqa: PLC0415
+
+    st = get_settings()
+    chat = chat_model(st.llm_classify_model, st.anthropic_api_key, st.llm_timeout_s)
+    clf = RiskClassifier(get_embedder(st.embedding_model), model_name=st.embedding_model)
+    rep = safety_eval.run(chat, Masker.from_settings(st), clf)
+    typer.echo(f"model {rep['model']} · prompt {rep['prompt_version']} · {rep['n']} · "
+               f"cost ${rep['cost_usd']}")  # fmt: skip
+    for split, fields in rep["report"].items():
+        typer.echo(f"\n{split.upper():22} {'LLM':>16} {'classifier':>16} {'BOTH (gate)':>16}")
+        for f, k in fields.items():
+            cells = [f"{k[x]['recall']} p={k[x]['precision']}" for x in ("llm", "clf", "both")]
+            missed = f"   missed {k['both']['missed']}" if k["both"]["missed"] else ""
+            typer.echo(f"{f:22} {cells[0]:>16} {cells[1]:>16} {cells[2]:>16}{missed}")
+    typer.echo(f"\nsaved {safety_eval.save(rep)}")
+
+
 @eval_app.command("injection")
 def eval_injection() -> None:
     """Injection gate: patterns, our bge-m3 head and the guard model, alone and combined."""
