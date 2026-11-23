@@ -1,0 +1,20 @@
+{"id": "P01", "lang": "en", "text": "Hello, I'm Daniel Okafor, my card 5555 5555 5555 4444 was charged twice.", "values": ["Daniel Okafor", "5555 5555 5555 4444"], "keep": ["charged twice"]}
+{"id": "P02", "lang": "en", "text": "Please refund to IBAN FR14 2004 1010 0505 0001 3M02 606, thanks.", "values": ["FR14 2004 1010 0505 0001 3M02 606"], "keep": ["refund"]}
+{"id": "P03", "lang": "en", "text": "Reach me at j.wong88@outlook.com or +44 7911 123456.", "values": ["j.wong88@outlook.com", "+44 7911 123456"], "keep": []}
+{"id": "P04", "lang": "en", "text": "My national ID 29801011234567 was rejected during verification.", "values": ["29801011234567"], "keep": ["rejected during verification"]}
+{"id": "P05", "lang": "en", "text": "MT4 login 3310987 shows a wrong balance after my 500 USD deposit.", "values": ["3310987"], "keep": ["500 USD"]}
+{"id": "P06", "lang": "en", "text": "I moved to 17 Rue de Rivoli, Paris, do I need to update my address?", "values": ["17 Rue de Rivoli"], "keep": ["update my address"]}
+{"id": "P07", "lang": "ar", "text": "مرحبا، أنا فاطمة الزهراء ورقم هاتفي +971 55 765 4321", "values": ["فاطمة الزهراء", "+971 55 765 4321"], "keep": ["مرحبا"]}
+{"id": "P08", "lang": "ar", "text": "رقم جواز سفري B7654321 ومش عارف أرفعه", "values": ["B7654321"], "keep": ["مش عارف أرفعه"]}
+{"id": "P09", "lang": "ar", "text": "حسابي رقم 5566778 اتقفل فجأة", "values": ["5566778"], "keep": ["اتقفل فجأة"]}
+{"id": "P10", "lang": "ar", "text": "سكني في ٤٥ شارع الملك فهد، الرياض", "values": ["٤٥ شارع الملك فهد"], "keep": []}
+{"id": "P11", "lang": "ar-latn", "text": "ana Youssef Kamal w el card bta3ty 4012 8888 8888 1881 mesh shaghala", "values": ["Youssef Kamal", "4012 8888 8888 1881"], "keep": ["mesh shaghala"]}
+{"id": "P12", "lang": "ru", "text": "Меня зовут Анна Кузнецова, почта anna.k@yandex.ru", "values": ["Анна Кузнецова", "anna.k@yandex.ru"], "keep": []}
+{"id": "P13", "lang": "vi", "text": "Tôi là Phạm Minh Tuấn, số điện thoại +84 912 345 678", "values": ["Phạm Minh Tuấn", "+84 912 345 678"], "keep": []}
+{"id": "P14", "lang": "id", "text": "Nama saya Budi Santoso, email budi.s@gmail.com", "values": ["Budi Santoso", "budi.s@gmail.com"], "keep": ["Nama saya"]}
+{"id": "P15", "lang": "en", "text": "What is the minimum deposit? Is it 8 USD or 10 USD?", "values": [], "keep": ["8 USD", "10 USD"]}
+{"id": "P16", "lang": "en", "text": "My friend and my mother both want accounts. You said it takes 48 hours.", "values": [], "keep": ["My friend", "my mother", "You said", "48 hours"]}
+{"id": "P17", "lang": "en", "text": "I live in Canada. Is Valetax available there? Max leverage 1:2000?", "values": [], "keep": ["Canada", "Valetax", "Max leverage", "1:2000"]}
+{"id": "P18", "lang": "en", "text": "Order 77821934 was a gold trade, not a withdrawal.", "values": [], "keep": ["77821934", "gold trade"]}
+{"id": "P19", "lang": "ar", "text": "انتو قلتوا السحب خلال ٢٤ ساعة", "values": [], "keep": ["انتو قلتوا", "٢٤ ساعة"]}
+{"id": "P20", "lang": "es", "text": "Hola, soy Lucía Fernández, ¿cuál es el depósito mínimo?", "values": ["Lucía Fernández"], "keep": ["depósito mínimo"]}

@@ -1,0 +1,77 @@
+{
+ "ner": "gliner",
+ "new_cases": {
+  "n": 20,
+  "value_recall": 1.0,
+  "values": 22,
+  "leaked": 0,
+  "keep_precision": 0.96,
+  "keeps": 25,
+  "lost": 1,
+  "failures": [
+   {
+    "id": "P18",
+    "lang": "en",
+    "missed_values": 0,
+    "lost_keep": [
+     "77821934"
+    ]
+   }
+  ]
+ },
+ "tickets": {
+  "n": 76,
+  "exact_match": 1.0,
+  "per_type": {
+   "account": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 2,
+    "fp": 0,
+    "fn": 0
+   },
+   "card": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 2,
+    "fp": 0,
+    "fn": 0
+   },
+   "doc": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 1,
+    "fp": 0,
+    "fn": 0
+   },
+   "email": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 1,
+    "fp": 0,
+    "fn": 0
+   },
+   "name": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 2,
+    "fp": 0,
+    "fn": 0
+   },
+   "phone": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 1,
+    "fp": 0,
+    "fn": 0
+   }
+  },
+  "residual_suspect_tickets": 0,
+  "failures": []
+ },
+ "latency_ms": {
+  "p50": 169.5,
+  "p95": 211.8
+ },
+ "measured_at": "2026-11-23"
+}

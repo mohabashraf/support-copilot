@@ -1,0 +1,125 @@
+{
+ "ner": "spacy",
+ "new_cases": {
+  "n": 20,
+  "value_recall": 0.636,
+  "values": 22,
+  "leaked": 8,
+  "keep_precision": 0.96,
+  "keeps": 25,
+  "lost": 1,
+  "failures": [
+   {
+    "id": "P06",
+    "lang": "en",
+    "missed_values": 1,
+    "lost_keep": []
+   },
+   {
+    "id": "P07",
+    "lang": "ar",
+    "missed_values": 1,
+    "lost_keep": []
+   },
+   {
+    "id": "P10",
+    "lang": "ar",
+    "missed_values": 1,
+    "lost_keep": []
+   },
+   {
+    "id": "P11",
+    "lang": "ar-latn",
+    "missed_values": 1,
+    "lost_keep": []
+   },
+   {
+    "id": "P12",
+    "lang": "ru",
+    "missed_values": 1,
+    "lost_keep": []
+   },
+   {
+    "id": "P13",
+    "lang": "vi",
+    "missed_values": 1,
+    "lost_keep": []
+   },
+   {
+    "id": "P14",
+    "lang": "id",
+    "missed_values": 1,
+    "lost_keep": []
+   },
+   {
+    "id": "P18",
+    "lang": "en",
+    "missed_values": 0,
+    "lost_keep": [
+     "77821934"
+    ]
+   },
+   {
+    "id": "P20",
+    "lang": "es",
+    "missed_values": 1,
+    "lost_keep": []
+   }
+  ]
+ },
+ "tickets": {
+  "n": 76,
+  "exact_match": 1.0,
+  "per_type": {
+   "account": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 2,
+    "fp": 0,
+    "fn": 0
+   },
+   "card": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 2,
+    "fp": 0,
+    "fn": 0
+   },
+   "doc": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 1,
+    "fp": 0,
+    "fn": 0
+   },
+   "email": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 1,
+    "fp": 0,
+    "fn": 0
+   },
+   "name": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 2,
+    "fp": 0,
+    "fn": 0
+   },
+   "phone": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 1,
+    "fp": 0,
+    "fn": 0
+   }
+  },
+  "residual_suspect_tickets": 0,
+  "failures": []
+ },
+ "latency_ms": {
+  "p50": 4.6,
+  "p95": 7.9
+ },
+ "measured_at": "2026-11-23"
+}
