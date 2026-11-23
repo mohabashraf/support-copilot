@@ -139,3 +139,15 @@
 {"text": "نسيت كلمة السر أعمل إيه؟", "category": "other", "risks": [], "lang": "ar"}
 {"text": "I'm not happy that my withdrawal is slow, when will it arrive?", "category": "complaint", "risks": [], "lang": "en"}
 {"text": "The website is confusing, where are the deposit methods?", "category": "complaint", "risks": [], "lang": "en"}
+{"text": "My account is frozen, why? Please unfreeze it.", "category": "aml_compliance", "risks": ["aml_compliance"], "lang": "en"}
+{"text": "Compliance froze my account and asked for the source of my funds.", "category": "aml_compliance", "risks": ["aml_compliance"], "lang": "en"}
+{"text": "You blocked my withdrawal for an anti-money laundering review, release it now.", "category": "aml_compliance", "risks": ["aml_compliance"], "lang": "en"}
+{"text": "Why do you need proof of where my money comes from?", "category": "aml_compliance", "risks": ["aml_compliance"], "lang": "en"}
+{"text": "My transfer is on hold for AML checks, approve it please.", "category": "aml_compliance", "risks": ["aml_compliance"], "lang": "en"}
+{"text": "They want bank statements to prove the source of funds, can you skip that?", "category": "aml_compliance", "risks": ["aml_compliance"], "lang": "en"}
+{"text": "تم تجميد حسابي، لماذا؟ أرجو فك التجميد.", "category": "aml_compliance", "risks": ["aml_compliance"], "lang": "ar"}
+{"text": "طلبوا مني إثبات مصدر الأموال، لماذا؟", "category": "aml_compliance", "risks": ["aml_compliance"], "lang": "ar"}
+{"text": "تم إيقاف السحب بسبب مراجعة مكافحة غسل الأموال، أفرجوا عنه.", "category": "aml_compliance", "risks": ["aml_compliance"], "lang": "ar"}
+{"text": "My withdrawal has been pending for two days, is that normal?", "category": "withdrawal", "risks": [], "lang": "en"}
+{"text": "How long does a bank transfer withdrawal usually take?", "category": "withdrawal", "risks": [], "lang": "en"}
+{"text": "السحب معلق منذ يومين، هل هذا طبيعي؟", "category": "withdrawal", "risks": [], "lang": "ar"}
