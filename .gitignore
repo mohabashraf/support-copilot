@@ -13,3 +13,6 @@ logs/
 # Test coverage data (pytest --cov)
 .coverage
 htmlcov/
+
+# Local caches (embeddings of classifier training examples)
+.cache/

@@ -51,5 +51,8 @@ def test_ticket_metrics_say_incomplete_and_not_decided_while_nodes_are_placehold
     assert not any(a.get("decision") == "human_required" for a, _ in tickets)  # nothing invented
     pii = {(a["type"], a["recognizer"]) for a, v in _points(reader, "copilot.pii.detections") if v}
     assert ("card", "CreditCardRecognizer") in pii and ("name", "SpacyRecognizer") in pii
-    nodes = {a["implemented"] for a, _ in _points(reader, "copilot.graph.node.duration")}
-    assert nodes == {"false"}  # every node is reported as a placeholder
+    by_node = {
+        (a["node"], a["implemented"]) for a, _ in _points(reader, "copilot.graph.node.duration")
+    }
+    assert ("pattern_check", "true") in by_node and ("risk_classifier", "true") in by_node
+    assert ("route", "false") in by_node  # placeholders are labelled as such

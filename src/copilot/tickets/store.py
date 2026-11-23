@@ -140,7 +140,8 @@ class PgTicketStore:
             # Views are derived: drop and recreate so their columns can change (OR REPLACE only
             # allows appending). The GRANT below is re-applied every start.
             conn.execute(
-                f"DROP VIEW IF EXISTS {table}_monitoring, {table}_pii_detections, {table}_steps"
+                f"DROP VIEW IF EXISTS {table}_monitoring, {table}_pii_detections, {table}_steps, "
+                f"{table}_risk_signals"
             )
             conn.execute(
                 f"""CREATE VIEW {table}_monitoring AS SELECT
@@ -180,11 +181,29 @@ class PgTicketStore:
                     COALESCE((s.e->>'implemented')::bool, false) AS implemented
                 FROM {table} t, jsonb_array_elements(t.step_times) WITH ORDINALITY AS s(e, ord)"""
             )
+            # One row per risk signal: exact patterns (pattern name) and classifier signals
+            # (probability, strong/weak, nearest TRAINING example). Never the customer's text.
+            conn.execute(
+                f"""CREATE VIEW {table}_risk_signals AS
+                SELECT t.number, h->>'kind' AS kind, 'pattern' AS method, 'strong' AS strength,
+                       1.0::float AS probability, h->>'pattern' AS evidence
+                FROM {table} t,
+                     jsonb_array_elements(COALESCE(t.result->'patterns'->'hits', '[]')) h
+                UNION ALL
+                SELECT t.number, s->>'kind', s->>'method', s->>'strength',
+                       (s->>'probability')::float, s->>'nearest_example'
+                FROM {table} t,
+                     jsonb_array_elements(COALESCE(t.result->'risk'->'signals', '[]')) s
+                UNION ALL
+                SELECT t.number, 'spam_or_empty', 'pattern', 'strong', 1.0,
+                       t.result->'patterns'->>'spam_reason'
+                FROM {table} t WHERE t.result->'patterns'->>'spam_reason' IS NOT NULL"""
+            )
             conn.execute(
                 f"""DO $$ BEGIN
                     IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'grafana_ro') THEN
                         GRANT SELECT ON {table}_monitoring, {table}_pii_detections,
-                            {table}_steps TO grafana_ro;
+                            {table}_steps, {table}_risk_signals TO grafana_ro;
                     END IF; END $$"""
             )
             # The worker's claim query scans only claimable rows.

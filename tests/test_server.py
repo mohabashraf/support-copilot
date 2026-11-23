@@ -49,14 +49,15 @@ def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
     assert run_once(tickets)  # the background worker
     done = client.get(f"/tickets/{n}", headers=HELPDESK).json()
     assert done["status"] == "done"
-    assert [st["node"] for st in done["steps"]][0] == "classify"
+    assert [st["node"] for st in done["steps"]][0] == "pattern_check"
     assert [st["node"] for st in done["steps"]][-1] == "audit"
     assert done["seconds_processing"] is not None
     # Honest: placeholder nodes produce nothing, so no routing and the ticket is not complete.
     assert done["result"]["routing"] is None and done["complete"] is False
-    # Nothing is implemented yet: 0 steps completed, every step reported as a placeholder.
-    assert done["steps_completed"] == "0/8"
-    assert {st["status"] for st in done["steps"]} == {"placeholder"}
+    # 2 of the 11 steps on this path are implemented; the rest are reported as placeholders.
+    assert done["steps_completed"] == "2/11"
+    completed = {st["node"] for st in done["steps"] if st["status"] == "completed"}
+    assert completed == {"pattern_check", "risk_classifier"}
     assert "4111" not in str(done)
 
 

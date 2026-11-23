@@ -464,7 +464,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT number AS \"#\", ticket_id AS \"ticket\", status,\n  steps_completed || '/8' AS \"steps completed\", CASE WHEN complete THEN 'yes' ELSE 'no' END AS \"complete\", COALESCE(current_step,'') AS \"now\",\n  COALESCE(category,'\u2014') AS category, COALESCE(urgency,'\u2014') AS urgency, COALESCE(decision,'not decided') AS decision, COALESCE(queue,'not decided') AS queue, reasons,\n  COALESCE(agent_decision,'open') AS \"agent\", COALESCE(agent_name,'') AS \"by\",\n  attempts, round(queue_seconds::numeric,2) AS \"queue s\", round(processing_seconds::numeric,2) AS \"processing s\",\n  created_at AS \"received\"\nFROM tickets_monitoring ORDER BY number DESC LIMIT 100"
+          "rawSql": "SELECT number AS \"#\", ticket_id AS \"ticket\", status,\n  steps_completed || '/' || steps_visited AS \"steps completed\", CASE WHEN complete THEN 'yes' ELSE 'no' END AS \"complete\", COALESCE(current_step,'') AS \"now\",\n  COALESCE(category,'\u2014') AS category, COALESCE(urgency,'\u2014') AS urgency, COALESCE(decision,'not decided') AS decision, COALESCE(queue,'not decided') AS queue, reasons,\n  COALESCE(agent_decision,'open') AS \"agent\", COALESCE(agent_name,'') AS \"by\",\n  attempts, round(queue_seconds::numeric,2) AS \"queue s\", round(processing_seconds::numeric,2) AS \"processing s\",\n  created_at AS \"received\"\nFROM tickets_monitoring ORDER BY number DESC LIMIT 100"
         }
       ],
       "fieldConfig": {
@@ -1247,7 +1247,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT sum(implemented::int) || '/8' AS real_work FROM tickets_steps WHERE number = $ticket"
+          "rawSql": "SELECT sum(implemented::int) || '/' || count(*) AS real_work FROM tickets_steps WHERE number = $ticket"
         }
       ],
       "fieldConfig": {
@@ -1398,7 +1398,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT 'received (API: masked + queued)' AS event, created_at AS at, NULL::numeric AS seconds FROM tickets_monitoring WHERE number = $ticket\nUNION ALL SELECT 'worker started (attempt ' || attempts || ')', started_at, round(queue_seconds::numeric,3) FROM tickets_monitoring WHERE number = $ticket AND started_at IS NOT NULL\nUNION ALL SELECT 'workflow finished: ' || steps_completed || '/8 steps completed' || CASE WHEN complete THEN '' ELSE ', ' || (steps_visited - steps_completed) || ' placeholders (INCOMPLETE)' END, finished_at, round(processing_seconds::numeric,3) FROM tickets_monitoring WHERE number = $ticket AND finished_at IS NOT NULL\nUNION ALL SELECT 'agent: ' || agent_decision || ' by ' || agent_name, decided_at, NULL FROM tickets_monitoring WHERE number = $ticket AND decided_at IS NOT NULL\nORDER BY at"
+          "rawSql": "SELECT 'received (API: masked + queued)' AS event, created_at AS at, NULL::numeric AS seconds FROM tickets_monitoring WHERE number = $ticket\nUNION ALL SELECT 'worker started (attempt ' || attempts || ')', started_at, round(queue_seconds::numeric,3) FROM tickets_monitoring WHERE number = $ticket AND started_at IS NOT NULL\nUNION ALL SELECT 'workflow finished: ' || steps_completed || '/' || steps_visited || ' steps completed' || CASE WHEN complete THEN '' ELSE ', ' || (steps_visited - steps_completed) || ' placeholders (INCOMPLETE)' END, finished_at, round(processing_seconds::numeric,3) FROM tickets_monitoring WHERE number = $ticket AND finished_at IS NOT NULL\nUNION ALL SELECT 'agent: ' || agent_decision || ' by ' || agent_name, decided_at, NULL FROM tickets_monitoring WHERE number = $ticket AND decided_at IS NOT NULL\nORDER BY at"
         }
       ],
       "options": {
@@ -1409,6 +1409,78 @@
       },
       "description": "seconds = time since the previous event (queue wait, processing).",
       "id": 45
+    },
+    {
+      "type": "table",
+      "title": "Risk signals for this ticket (exact patterns first, then the classifier)",
+      "id": 52,
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "tickets-db"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "tickets-db"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT kind AS risk, method, strength, round(probability::numeric, 2) AS probability, evidence FROM tickets_risk_signals WHERE number = $ticket ORDER BY method DESC, probability DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "strength"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "strong": {
+                        "color": "red",
+                        "index": 0
+                      },
+                      "weak": {
+                        "color": "orange",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        }
+      },
+      "description": "pattern = exact phrase (certain, evidence = pattern name). classifier = bge-m3 + logistic regression: probability, strong (\u22650.8, blocks alone) or weak (\u22650.5, confirmed with the LLM safety call); evidence = nearest TRAINING example, never the customer's text. Empty = no risk found."
     },
     {
       "type": "nodeGraph",
@@ -1422,7 +1494,7 @@
         "h": 12,
         "w": 17,
         "x": 0,
-        "y": 32
+        "y": 39
       },
       "targets": [
         {
@@ -1434,7 +1506,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "WITH g(id, title, ord) AS (VALUES\n  ('start','POST /tickets (API)',0),('pii_mask','pii_mask (API, BEFORE the graph)',1),('queue','queue (Postgres)',2),\n  ('classify','classify (LLM 1)',3),('policy_gate','policy_gate (hard rules)',4),('retrieve','retrieve (KB search)',5),\n  ('template_reply','template_reply (decline / ack)',5),('draft','draft (LLM 2)',6),('post_check','post_check (numbers, citations)',7),\n  ('compose','compose',8),('route','route (who handles it)',9),('audit','audit',10),('end','done',11)),\nt AS (SELECT * FROM tickets_monitoring WHERE number = $ticket),\ns AS (SELECT node, sum(ms) AS ms, count(*) AS runs, bool_and(implemented) AS implemented FROM tickets_steps WHERE number = $ticket GROUP BY node)\nSELECT g.id, g.title,\n  CASE\n    WHEN g.id = 'start' THEN (SELECT ticket_id FROM t)\n    WHEN g.id = 'pii_mask' THEN (SELECT COALESCE(round(pii_ms)::text || ' ms \u00b7 ' || pii_count || ' PII masked', 'no data') FROM t)\n    WHEN g.id = 'queue' THEN (SELECT COALESCE(round(queue_seconds::numeric * 1000) || ' ms waiting', 'waiting\u2026') FROM t)\n    WHEN g.id = 'end' THEN (SELECT status FROM t)\n    WHEN s.node IS NULL THEN 'not taken'\n    WHEN NOT s.implemented THEN 'PLACEHOLDER \u00b7 ' || round(s.ms::numeric, 1) || ' ms'\n    ELSE round(s.ms::numeric, 1) || ' ms' END AS mainstat,\n  CASE\n    WHEN g.id = 'pii_mask' THEN (SELECT CASE WHEN pii_residual = '[]' THEN 'no possible misses' ELSE 'possible miss: ' || pii_residual END FROM t)\n    WHEN s.node IS NOT NULL AND NOT s.implemented THEN 'not implemented: did nothing'\n    WHEN s.runs > 1 THEN s.runs || ' runs (redraft)' ELSE '' END AS secondarystat,\n  CASE\n    WHEN g.id IN ('start','pii_mask') AND EXISTS (SELECT 1 FROM t) THEN 1\n    WHEN g.id = 'queue' AND (SELECT started_at IS NOT NULL FROM t) THEN 1\n    WHEN g.id = 'end' AND (SELECT status IN ('done','failed') FROM t) THEN 1\n    WHEN s.node IS NOT NULL AND s.implemented THEN 1 ELSE 0 END AS arc__taken,\n  CASE WHEN s.node IS NOT NULL AND NOT s.implemented THEN 1 ELSE 0 END AS arc__placeholder\nFROM g LEFT JOIN s ON s.node = g.id ORDER BY g.ord"
+          "rawSql": "WITH g(id, title, ord) AS (VALUES\n  ('start','POST /tickets (API)',0),('pii_mask','pii_mask (API, BEFORE the graph)',1),('queue','queue (Postgres)',2),\n  ('pattern_check','pattern_check (exact phrases, spam)',3),('risk_classifier','risk_classifier (bge-m3 + LR)',4),\n  ('classify_safety','classify_safety (LLM)',4),('classify_triage','classify_triage (LLM)',4),('policy_gate','policy_gate (hard rules)',5),('retrieve','retrieve (KB search)',5),\n  ('template_reply','template_reply (decline / ack)',5),('draft','draft (LLM 2)',6),('post_check','post_check (numbers, citations)',7),\n  ('compose','compose',8),('route','route (who handles it)',9),('audit','audit',10),('end','done',11)),\nt AS (SELECT * FROM tickets_monitoring WHERE number = $ticket),\ns AS (SELECT node, sum(ms) AS ms, count(*) AS runs, bool_and(implemented) AS implemented FROM tickets_steps WHERE number = $ticket GROUP BY node)\nSELECT g.id, g.title,\n  CASE\n    WHEN g.id = 'start' THEN (SELECT ticket_id FROM t)\n    WHEN g.id = 'pii_mask' THEN (SELECT COALESCE(round(pii_ms)::text || ' ms \u00b7 ' || pii_count || ' PII masked', 'no data') FROM t)\n    WHEN g.id = 'queue' THEN (SELECT COALESCE(round(queue_seconds::numeric * 1000) || ' ms waiting', 'waiting\u2026') FROM t)\n    WHEN g.id = 'end' THEN (SELECT status FROM t)\n    WHEN s.node IS NULL THEN 'not taken'\n    WHEN NOT s.implemented THEN 'PLACEHOLDER \u00b7 ' || round(s.ms::numeric, 1) || ' ms'\n    ELSE round(s.ms::numeric, 1) || ' ms' END AS mainstat,\n  CASE\n    WHEN g.id = 'pii_mask' THEN (SELECT CASE WHEN pii_residual = '[]' THEN 'no possible misses' ELSE 'possible miss: ' || pii_residual END FROM t)\n    WHEN s.node IS NOT NULL AND NOT s.implemented THEN 'not implemented: did nothing'\n    WHEN s.runs > 1 THEN s.runs || ' runs (redraft)' ELSE '' END AS secondarystat,\n  CASE\n    WHEN g.id IN ('start','pii_mask') AND EXISTS (SELECT 1 FROM t) THEN 1\n    WHEN g.id = 'queue' AND (SELECT started_at IS NOT NULL FROM t) THEN 1\n    WHEN g.id = 'end' AND (SELECT status IN ('done','failed') FROM t) THEN 1\n    WHEN s.node IS NOT NULL AND s.implemented THEN 1 ELSE 0 END AS arc__taken,\n  CASE WHEN s.node IS NOT NULL AND NOT s.implemented THEN 1 ELSE 0 END AS arc__placeholder\nFROM g LEFT JOIN s ON s.node = g.id ORDER BY g.ord"
         },
         {
           "refId": "edges",
@@ -1445,7 +1517,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "WITH e(id, source, target) AS (VALUES\n ('e0','start','pii_mask'),('e0b','pii_mask','queue'),('e1','queue','classify'),('e2','classify','policy_gate'),\n ('e3','policy_gate','retrieve'),('e4','policy_gate','template_reply'),('e5','retrieve','draft'),('e6','draft','post_check'),\n ('e7','post_check','draft'),('e8','post_check','compose'),('e9','template_reply','compose'),('e10','compose','route'),\n ('e11','route','audit'),('e12','audit','end')),\np AS (SELECT ord, node FROM tickets_steps WHERE number = $ticket),\nt AS (SELECT * FROM tickets_monitoring WHERE number = $ticket),\ntaken AS (\n  SELECT a.node AS source, b.node AS target FROM p a JOIN p b ON b.ord = a.ord + 1\n  UNION SELECT 'queue', node FROM p WHERE ord = 1\n  UNION SELECT node, 'end' FROM p WHERE node = 'audit'\n  UNION SELECT 'start', 'pii_mask' FROM t\n  UNION SELECT 'pii_mask', 'queue' FROM t)\nSELECT e.id, e.source, e.target, CASE WHEN tk.source IS NOT NULL THEN 'taken' ELSE '' END AS mainstat\nFROM e LEFT JOIN (SELECT DISTINCT source, target FROM taken) tk ON tk.source = e.source AND tk.target = e.target"
+          "rawSql": "WITH e(id, source, target) AS (VALUES\n ('e0','start','pii_mask'),('e0b','pii_mask','queue'),('e1','queue','pattern_check'),('e1a','pattern_check','risk_classifier'),('e1b','pattern_check','classify_safety'),\n ('e1c','pattern_check','classify_triage'),('e1d','pattern_check','route'),('e2a','risk_classifier','policy_gate'),\n ('e2b','classify_safety','policy_gate'),('e2c','classify_triage','policy_gate'),\n ('e3','policy_gate','retrieve'),('e4','policy_gate','template_reply'),('e5','retrieve','draft'),('e6','draft','post_check'),\n ('e7','post_check','draft'),('e8','post_check','compose'),('e9','template_reply','compose'),('e10','compose','route'),\n ('e11','route','audit'),('e12','audit','end')),\np AS (SELECT ord, node FROM tickets_steps WHERE number = $ticket),\nt AS (SELECT * FROM tickets_monitoring WHERE number = $ticket),\ntaken AS (\n  SELECT a.node AS source, b.node AS target FROM p a JOIN p b ON b.ord = a.ord + 1\n  UNION SELECT e.source, e.target FROM e\n    WHERE e.source IN (SELECT node FROM p) AND e.target IN (SELECT node FROM p)\n      AND (e.source = 'pattern_check' OR e.target = 'policy_gate')\n  UNION SELECT 'queue', node FROM p WHERE ord = 1\n  UNION SELECT node, 'end' FROM p WHERE node = 'audit'\n  UNION SELECT 'start', 'pii_mask' FROM t\n  UNION SELECT 'pii_mask', 'queue' FROM t)\nSELECT e.id, e.source, e.target, CASE WHEN tk.source IS NOT NULL THEN 'taken' ELSE '' END AS mainstat\nFROM e LEFT JOIN (SELECT DISTINCT source, target FROM taken) tk ON tk.source = e.source AND tk.target = e.target"
         }
       ],
       "fieldConfig": {
@@ -1507,7 +1579,7 @@
         },
         "edges": {}
       },
-      "description": "pii_mask runs in the API BEFORE the LangGraph workflow (D3/D10): raw PII never enters the graph, traces or the LLM. Then the ticket waits in the Postgres queue and a worker runs the graph. policy_gate (hard rules) runs BEFORE any reply is written, post_check AFTER."
+      "description": "pii_mask runs in the API BEFORE the graph. pattern_check (exact phrases, spam) runs first in the graph; spam goes straight to route (no model, no LLM). risk_classifier, classify_safety and classify_triage run in parallel and join at policy_gate. Green = real work, amber = placeholder, grey = not taken."
     },
     {
       "type": "table",
@@ -1521,7 +1593,7 @@
         "h": 12,
         "w": 7,
         "x": 17,
-        "y": 32
+        "y": 39
       },
       "targets": [
         {
@@ -1612,7 +1684,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 44
+        "y": 51
       },
       "targets": [
         {
@@ -1641,7 +1713,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 44
+        "y": 51
       },
       "targets": [
         {
@@ -1669,7 +1741,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 58
+        "y": 65
       },
       "collapsed": false
     },
@@ -1686,7 +1758,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 59
+        "y": 66
       },
       "targets": [
         {
@@ -1725,7 +1797,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 59
+        "y": 66
       },
       "targets": [
         {
@@ -1773,7 +1845,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 59
+        "y": 66
       },
       "targets": [
         {
@@ -1807,7 +1879,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 67
+        "y": 74
       },
       "collapsed": false
     },
@@ -1824,7 +1896,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 68
+        "y": 75
       },
       "targets": [
         {
@@ -1876,7 +1948,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 68
+        "y": 75
       },
       "targets": [
         {
@@ -1926,7 +1998,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 68
+        "y": 75
       },
       "targets": [
         {
@@ -1971,7 +2043,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 76
+        "y": 83
       },
       "collapsed": false
     },
@@ -1988,7 +2060,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 77
+        "y": 84
       },
       "targets": [
         {
@@ -2038,7 +2110,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 77
+        "y": 84
       },
       "targets": [
         {
@@ -2088,7 +2160,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 77
+        "y": 84
       },
       "targets": [
         {
@@ -2138,7 +2210,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 77
+        "y": 84
       },
       "targets": [
         {
@@ -2211,7 +2283,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 85
+        "y": 92
       },
       "collapsed": false
     },
@@ -2228,7 +2300,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 86
+        "y": 93
       },
       "targets": [
         {
@@ -2280,7 +2352,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 86
+        "y": 93
       },
       "targets": [
         {
@@ -2341,7 +2413,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 86
+        "y": 93
       },
       "targets": [
         {
@@ -2388,7 +2460,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 94
+        "y": 101
       },
       "collapsed": false
     },
@@ -2404,7 +2476,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 95
+        "y": 102
       },
       "targets": [
         {
@@ -2435,7 +2507,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 95
+        "y": 102
       },
       "targets": [
         {
@@ -2463,7 +2535,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 104
+        "y": 111
       },
       "targets": [
         {

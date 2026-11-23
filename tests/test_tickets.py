@@ -63,24 +63,19 @@ def test_worker_runs_the_graph_and_records_every_step(store):
     assert run_once(store) is True
     done = store.get(rec.number)
     assert done.status == "done" and done.attempts == 1
-    assert done.steps == [
-        "classify",
-        "policy_gate",
-        "retrieve",
-        "draft",
-        "post_check",
-        "compose",
-        "route",
-        "audit",
-    ]
-    # Today every node is a placeholder: nothing is decided, and the result says so.
+    assert done.steps[0] == "pattern_check"
+    assert set(done.steps[1:4]) == {"risk_classifier", "classify_safety", "classify_triage"}
+    assert done.steps[4:] == [
+        "policy_gate", "retrieve", "draft", "post_check", "compose", "route", "audit"
+    ]  # fmt: skip
+    # Routing is still a placeholder: nothing is decided, and the result says so.
     assert done.result["routing"] is None and done.result["complete"] is False
     assert done.trace_id and done.finished_at
     assert run_once(store) is False  # queue empty
 
 
 def test_errors_are_retried_then_marked_failed(store, monkeypatch):
-    def boom(record):
+    def boom(record, deps=None):
         raise TimeoutError("LLM timed out")
         yield  # makes it a generator like the real _stream
 

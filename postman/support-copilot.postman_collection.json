@@ -180,8 +180,8 @@
                   "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
                   "const b = pm.response.json();",
                   "pm.test(\"done (is the worker running? uv run copilot worker)\", () => pm.expect(b.status).to.eql(\"done\"));",
-                  "pm.test(\"every workflow step reported with its own status\", () => { pm.expect(b.steps.map(s => s.node)).to.eql([\"classify\",\"policy_gate\",\"retrieve\",\"draft\",\"post_check\",\"compose\",\"route\",\"audit\"]); b.steps.forEach(s => pm.expect([\"completed\",\"placeholder\"]).to.include(s.status)); });",
-                  "pm.test(\"honest result: complete flag, placeholders never counted as completed\", () => { pm.expect(b).to.have.property(\"complete\"); const done = b.steps.filter(s => s.status === \"completed\").length; pm.expect(b.steps_completed).to.eql(`${done}/8`); });",
+                  "pm.test(\"every step reported with its own status; patterns first\", () => { const nodes = b.steps.map(s => s.node); pm.expect(nodes[0]).to.eql(\"pattern_check\"); pm.expect(nodes[nodes.length - 1]).to.eql(\"audit\"); b.steps.forEach(s => pm.expect([\"completed\",\"placeholder\"]).to.include(s.status)); });",
+                  "pm.test(\"honest result: complete flag, placeholders never counted as completed\", () => { pm.expect(b).to.have.property(\"complete\"); const done = b.steps.filter(s => s.status === \"completed\").length; pm.expect(b.steps_completed).to.eql(`${done}/${b.steps.length}`); });",
                   "pm.test(\"timings\", () => { pm.expect(b.seconds_in_queue).to.be.a(\"number\"); pm.expect(b.seconds_processing).to.be.a(\"number\"); });",
                   "pm.test(\"no real PII value\", () => [\"4111\", \"Ahmed Hassan\", \"A12345678\"].forEach(v => pm.expect(pm.response.text()).to.not.include(v)));",
                   "console.log(\"LangSmith trace:\", b.trace_id);"
@@ -423,7 +423,7 @@
                   "pm.test(\"200\", () => pm.response.to.have.status(200));",
                   "const b = pm.response.json();",
                   "pm.test(\"counts + items\", () => { pm.expect(b.counts).to.be.an(\"object\"); pm.expect(b.items).to.be.an(\"array\"); });",
-                  "pm.test(\"rows count only real work\", () => b.items.slice(0,5).forEach(r => { pm.expect(r.steps_completed).to.match(/^\\d\\/8$/); pm.expect(r).to.have.property(\"complete\"); }));",
+                  "pm.test(\"rows count only real work\", () => b.items.slice(0,5).forEach(r => { pm.expect(r.steps_completed).to.match(/^\\d+\\/\\d+$/); pm.expect(r).to.have.property(\"complete\"); }));",
                   "pm.test(\"no real PII value\", () => pm.expect(pm.response.text()).to.not.include(\"4111 1111 1111 1111\"));"
                 ]
               }

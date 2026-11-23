@@ -39,6 +39,8 @@ ReasonCode = Literal[
     "vulnerable_customer",
     "security_sensitive",
     "multi_intent_blocked",
+    "prompt_injection",  # exact injection phrase found: no AI draft, a person replies
+    "spam_or_empty",  # no model, no LLM; a person at low priority (nothing is dropped)
 ]
 
 

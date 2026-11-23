@@ -17,6 +17,7 @@ from copilot.kb.ingest import build_kb
 from copilot.kb.store import KBReader, KBStore
 from copilot.pipeline.pii import Masker
 from copilot.pipeline.pii_vault import InMemoryPiiVault, PgPiiVault, PiiVault
+from copilot.pipeline.risk_classifier import RiskClassifier
 from copilot.retrieval.embeddings import get_embedder
 from copilot.retrieval.index import InMemoryIndex, PgVectorIndex, VectorIndex
 from copilot.retrieval.indexer import index_kb
@@ -36,6 +37,7 @@ class Services:
     vault: PiiVault | None = None  # encrypted placeholder → value mapping (pipeline/pii_vault.py)
     tickets: TicketStore | None = None  # the job queue (tickets/store.py)
     audit: AuditLog | None = None  # legal record, append-only (audit.py)
+    risk: object | None = None  # pipeline.risk_classifier.RiskClassifier (on bge-m3)
 
 
 def load_services(
@@ -67,8 +69,9 @@ def load_services(
     if warm_masker:  # the API masks; the worker doesn't, so it skips the ~10 s GLiNER load
         masker.warm_up()  # load GLiNER at startup, not on the first customer's ticket
     tickets = PgTicketStore(pool)
+    risk = RiskClassifier(embedder, model_name=st.embedding_model)  # trains in ~1 s (cached)
     return Services(
-        store, Retriever(embedder, index), masker, vault, tickets, AuditLog(st.audit_log)
+        store, Retriever(embedder, index), masker, vault, tickets, AuditLog(st.audit_log), risk
     )
 
 

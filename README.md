@@ -15,7 +15,7 @@ It never talks to customers directly: an agent reviews and sends every reply.
 | Retrieval: multilingual embeddings (bge-m3) + pgvector, evaluated (R@3 0.90, MRR 0.88, Arabic Hit@3 1.00) | ✅ done |
 | PII masking before anything else sees the ticket: Presidio + GLiNER, encrypted vault, residual-PII monitor, evaluated | ✅ done |
 | Tickets as background jobs: `POST /tickets` → ticket number, Postgres queue, worker(s), `GET /tickets/{number}` for status/progress/result, retries, crash recovery (D11) | ✅ done |
-| Workflow: LangGraph graph with all nodes and branches (D3) | ✅ shape done; **classify / gate / draft / post-check / route nodes are placeholders** |
+| Workflow: LangGraph graph (D3): pattern_check → risk_classifier ∥ classify_safety ∥ classify_triage → policy_gate → … | ✅ **pattern_check** (exact phrases, spam) and **risk_classifier** (bge-m3 + logistic regression, D12) implemented; the LLM calls, gate, draft, checks and routing are placeholders (reported as such) |
 | Agent API: inbox, ticket with draft/citations/why, audited customer details, send / edit / handle manually | ✅ done (local, no login; Phase 2: SSO) |
 | Audit log (legal record): processing, PII reveals, agent decisions with AI draft AND final text, masked | ✅ done |
 | Monitoring end to end: OpenTelemetry → Grafana (metrics, traces, logs), LangSmith for LLM calls | ✅ done |
@@ -125,6 +125,7 @@ Instrumented with **OpenTelemetry**, so production only changes the endpoint: Gr
 |---|---|---|
 | Retrieval (85 queries, 68 answerable, + 28 tickets) | `uv run copilot eval retrieval` | R@3 0.90 · MRR 0.88 · Hit@3 en 0.94 / ar 1.00 / other 1.00 |
 | PII masking (20 new cases + 76 labelled tickets) | `uv run copilot eval pii` | value recall 1.00 · keep precision 0.96 · ticket type match 1.00 |
+| Risk signals: patterns + classifier (62 held-out cases, 12 languages) | `uv run copilot eval risks` | recall 1.00 every risk and language · precision 0.84 · 0 strong false alarms · category 0.89 |
 | End to end (classification, abstention, routing recall, hard-rule violations, cost) | `copilot eval tickets` | ⏳ needs the LLM nodes |
 
 Details and trade-offs: [docs/BENCHMARK.md](docs/BENCHMARK.md). Test strategy: [eval/README.md](eval/README.md).

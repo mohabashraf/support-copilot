@@ -39,16 +39,6 @@ from copilot.tickets.store import MAX_ATTEMPTS, Decision, Status, TicketRecord, 
 router = APIRouter(tags=["tickets"])
 log = get_logger(__name__)
 
-PIPELINE = [
-    "classify",
-    "policy_gate",
-    "retrieve",
-    "draft",
-    "post_check",
-    "compose",
-    "route",
-    "audit",
-]  # noqa: E501
 Queue = Literal["support_agent", "senior_support", "compliance"]
 _PLACEHOLDER = re.compile(r"\[[A-Z]+_\d+\]")
 
@@ -289,7 +279,8 @@ def _work(r: TicketRecord) -> tuple[str, bool | None, list[StepOut]]:
         if r.status in ("queued", "processing")
         else (r.status == "done" and done == len(steps) > 0)
     )
-    return f"{done}/{len(PIPELINE)}", complete, steps
+    # Denominator = the steps on THIS ticket's path (a spam ticket skips the classifiers).
+    return f"{done}/{len(steps)}", complete, steps
 
 
 def _summary(r: TicketRecord) -> TicketSummary:

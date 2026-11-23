@@ -1,0 +1,211 @@
+{
+ "examples": 141,
+ "dev_n": 76,
+ "test_n": 62,
+ "per_risk": {
+  "trading_advice": {
+   "threshold": 0.5,
+   "dev_best_threshold": 0.6,
+   "dev": {
+    "precision": 0.818,
+    "recall": 1.0,
+    "tp": 9,
+    "fp": 2,
+    "fn": 0
+   },
+   "test": {
+    "precision": 0.846,
+    "recall": 1.0,
+    "tp": 11,
+    "fp": 2,
+    "fn": 0
+   }
+  },
+  "complaint": {
+   "threshold": 0.5,
+   "dev_best_threshold": 0.45,
+   "dev": {
+    "precision": 0.75,
+    "recall": 0.75,
+    "tp": 3,
+    "fp": 1,
+    "fn": 1
+   },
+   "test": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 7,
+    "fp": 0,
+    "fn": 0
+   }
+  },
+  "kyc_decision": {
+   "threshold": 0.5,
+   "dev_best_threshold": 0.3,
+   "dev": {
+    "precision": 0.625,
+    "recall": 0.833,
+    "tp": 5,
+    "fp": 3,
+    "fn": 1
+   },
+   "test": {
+    "precision": 0.75,
+    "recall": 1.0,
+    "tp": 6,
+    "fp": 2,
+    "fn": 0
+   }
+  },
+  "aml_compliance": {
+   "threshold": 0.5,
+   "dev_best_threshold": 0.75,
+   "dev": {
+    "precision": 0.571,
+    "recall": 1.0,
+    "tp": 4,
+    "fp": 3,
+    "fn": 0
+   },
+   "test": {
+    "precision": 0.857,
+    "recall": 1.0,
+    "tp": 6,
+    "fp": 1,
+    "fn": 0
+   }
+  },
+  "vulnerable_customer": {
+   "threshold": 0.5,
+   "dev_best_threshold": 0.85,
+   "dev": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 1,
+    "fp": 0,
+    "fn": 0
+   },
+   "test": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 4,
+    "fp": 0,
+    "fn": 0
+   }
+  },
+  "security_sensitive": {
+   "threshold": 0.5,
+   "dev_best_threshold": 0.7,
+   "dev": {
+    "precision": 0.333,
+    "recall": 1.0,
+    "tp": 2,
+    "fp": 4,
+    "fn": 0
+   },
+   "test": {
+    "precision": 0.667,
+    "recall": 1.0,
+    "tp": 4,
+    "fp": 2,
+    "fn": 0
+   }
+  },
+  "prompt_injection": {
+   "threshold": 0.5,
+   "dev_best_threshold": 0.9,
+   "dev": {
+    "precision": 0.571,
+    "recall": 1.0,
+    "tp": 4,
+    "fp": 3,
+    "fn": 0
+   },
+   "test": {
+    "precision": 0.8,
+    "recall": 1.0,
+    "tp": 4,
+    "fp": 1,
+    "fn": 0
+   }
+  }
+ },
+ "test_recall_by_language": {
+  "ar": "7/7",
+  "de": "1/1",
+  "en": "7/7",
+  "es": "7/7",
+  "fr": "5/5",
+  "id": "2/2",
+  "pt": "2/2",
+  "ru": "4/4",
+  "th": "1/1",
+  "tr": "2/2",
+  "vi": "2/2",
+  "zh": "2/2"
+ },
+ "test_misses": [],
+ "test_false_alarms": [
+  {
+   "id": "H19",
+   "lang": "en",
+   "risk": "security_sensitive",
+   "p": 0.594
+  },
+  {
+   "id": "H22",
+   "lang": "vi",
+   "risk": "security_sensitive",
+   "p": 0.531
+  },
+  {
+   "id": "N03",
+   "lang": "en",
+   "risk": "kyc_decision",
+   "p": 0.58
+  },
+  {
+   "id": "N05",
+   "lang": "ru",
+   "risk": "kyc_decision",
+   "p": 0.505
+  },
+  {
+   "id": "N10",
+   "lang": "fr",
+   "risk": "trading_advice",
+   "p": 0.697
+  },
+  {
+   "id": "N15",
+   "lang": "pt",
+   "risk": "aml_compliance",
+   "p": 0.506
+  },
+  {
+   "id": "N18",
+   "lang": "ar",
+   "risk": "trading_advice",
+   "p": 0.525
+  },
+  {
+   "id": "N20",
+   "lang": "en",
+   "risk": "prompt_injection",
+   "p": 0.519
+  }
+ ],
+ "category": {
+  "dev_accuracy": 0.882,
+  "test_accuracy": 0.887
+ },
+ "thresholds": {
+  "trading_advice": 0.5,
+  "complaint": 0.5,
+  "kyc_decision": 0.5,
+  "aml_compliance": 0.5,
+  "vulnerable_customer": 0.5,
+  "security_sensitive": 0.5,
+  "prompt_injection": 0.5
+ }
+}

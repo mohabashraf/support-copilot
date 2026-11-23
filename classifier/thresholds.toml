@@ -1,0 +1,27 @@
+# Probability thresholds per risk (pipeline/risk_classifier.py), checked with `copilot eval risks`.
+# 0.5 = the classifier's natural decision point. Held-out result (62 cases, 12 languages):
+# recall 42/42, precision 0.84, no false alarm at the strong level (2026-11-23).
+# weak   = recorded and shown, decided together with the LLM safety call
+# strong = blocks the risky part on its own
+# Tuned for RECALL on hard-rule risks: a false alarm costs a person one minute, a miss is a breach.
+[risk.trading_advice]
+weak = 0.5
+strong = 0.8
+[risk.complaint]
+weak = 0.5
+strong = 0.8
+[risk.kyc_decision]
+weak = 0.5
+strong = 0.8
+[risk.aml_compliance]
+weak = 0.5
+strong = 0.8
+[risk.vulnerable_customer]
+weak = 0.5
+strong = 0.8
+[risk.security_sensitive]
+weak = 0.5
+strong = 0.8
+[risk.prompt_injection]
+weak = 0.5
+strong = 0.8

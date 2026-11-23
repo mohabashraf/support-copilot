@@ -64,6 +64,13 @@ PII_MS = _meter.create_histogram(
 NODE_MS = _meter.create_histogram(
     "copilot.graph.node.duration", unit="ms", description="Time per workflow node"
 )
+RISK_SIGNALS = _meter.create_counter(
+    "copilot.risk.signals",
+    description="Risk signals by kind, strength (strong/weak) and method (pattern/classifier)",
+)
+SPAM = _meter.create_counter(
+    "copilot.spam", description="Tickets detected as spam/empty, by reason"
+)
 QUEUE_WAIT_MS = _meter.create_histogram(
     "copilot.queue.wait",
     unit="ms",

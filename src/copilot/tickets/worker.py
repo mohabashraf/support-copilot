@@ -9,22 +9,28 @@ import time
 
 from copilot.audit import AuditLog
 from copilot.log import get_logger
+from copilot.pipeline.workflow import Deps
 from copilot.tickets.service import process
 from copilot.tickets.store import TicketStore
 
 log = get_logger(__name__)
 
 
-def run_once(store: TicketStore, audit: AuditLog | None = None) -> bool:
+def run_once(store: TicketStore, audit: AuditLog | None = None, deps: Deps | None = None) -> bool:
     """Process one ticket if there is one. Returns False when the queue is empty."""
     record = store.claim()
     if record is None:
         return False
-    process(record, store, audit)
+    process(record, store, audit, deps)
     return True
 
 
-def run_forever(store: TicketStore, poll_s: float = 0.5, audit: AuditLog | None = None) -> None:
+def run_forever(
+    store: TicketStore,
+    poll_s: float = 0.5,
+    audit: AuditLog | None = None,
+    deps: Deps | None = None,
+) -> None:
     stopping = False
 
     def stop(*_):
@@ -36,6 +42,6 @@ def run_forever(store: TicketStore, poll_s: float = 0.5, audit: AuditLog | None 
     signal.signal(signal.SIGINT, stop)
     log.info("worker started", extra={"poll_s": poll_s})
     while not stopping:
-        if not run_once(store, audit):
+        if not run_once(store, audit, deps):
             time.sleep(poll_s)  # Phase 2: LISTEN/NOTIFY instead of polling
     log.info("worker stopped")

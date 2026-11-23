@@ -17,6 +17,7 @@ from copilot.config import get_settings
 from copilot.db import open_pool
 from copilot.eval import pii as pii_eval
 from copilot.eval import retrieval as retrieval_eval
+from copilot.eval import risks as risks_eval
 from copilot.kb.ingest import build_kb
 from copilot.kb.store import KBStore
 from copilot.log import setup_logging
@@ -197,6 +198,42 @@ def eval_pii(
         typer.echo(f"report → {out}")
 
 
+@eval_app.command("risks")
+def eval_risks(out: str = typer.Option(None, help="Write the full JSON report here")) -> None:
+    """Risk classifier: thresholds from the 76 tickets, honest scores on 62 held-out cases."""
+    from copilot.pipeline.risk_classifier import RiskClassifier  # noqa: PLC0415
+
+    st = get_settings()
+    clf = RiskClassifier(get_embedder(st.embedding_model), model_name=st.embedding_model)
+    rep = risks_eval.run(clf)
+    typer.echo(
+        f"trained on {rep['examples']} examples · dev {rep['dev_n']} tickets · "
+        f"test {rep['test_n']} held-out"
+    )
+    typer.echo(
+        f"{'risk':22} {'thr':>5}  {'DEV P':>6} {'DEV R':>6}  {'TEST P':>6} {'TEST R':>6}  "
+        "(test tp/fp/fn)"
+    )
+    for k, v in rep["per_risk"].items():
+        d, t = v["dev"], v["test"]
+        typer.echo(
+            f"{k:22} {v['threshold']:>5}  {d['precision']:>6} {d['recall']:>6}  "
+            f"{t['precision']:>6} {t['recall']:>6}  ({t['tp']}/{t['fp']}/{t['fn']})"
+        )
+    typer.echo(f"test recall by language: {rep['test_recall_by_language']}")
+    typer.echo(
+        f"category accuracy: dev {rep['category']['dev_accuracy']} · "
+        f"test {rep['category']['test_accuracy']}"
+    )
+    for m in rep["test_misses"]:
+        typer.echo(f"  MISS  {m['id']} {m['lang']:3} {m['risk']:20} p={m['p']}")
+    for m in rep["test_false_alarms"]:
+        typer.echo(f"  FALSE {m['id']} {m['lang']:3} {m['risk']:20} p={m['p']}")
+    if out:
+        Path(out).write_text(json.dumps(rep, ensure_ascii=False, indent=1), encoding="utf-8")
+        typer.echo(f"report → {out}")
+
+
 @app.command("graph")
 def graph_cmd() -> None:
     """Print the ticket workflow as a Mermaid diagram (paste into the README or mermaid.live)."""
@@ -347,7 +384,9 @@ def worker_cmd(
         typer.echo(str(err), err=True)
         raise typer.Exit(1) from None
     tel.register_queue_gauge(services.tickets)
-    run_forever(services.tickets, poll_s=poll, audit=services.audit)
+    from copilot.pipeline.workflow import Deps  # noqa: PLC0415
+
+    run_forever(services.tickets, poll_s=poll, audit=services.audit, deps=Deps(services.risk))
 
 
 @keys_app.command("new")

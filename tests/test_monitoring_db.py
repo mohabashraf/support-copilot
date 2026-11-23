@@ -56,7 +56,7 @@ def test_grafana_role_reads_the_views(ticket):
         _as_grafana(f"SELECT count(*) FROM tickets_test_pii_detections WHERE number = {n}")[0][0]
         >= 1
     )
-    assert _as_grafana(f"SELECT count(*) FROM tickets_test_steps WHERE number = {n}")[0][0] == 8
+    assert _as_grafana(f"SELECT count(*) FROM tickets_test_steps WHERE number = {n}")[0][0] == 11
 
 
 @pytest.mark.parametrize(
@@ -80,6 +80,7 @@ def test_monitoring_views_hold_no_text(ticket):
             "tickets_test_monitoring",
             "tickets_test_pii_detections",
             "tickets_test_steps",
+            "tickets_test_risk_signals",
         ):
             row = conn.execute(f"SELECT * FROM {view} WHERE number = {n}").fetchall()
             assert "4111" not in str(row) and "Ahmed" not in str(row)
@@ -103,7 +104,9 @@ def test_every_dashboard_sql_query_runs_as_grafana(ticket):
     assert len(queries) >= 15
     for title, sql in queries:
         sql = sql.replace("$ticket", str(n))
-        sql = re.sub(r"\btickets_(monitoring|steps|pii_detections)\b", r"tickets_test_\1", sql)
+        sql = re.sub(
+            r"\btickets_(monitoring|steps|pii_detections|risk_signals)\b", r"tickets_test_\1", sql
+        )
         try:
             _as_grafana(sql)
         except psycopg.Error as err:

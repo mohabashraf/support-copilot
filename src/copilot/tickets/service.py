@@ -22,7 +22,7 @@ from copilot.log import get_logger
 from copilot.pipeline.pii import Masker
 from copilot.pipeline.pii_vault import PiiVault
 from copilot.pipeline.schemas import Ticket
-from copilot.pipeline.workflow import NODE_IMPLEMENTED, graph
+from copilot.pipeline.workflow import NODE_IMPLEMENTED, Deps, graph
 from copilot.tickets.store import TicketRecord, TicketStore
 
 log = get_logger(__name__)
@@ -113,7 +113,12 @@ def intake(
     return record, created
 
 
-def process(record: TicketRecord, store: TicketStore, audit: AuditLog | None = None) -> None:
+def process(
+    record: TicketRecord,
+    store: TicketStore,
+    audit: AuditLog | None = None,
+    deps: Deps | None = None,
+) -> None:
     """Run the workflow on one claimed ticket, saving each node as it finishes."""
     t0 = time.perf_counter()
     run_id = uuid.uuid4()
@@ -145,7 +150,7 @@ def process(record: TicketRecord, store: TicketStore, audit: AuditLog | None = N
         _steps_seen: list[str] = []
         try:
             t_prev = time.perf_counter()
-            for node, update in _stream(record):
+            for node, update in _stream(record, deps):
                 now = time.perf_counter()
                 state.update({k: v for k, v in (update or {}).items() if k != "steps"})
                 store.set_step(
@@ -166,6 +171,10 @@ def process(record: TicketRecord, store: TicketStore, audit: AuditLog | None = N
                 "reply": state.get("reply"),
                 "citations": state.get("citations"),
                 "routing": routing.model_dump() if routing else None,
+                # Signals from the implemented checks (no customer text: names, probabilities,
+                # and the nearest TRAINING example as evidence).
+                "patterns": state.get("patterns"),
+                "risk": state.get("risk"),
                 # Honest completeness: did every node the ticket passed through do real work?
                 "complete": not placeholders,
                 "steps_completed": len(_steps_seen) - len(placeholders),  # real work only
@@ -187,6 +196,8 @@ def process(record: TicketRecord, store: TicketStore, audit: AuditLog | None = N
                     classification=result["classification"],
                     ai_draft=result["reply"],  # produced from masked text: placeholders only
                     cited_chunks=[c.get("chunk_id") for c in result["citations"] or []],
+                    patterns=result["patterns"],
+                    risk_signals=(result["risk"] or {}).get("signals"),
                     routing=result["routing"],  # null when no real routing was made
                     complete=result["complete"],
                     placeholder_nodes=result["placeholder_nodes"],
@@ -223,6 +234,15 @@ def process(record: TicketRecord, store: TicketStore, audit: AuditLog | None = N
     tel.TICKET_MS.record(ms)
     for reason in routing.reasons if routing else []:
         tel.ROUTING_REASONS.add(1, {"reason": reason})
+    pats = result.get("patterns") or {}
+    for hit in pats.get("hits", []):
+        tel.RISK_SIGNALS.add(1, {"kind": hit["kind"], "strength": "strong", "method": "pattern"})
+    if pats.get("spam_reason"):
+        tel.SPAM.add(1, {"reason": pats["spam_reason"]})
+    for sig in (result.get("risk") or {}).get("signals", []):
+        tel.RISK_SIGNALS.add(
+            1, {"kind": sig["kind"], "strength": sig["strength"], "method": sig["method"]}
+        )
     log.info(
         "ticket processed",
         extra={
@@ -238,10 +258,10 @@ def process(record: TicketRecord, store: TicketStore, audit: AuditLog | None = N
     )
 
 
-def _stream(record: TicketRecord):
+def _stream(record: TicketRecord, deps: Deps | None = None):
     """Yield (node, update) as each node finishes, so GET /tickets/{n} shows live progress."""
     inp = {"ticket_id": record.external_id, **record.masked}
-    for chunk in graph.stream(inp, stream_mode="updates"):
+    for chunk in graph.stream(inp, stream_mode="updates", context=deps):
         yield from chunk.items()
 
 

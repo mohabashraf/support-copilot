@@ -24,6 +24,7 @@ dependencies = [
     "psycopg[binary,pool]>=3.3.9",
     "pydantic>=2.14.3",
     "pydantic-settings>=2.16.3",
+    "scikit-learn>=1.9.1",
     "sentence-transformers>=6.3.0",
     "sentencepiece<0.2.3",
     "torch>=2.15.0",  # direct dependency so the CPU-only source below applies
