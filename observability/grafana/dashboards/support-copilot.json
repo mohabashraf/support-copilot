@@ -1342,6 +1342,50 @@
     },
     {
       "type": "table",
+      "title": "Handed to a human: who gets it, why, and the evidence (the message text is only in the agent API, never in Grafana)",
+      "description": "What the co-pilot hands to the human agent for this ticket: decision, queue, priority, reason codes and evidence (pattern names, model scores). The masked message and the draft are deliberately NOT readable by Grafana (no ticket text in monitoring): open them with GET /tickets/{number} using an agent key (Postman: 2. Agent → 3. Open the ticket).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "tickets-db"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 53,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "inspect": true,
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "tickets-db"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT\n  CASE WHEN decision IS NULL THEN 'not decided yet' ELSE decision END AS \"decision\",\n  COALESCE(queue, '—') AS \"queue (who gets it)\",\n  COALESCE(priority, '—') AS \"priority\",\n  replace(replace(replace(COALESCE(reasons, ''), '[', ''), ']', ''), '\"', '') AS \"why (reason codes)\",\n  replace(replace(replace(COALESCE(evidence, ''), '[', ''), ']', ''), '\"', '') AS \"evidence (detector names + scores)\",\n  CASE WHEN agent_decision IS NULL THEN 'waiting for an agent' ELSE agent_decision || ' by ' || agent_name END AS \"agent\",\n  'GET /tickets/' || number || ' (agent key)' AS \"the message itself\"\nFROM tickets_monitoring WHERE number = $ticket",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "table",
       "title": "How it was masked: one row per detected PII span (never the value)",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -1351,7 +1395,7 @@
         "h": 8,
         "w": 14,
         "x": 0,
-        "y": 24
+        "y": 29
       },
       "targets": [
         {
@@ -1386,7 +1430,7 @@
         "h": 8,
         "w": 10,
         "x": 14,
-        "y": 24
+        "y": 29
       },
       "targets": [
         {
@@ -1422,7 +1466,7 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 37
       },
       "targets": [
         {
@@ -1494,7 +1538,7 @@
         "h": 12,
         "w": 17,
         "x": 0,
-        "y": 39
+        "y": 44
       },
       "targets": [
         {
@@ -1593,7 +1637,7 @@
         "h": 12,
         "w": 7,
         "x": 17,
-        "y": 39
+        "y": 44
       },
       "targets": [
         {
@@ -1684,7 +1728,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 51
+        "y": 56
       },
       "targets": [
         {
@@ -1713,7 +1757,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 51
+        "y": 56
       },
       "targets": [
         {
@@ -1741,7 +1785,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 65
+        "y": 70
       },
       "collapsed": false
     },
@@ -1758,7 +1802,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 66
+        "y": 71
       },
       "targets": [
         {
@@ -1797,7 +1841,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 66
+        "y": 71
       },
       "targets": [
         {
@@ -1845,7 +1889,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 66
+        "y": 71
       },
       "targets": [
         {
@@ -1879,7 +1923,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 74
+        "y": 79
       },
       "collapsed": false
     },
@@ -1896,7 +1940,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 75
+        "y": 80
       },
       "targets": [
         {
@@ -1948,7 +1992,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 75
+        "y": 80
       },
       "targets": [
         {
@@ -1998,7 +2042,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 75
+        "y": 80
       },
       "targets": [
         {
@@ -2043,7 +2087,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 83
+        "y": 88
       },
       "collapsed": false
     },
@@ -2060,7 +2104,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 84
+        "y": 89
       },
       "targets": [
         {
@@ -2110,7 +2154,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 84
+        "y": 89
       },
       "targets": [
         {
@@ -2160,7 +2204,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 84
+        "y": 89
       },
       "targets": [
         {
@@ -2210,7 +2254,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 84
+        "y": 89
       },
       "targets": [
         {
@@ -2283,7 +2327,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 92
+        "y": 97
       },
       "collapsed": false
     },
@@ -2300,7 +2344,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 93
+        "y": 98
       },
       "targets": [
         {
@@ -2352,7 +2396,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 93
+        "y": 98
       },
       "targets": [
         {
@@ -2413,7 +2457,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 93
+        "y": 98
       },
       "targets": [
         {
@@ -2460,7 +2504,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 101
+        "y": 106
       },
       "collapsed": false
     },
@@ -2476,7 +2520,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 102
+        "y": 107
       },
       "targets": [
         {
@@ -2507,7 +2551,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 102
+        "y": 107
       },
       "targets": [
         {
@@ -2535,7 +2579,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 111
+        "y": 116
       },
       "targets": [
         {

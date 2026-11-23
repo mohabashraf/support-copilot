@@ -1889,6 +1889,42 @@
               }
             }
           ]
+        },
+        {
+          "name": "Z. What the human sees for the last ticket (agent key)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tickets/{{ticketNumber}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agentKey}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Run right after any request above: {{ticketNumber}} is the ticket it just created. This is exactly what the human agent gets: the MASKED message, the AI draft (null until the LLM steps exist), and the hand-off: queue, priority, reasons, evidence. Grafana never shows this text (no ticket text in monitoring)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = pm.response.json(); const r = t.result || {}; const rt = r.routing || {};",
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "console.log(`#${t.ticket_number} ${t.status} · steps ${t.steps_completed}`);",
+                  "console.log('message (masked):', JSON.stringify(t.message));",
+                  "console.log('AI draft:', r.reply === null || r.reply === undefined ? 'none yet (LLM steps not built)' : r.reply);",
+                  "console.log(`hand-off: ${rt.decision} → ${rt.destination} · priority ${rt.priority} · reasons ${rt.reasons} · evidence ${rt.evidence}`);",
+                  "pm.test('the message is masked (no raw card numbers)', () => pm.expect(JSON.stringify(t.message)).to.not.match(/\\d{4} \\d{4} \\d{4} \\d{4}/));"
+                ]
+              }
+            }
+          ]
         }
       ]
     }
