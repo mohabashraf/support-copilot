@@ -82,11 +82,16 @@ Grafana → **Explore** (left menu) → data source **Tempo** → **TraceQL** �
 ```
 { span.ticket.number = N }
 ```
-You get **two traces** for the ticket:
-- **Intake (API):** `POST /tickets` → `ticket.intake` → `pii_mask` → Postgres `INSERT INTO tickets`
-  and `INSERT INTO pii_vault` (SQL shows `%s`, never values).
-- **Processing (worker):** `ticket.process` → `node.classify` → `node.policy_gate` → … → `node.audit`,
-  plus the Postgres `UPDATE`s that record each step.
+You get **one trace** for the whole ticket, end to end (the worker continues the API's trace):
+```
+POST /tickets ─► ticket.intake ─► pii_mask ─► INSERT tickets / pii_vault        (API)
+              └► queue.wait  (from queued to the moment a worker took it)
+              └► ticket.process ─► node.pattern_check ─► node.injection_check ─► … ─► node.audit
+                                   + the Postgres UPDATEs that record each step  (worker)
+```
+SQL shows `%s`, never values. The dashboard panel **End to end for this ticket** gives the same
+split as numbers: masking + queue wait + worker = total; the overview shows the p95 of both
+"end to end" and "worker only".
 
 Click a span to see its attributes (`ticket.number`, `pii.types`, `langsmith.trace_id`) and time.
 Or use the dashboard panel **Recent tickets (traces)** and click a trace ID.

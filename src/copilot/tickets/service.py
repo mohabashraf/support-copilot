@@ -19,6 +19,7 @@ Never ticket text or PII values in traces, metrics or logs: IDs, types, counts, 
 import time
 import traceback
 import uuid
+from datetime import UTC, datetime
 from functools import lru_cache
 
 from langgraph.checkpoint.memory import InMemorySaver
@@ -42,6 +43,7 @@ def intake(
 ) -> tuple[TicketRecord, bool]:  # noqa: E501
     """Mask, store the mapping encrypted, enqueue. Returns (record, created). A ticket ID seen
     before returns the existing record (idempotent: webhooks are delivered more than once)."""
+    received_at = datetime.now(UTC)  # end-to-end time starts here, before masking
     run_id = uuid.uuid4()
     safe = {
         "ticket_id": ticket.id,
@@ -96,6 +98,8 @@ def intake(
             pii_detections=[d.__dict__ for d in report.detections],
             pii_residual=report.residual,
             pii_ms=round(report.ms, 1),
+            trace_context=tel.current_context_header(),  # the worker continues this trace
+            received_at=received_at,
         )
         if created and vault is not None:
             vault.store(ticket.id, report.mapping)
@@ -159,8 +163,15 @@ def process(
         "ticket.attempt": record.attempts,
         "langsmith.trace_id": str(run_id),
     }  # noqa: E501
+    # One trace per ticket: continue the intake's trace, with the time spent in the queue as
+    # its own span, so Tempo shows POST → masking → queue wait → every graph step.
+    parent = tel.context_from(record.trace_context)
+    if record.attempts == 1 and record.started_at:
+        tel.tracer.start_span(
+            "queue.wait", context=parent, start_time=tel.ns(record.created_at), attributes=attrs
+        ).end(end_time=tel.ns(record.started_at))
     with (
-        tel.tracer.start_as_current_span("ticket.process", attributes=attrs),
+        tel.tracer.start_as_current_span("ticket.process", context=parent, attributes=attrs),
         trace(
             "support-copilot",
             inputs={"ticket_number": record.number, "attempt": record.attempts},
@@ -281,6 +292,8 @@ def process(
         },
     )
     tel.TICKET_MS.record(ms)
+    received = record.received_at or record.created_at
+    tel.TICKET_E2E_MS.record((datetime.now(UTC) - received).total_seconds() * 1000)
     for reason in routing.reasons if routing else []:
         tel.ROUTING_REASONS.add(1, {"reason": reason})
     pats = result.get("patterns") or {}

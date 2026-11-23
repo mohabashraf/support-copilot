@@ -47,6 +47,10 @@ class TicketRecord(BaseModel):
     result: dict[str, Any] | None = None  # classification, reply, citations, routing
     error: str | None = None
     intake_trace_id: str | None = None  # LangSmith trace of the intake (masking)
+    # OpenTelemetry context of the intake span (W3C traceparent): the worker continues this
+    # trace, so ONE trace shows POST → masking → queue wait → every graph step.
+    trace_context: str | None = None
+    received_at: datetime | None = None  # the API got the request (before masking)
     trace_id: str | None = None  # LangSmith trace of the processing run
     created_at: datetime
     started_at: datetime | None = None
@@ -69,6 +73,8 @@ class TicketStore(Protocol):
         pii_detections: list[dict] | None = None,
         pii_residual: list[str] | None = None,
         pii_ms: float | None = None,
+        trace_context: str | None = None,
+        received_at: datetime | None = None,
     ) -> tuple[TicketRecord, bool]: ...
     def get(self, number: int) -> TicketRecord | None: ...
     def claim(self) -> TicketRecord | None: ...
@@ -98,7 +104,7 @@ _COLUMNS = (
     "number, external_id, status, current_step, steps, attempts, masked, pii_types, result, "
     "error, intake_trace_id, trace_id, created_at, started_at, finished_at, lease_until, "
     "agent_decision, agent_name, final_text_masked, decided_at, "
-    "pii_detections, pii_residual, pii_ms, step_times"
+    "pii_detections, pii_residual, pii_ms, step_times, trace_context, received_at"
 )
 
 
@@ -133,6 +139,8 @@ class PgTicketStore:
                 "final_text_masked text",
                 "decided_at timestamptz",
                 "pii_detections jsonb NOT NULL DEFAULT '[]'",  # masking report, no values
+                "trace_context text",  # W3C traceparent of the intake span
+                "received_at timestamptz",  # request received, before masking
                 "pii_residual jsonb NOT NULL DEFAULT '[]'",
                 "pii_ms double precision",
                 "step_times jsonb NOT NULL DEFAULT '[]'",  # [{node, ms}] per finished node
@@ -168,6 +176,11 @@ class PgTicketStore:
                     agent_decision, agent_name, error IS NOT NULL AS has_error,
                     jsonb_array_length(pii_detections) AS pii_count,
                     pii_residual::text AS pii_residual, round(pii_ms::numeric, 1) AS pii_ms,
+                    COALESCE(received_at, created_at) AS received_at,
+                    extract(epoch FROM created_at - COALESCE(received_at, created_at))
+                        AS intake_seconds,
+                    extract(epoch FROM finished_at - COALESCE(received_at, created_at))
+                        AS total_seconds,
                     created_at, started_at, finished_at, decided_at,
                     extract(epoch FROM started_at - created_at) AS queue_seconds,
                     extract(epoch FROM finished_at - started_at) AS processing_seconds
@@ -242,11 +255,13 @@ class PgTicketStore:
         pii_detections=None,
         pii_residual=None,
         pii_ms=None,
+        trace_context=None,
+        received_at=None,
     ):
         rec = self._one(
             f"""INSERT INTO {self.t} (external_id, masked, pii_types, intake_trace_id,
-                    pii_detections, pii_residual, pii_ms)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    pii_detections, pii_residual, pii_ms, trace_context, received_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (external_id) DO NOTHING
                 RETURNING {_COLUMNS}""",
             (
@@ -257,6 +272,8 @@ class PgTicketStore:
                 Jsonb(pii_detections or []),
                 Jsonb(pii_residual or []),
                 pii_ms,
+                trace_context,
+                received_at,
             ),
         )
         if rec:
@@ -375,6 +392,8 @@ class InMemoryTicketStore:
         pii_detections=None,
         pii_residual=None,
         pii_ms=None,
+        trace_context=None,
+        received_at=None,
     ):
         if external_id in self.by_external:
             return self.rows[self.by_external[external_id]], False
@@ -389,6 +408,8 @@ class InMemoryTicketStore:
             pii_detections=pii_detections or [],
             pii_residual=pii_residual or [],
             pii_ms=pii_ms,
+            trace_context=trace_context,
+            received_at=received_at,
             created_at=datetime.now(UTC),
         )
         self.rows[n], self.by_external[external_id] = rec, n

@@ -20,7 +20,7 @@ import copy
 import json
 import logging
 
-from opentelemetry import metrics, trace
+from opentelemetry import metrics, propagate, trace
 from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
@@ -42,6 +42,11 @@ _meter = metrics.get_meter("copilot")
 # Labels are low-cardinality on purpose (no ticket IDs): IDs belong in traces and logs.
 TICKETS = _meter.create_counter(
     "copilot.tickets", description="Tickets processed, by routing decision and destination"
+)
+TICKET_E2E_MS = _meter.create_histogram(
+    "copilot.ticket.end_to_end",
+    unit="ms",
+    description="Request received by the API → ticket done (masking + queue wait + processing)",
 )
 TICKET_MS = _meter.create_histogram(
     "copilot.ticket.duration", unit="ms", description="End-to-end processing time per ticket"
@@ -193,6 +198,24 @@ def register_queue_gauge(store) -> None:
     _meter.create_observable_gauge(
         "copilot.queue.tickets", callbacks=[observe], description="Tickets in the queue, by status"
     )
+
+
+def current_context_header() -> str | None:
+    """The current span as a W3C `traceparent` string, to store with a queued job so the worker
+    can continue the SAME trace later (None when tracing is off)."""
+    carrier: dict[str, str] = {}
+    propagate.inject(carrier)
+    return carrier.get("traceparent")
+
+
+def context_from(header: str | None):
+    """Rebuild the context stored by `current_context_header` (None → a new trace)."""
+    return propagate.extract({"traceparent": header}) if header else None
+
+
+def ns(dt) -> int:
+    """datetime → OpenTelemetry timestamp (nanoseconds since the epoch)."""
+    return int(dt.timestamp() * 1e9)
 
 
 def current_trace_id() -> str | None:

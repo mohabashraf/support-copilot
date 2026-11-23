@@ -200,13 +200,13 @@
     },
     {
       "type": "stat",
-      "title": "p95 ticket latency",
+      "title": "p95 time: end to end · worker only",
       "id": 4,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "PRD NFR-4 target: p95 < 10 s",
+      "description": "End to end = the API receives the request → the ticket is done (masking + queue wait + processing). Worker only = processing in the worker.",
       "gridPos": {
         "h": 4,
         "w": 3,
@@ -220,8 +220,19 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(copilot_ticket_end_to_end_milliseconds_bucket[$__range])))",
+          "instant": true,
+          "legendFormat": "end to end"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "histogram_quantile(0.95, sum by (le) (rate(copilot_ticket_duration_milliseconds_bucket[$__range])))",
-          "instant": true
+          "instant": true,
+          "legendFormat": "worker only"
         }
       ],
       "options": {
@@ -232,7 +243,7 @@
         },
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "value"
+        "textMode": "value_and_name"
       },
       "fieldConfig": {
         "defaults": {
@@ -1341,6 +1352,56 @@
       "id": 43
     },
     {
+      "type": "stat",
+      "title": "End to end for this ticket: masking + queue wait + processing = total (one trace: click a trace ID below)",
+      "description": "Request in → done. Masking = API (PII masking + vault + insert). Queue = waiting for a worker. Processing = the graph in the worker. Tempo shows the same as ONE trace: POST /tickets → ticket.intake → pii_mask → queue.wait → ticket.process → every node.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "tickets-db"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 54,
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/"
+        },
+        "textMode": "value_and_name",
+        "colorMode": "none",
+        "graphMode": "none",
+        "orientation": "vertical"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 0,
+          "noValue": "not done yet"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "tickets-db"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "rawSql": "SELECT round((intake_seconds * 1000)::numeric) AS \"1. API: masking + queued\",\n  round((queue_seconds * 1000)::numeric) AS \"2. waiting in the queue\",\n  round((processing_seconds * 1000)::numeric) AS \"3. worker: the graph\",\n  round((total_seconds * 1000)::numeric) AS \"= TOTAL end to end\"\nFROM tickets_monitoring WHERE number = $ticket"
+        }
+      ]
+    },
+    {
       "type": "table",
       "title": "Handed to a human: who gets it, why, and the evidence (the message text is only in the agent API, never in Grafana)",
       "description": "What the co-pilot hands to the human agent for this ticket: decision, queue, priority, reason codes and evidence (pattern names, model scores). The masked message and the draft are deliberately NOT readable by Grafana (no ticket text in monitoring): open them with GET /tickets/{number} using an agent key (Postman: 2. Agent → 3. Open the ticket).",
@@ -1352,7 +1413,7 @@
         "h": 5,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 28
       },
       "id": 53,
       "options": {
@@ -1395,7 +1456,7 @@
         "h": 8,
         "w": 14,
         "x": 0,
-        "y": 29
+        "y": 33
       },
       "targets": [
         {
@@ -1435,7 +1496,7 @@
         "h": 8,
         "w": 10,
         "x": 14,
-        "y": 29
+        "y": 33
       },
       "targets": [
         {
@@ -1447,7 +1508,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT 'received (API: masked + queued)' AS event, created_at AS at, NULL::numeric AS seconds FROM tickets_monitoring WHERE number = $ticket\nUNION ALL SELECT 'worker started (attempt ' || attempts || ')', started_at, round(queue_seconds::numeric,3) FROM tickets_monitoring WHERE number = $ticket AND started_at IS NOT NULL\nUNION ALL SELECT 'workflow finished: ' || steps_completed || '/' || steps_visited || ' steps completed' || CASE WHEN complete THEN '' ELSE ', ' || (steps_visited - steps_completed) || ' placeholders (INCOMPLETE)' END, finished_at, round(processing_seconds::numeric,3) FROM tickets_monitoring WHERE number = $ticket AND finished_at IS NOT NULL\nUNION ALL SELECT 'agent: ' || agent_decision || ' by ' || agent_name, decided_at, NULL FROM tickets_monitoring WHERE number = $ticket AND decided_at IS NOT NULL\nORDER BY at"
+          "rawSql": "SELECT 'received by the API (request in)' AS event, received_at AS at, NULL::numeric AS seconds FROM tickets_monitoring WHERE number = $ticket\nUNION ALL SELECT 'masked + queued', received_at + make_interval(secs => intake_seconds), round(intake_seconds::numeric, 3) FROM tickets_monitoring WHERE number = $ticket\nUNION ALL SELECT 'worker started (attempt ' || attempts || ')', started_at, round(queue_seconds::numeric,3) FROM tickets_monitoring WHERE number = $ticket AND started_at IS NOT NULL\nUNION ALL SELECT 'workflow finished: ' || steps_completed || '/' || steps_visited || ' steps completed' || CASE WHEN complete THEN '' ELSE ', ' || (steps_visited - steps_completed) || ' placeholders (INCOMPLETE)' END, finished_at, round(processing_seconds::numeric,3) FROM tickets_monitoring WHERE number = $ticket AND finished_at IS NOT NULL\nUNION ALL SELECT 'TOTAL end to end (request in → done)', finished_at, round(total_seconds::numeric, 3) FROM tickets_monitoring WHERE number = $ticket AND finished_at IS NOT NULL\nUNION ALL SELECT 'agent: ' || agent_decision || ' by ' || agent_name, decided_at, NULL FROM tickets_monitoring WHERE number = $ticket AND decided_at IS NOT NULL\nORDER BY at, seconds NULLS FIRST"
         }
       ],
       "options": {
@@ -1471,7 +1532,7 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 37
+        "y": 41
       },
       "targets": [
         {
@@ -1543,7 +1604,7 @@
         "h": 12,
         "w": 17,
         "x": 0,
-        "y": 44
+        "y": 48
       },
       "targets": [
         {
@@ -1642,7 +1703,7 @@
         "h": 12,
         "w": 7,
         "x": 17,
-        "y": 44
+        "y": 48
       },
       "targets": [
         {
@@ -1733,7 +1794,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 56
+        "y": 60
       },
       "targets": [
         {
@@ -1762,7 +1823,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 56
+        "y": 60
       },
       "targets": [
         {
@@ -1790,7 +1851,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 70
+        "y": 74
       },
       "collapsed": false
     },
@@ -1807,7 +1868,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 71
+        "y": 75
       },
       "targets": [
         {
@@ -1846,7 +1907,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 71
+        "y": 75
       },
       "targets": [
         {
@@ -1894,7 +1955,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 71
+        "y": 75
       },
       "targets": [
         {
@@ -1928,7 +1989,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 79
+        "y": 83
       },
       "collapsed": false
     },
@@ -1945,7 +2006,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 80
+        "y": 84
       },
       "targets": [
         {
@@ -1997,7 +2058,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 80
+        "y": 84
       },
       "targets": [
         {
@@ -2047,7 +2108,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 80
+        "y": 84
       },
       "targets": [
         {
@@ -2092,7 +2153,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 88
+        "y": 92
       },
       "collapsed": false
     },
@@ -2109,7 +2170,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 89
+        "y": 93
       },
       "targets": [
         {
@@ -2159,7 +2220,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 89
+        "y": 93
       },
       "targets": [
         {
@@ -2209,7 +2270,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 89
+        "y": 93
       },
       "targets": [
         {
@@ -2259,7 +2320,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 89
+        "y": 93
       },
       "targets": [
         {
@@ -2332,7 +2393,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 97
+        "y": 101
       },
       "collapsed": false
     },
@@ -2349,7 +2410,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 98
+        "y": 102
       },
       "targets": [
         {
@@ -2401,7 +2462,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 98
+        "y": 102
       },
       "targets": [
         {
@@ -2462,7 +2523,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 98
+        "y": 102
       },
       "targets": [
         {
@@ -2510,7 +2571,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 106
+        "y": 110
       },
       "collapsed": false
     },
@@ -2526,7 +2587,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 107
+        "y": 111
       },
       "targets": [
         {
@@ -2557,7 +2618,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 107
+        "y": 111
       },
       "targets": [
         {
@@ -2586,7 +2647,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 116
+        "y": 120
       },
       "targets": [
         {

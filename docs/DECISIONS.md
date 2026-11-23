@@ -100,6 +100,7 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
   - **Cross-linked IDs:** the OTel `ticket` span carries `langsmith.trace_id`; the LangSmith run carries `otel_trace_id`; logs carry both, so you can go dashboard → trace → logs → LLM call.
 - **Superseded first version (2026-11-18):** Langfuse for LLM tracing, OTel in Phase 2. Changed because the owner chose LangSmith (production experience, zero-code LangGraph tracing) and asked for system-wide monitoring now; Langfuse remains the Phase 2 option if LangSmith self-hosting is not available.
 
+- **One trace per ticket, end to end** (2026-11-23): the intake stores its W3C `traceparent` with the queued ticket; the worker continues that trace and adds a `queue.wait` span (queued → claimed). Tempo shows POST → masking → queue wait → every node as one waterfall. A separate end-to-end metric (`copilot.ticket.end_to_end`, request in → done) sits next to the worker-only one.
 ## D7. Vector store: pgvector (with an in-memory index for tests)
 - **Status:** decided (2026-11-18)
 - **Context:** retrieval provides the abstain signal (`weak_retrieval`), the KB explorer and search playground, and all retrieval in Phase 2 (growing KB + SOPs). Phase 2 already needs a relational database for the audit log, ticket status and idempotency keys. Today the KB is 26 chunks; with SOPs it may reach thousands, not millions. Reviewers should be able to run the core without Docker.
