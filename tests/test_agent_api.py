@@ -30,7 +30,7 @@ def env(tmp_path):
         "/tickets", json={"id": "C1", "subject": "Deposit", "body": body}, headers=HELPDESK
     ).json()["ticket_number"]
     run_once(tickets, audit)
-    rec = tickets.get(n)  # the LLM nodes are placeholders today: give it a realistic draft
+    rec = tickets.get(n)  # replace the fake drafter's text with a realistic draft
     tickets.finish(n, {**rec.result, "reply": DRAFT})
     return client, tickets, audit, n
 
@@ -41,10 +41,10 @@ def test_inbox_lists_tickets_with_counts_and_filters(env):
     assert inbox["counts"] == {"done": 1}
     row = inbox["items"][0]
     assert row["ticket_number"] == n and not row["handled_by_agent"]
-    assert row["steps_completed"] == "10/14" and row["complete"] is False
-    # Routing ran before the fixture added a draft, so it saw none: a person writes it.
-    assert row["decision"] == "human_required" and row["queue"] == "support_agent"
-    assert row["reasons"] == ["no_draft"]
+    assert row["steps_completed"] == "12/14" and row["complete"] is False
+    # The (fake) drafter answered and nothing was flagged: an agent reviews and sends it.
+    assert row["decision"] == "auto_draft_ok" and row["queue"] is None
+    assert row["reasons"] == []
     assert client.get("/tickets", params={"status": "queued"}, headers=SARA).json()["items"] == []
     assert (
         client.get("/tickets", params={"queue": "compliance"}, headers=SARA).json()["items"] == []

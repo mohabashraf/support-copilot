@@ -87,10 +87,12 @@ def test_arabic_reply_uses_the_arabic_template_other_languages_get_english_and_a
     assert any("no approved es text" in n for n in s["notes_for_agent"])
 
 
-def test_a_clean_question_is_allowed_and_has_no_reply_until_the_drafter_exists():
-    s = _run("How do I withdraw to my card?")
-    assert s["blocked_intents"] == [] and "retrieve" in s["steps"]
-    assert s.get("reply") is None and s["routing"].reasons == ["no_draft"]
+def test_a_clean_question_is_allowed_and_gets_a_grounded_draft():
+    s = _run("What is the minimum deposit?")
+    assert s["blocked_intents"] == [] and {"retrieve", "draft"} <= set(s["steps"])
+    assert s["reply"] == "Per our help page (faq#min-deposit)."
+    assert s["citations"][0]["chunk_id"] == "faq#min-deposit"
+    assert s["routing"].decision == "auto_draft_ok"
 
 
 # ---- policy.gate ----------------------------------------------------------------------------

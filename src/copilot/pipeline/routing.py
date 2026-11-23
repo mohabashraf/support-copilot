@@ -41,6 +41,9 @@ DESTINATION: dict[str, Destination] = {
     "low_resource_language": "support_agent",  # an agent who reads the language checks it
     "account_action_required": "support_agent",  # the agent checks the account, then sends
     "post_check_failed": "senior_support",
+    "weak_retrieval": "support_agent",  # nothing relevant in the help pages: a person answers
+    "not_in_kb": "support_agent",  # the drafter abstained or answered only part
+    "kb_conflict": "support_agent",  # conservative answer drafted; the agent checks the point
 }
 _RANK = {"support_agent": 0, "senior_support": 1, "compliance": 2}
 

@@ -101,6 +101,12 @@ class FakeChat:
         raw = AIMessage("{}", usage_metadata={"input_tokens": 900, "output_tokens": 60,
                                               "total_tokens": 960})  # fmt: skip
         body = messages[-1].content.split("<body>")[1].split("</body>")[0]
+        from copilot.pipeline.schemas import DraftOut  # noqa: PLC0415
+
+        if schema is DraftOut:
+            self.draft_calls = getattr(self, "draft_calls", 0) + 1
+            return {"raw": raw, "parsed": _fake_draft(messages[-1].content),
+                    "parsing_error": None}  # fmt: skip
         if schema is TriageOut:
             self.triage_calls += 1
             if self.triage_fail_next:
@@ -166,13 +172,63 @@ def _fake_triage(body: str, overrides: dict):
     return TriageOut(**{**fields, **overrides})
 
 
+def _fake_draft(user: str):
+    """Answers from the first source (cites it); abstains when there is no source."""
+    import re  # noqa: PLC0415
+
+    from copilot.pipeline.schemas import DraftOut  # noqa: PLC0415
+
+    ids = re.findall(r'<source id="([^"]+)"', user)
+    if not ids:
+        no_q = "(no question" in user
+        return DraftOut(abstain=not no_q, partial=False, reply="Thank you!" if no_q else "",
+                        cited_chunk_ids=[], uncovered=[], note_for_agent="")  # fmt: skip
+    return DraftOut(abstain=False, partial=False, reply=f"Per our help page ({ids[0]}).",
+                    cited_chunk_ids=[ids[0]], uncovered=[], note_for_agent="")  # fmt: skip
+
+
+class FakeRetriever:
+    """Word overlap over the REAL KB chunks (no embedding model). Scores 0.3–0.9: a query that
+    shares no word with any chunk is weak retrieval."""
+
+    def __init__(self):
+        from copilot.kb.ingest import build_kb  # noqa: PLC0415
+
+        self.chunks = list(build_kb().chunks)
+
+    def search(self, query, k=5, exclude_flags=()):
+        from copilot.retrieval.search import Hit  # noqa: PLC0415
+
+        words = {w.strip("?.,!").lower() for w in query.split() if len(w) > 3}
+        scored = []
+        for c in self.chunks:
+            if set(c.flags) & set(exclude_flags):
+                continue
+            text = c.embed_text.lower()
+            overlap = sum(w in text for w in words) / max(len(words), 1)
+            scored.append((c, round(0.3 + 0.6 * overlap, 3)))
+        scored.sort(key=lambda x: -x[1])
+        return [Hit(c, sc, i + 1) for i, (c, sc) in enumerate(scored[:k])]
+
+
+_FAKE_RETRIEVER = None
+
+
 @pytest.fixture(autouse=True)
 def _fake_risk_classifier(monkeypatch):
     """Graph runs without explicit Deps use the fakes instead of loading the real models."""
+    global _FAKE_RETRIEVER  # noqa: PLW0603
+    _FAKE_RETRIEVER = _FAKE_RETRIEVER or FakeRetriever()
     monkeypatch.setattr(
         _wf,
         "default_deps",
-        lambda: _wf.Deps(FakeRiskClassifier(), FakeInjectionGuard(), FakeChat()),
+        lambda: _wf.Deps(
+            FakeRiskClassifier(),
+            FakeInjectionGuard(),
+            FakeChat(),
+            retriever=_FAKE_RETRIEVER,
+            draft_llm=FakeChat(),
+        ),  # fmt: skip
     )
 
 

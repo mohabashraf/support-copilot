@@ -52,12 +52,13 @@ def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
     assert [st["node"] for st in done["steps"]][0] == "pattern_check"
     assert [st["node"] for st in done["steps"]][-1] == "audit"
     assert done["seconds_processing"] is not None
-    # No AI draft exists yet, so routing (real) sends it to a person; the ticket is not complete.
+    # Nothing relevant in the help pages (fake retriever): no draft call, a person answers.
     routing = done["result"]["routing"]
-    assert routing["decision"] == "human_required" and routing["reasons"] == ["no_draft"]
+    assert routing["decision"] == "human_required" and routing["reasons"] == ["weak_retrieval"]
     assert done["complete"] is False and done["result"]["reply"] is None
-    # 10 of the 14 steps on this path are implemented; the rest are reported as placeholders.
-    assert done["steps_completed"] == "10/14"
+    # Weak retrieval skips draft + post_check: 11 of the 12 steps on this path are implemented
+    # (audit is still a placeholder).
+    assert done["steps_completed"] == "11/12"
     completed = {st["node"] for st in done["steps"] if st["status"] == "completed"}
     assert completed == {
         "pattern_check",
@@ -68,6 +69,7 @@ def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
         "validate_classification",
         "confidence_gate",
         "policy_gate",
+        "retrieve",
         "compose",
         "route",
     }

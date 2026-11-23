@@ -84,9 +84,8 @@ def test_normal_ticket_without_a_draft_goes_to_a_person_with_reason_no_draft():
         "model": {"probability": 0.02, "strength": None, "unit": -1},
         "head_threshold": 0.6,
     }
-    r = state["routing"]
-    assert r.decision == "human_required" and r.reasons == ["no_draft"]
-    assert r.destination == "support_agent" and r.priority == "normal"
+    r = state["routing"]  # grounded draft, nothing flagged: an agent reviews and sends it
+    assert r.decision == "auto_draft_ok" and r.reasons == [] and r.destination is None
 
 
 def test_pattern_evidence_is_the_pattern_name_never_the_text():
@@ -110,6 +109,8 @@ def test_only_implemented_nodes_are_marked_implemented():
         "confidence_gate",
         "policy_gate",
         "template_reply",
+        "retrieve",
+        "draft",
         "compose",
         "route",
     }
@@ -133,11 +134,14 @@ def _cls(n: int) -> Classification:
 
 
 def test_fully_blocked_ticket_never_reaches_the_drafter():
-    assert wf.after_gate({"classification": _cls(1), "blocked_intents": [0]}) == "template_reply"
+    state = {"classification": _cls(1), "blocked_intents": [0], "template_parts": ["ack_kyc"]}
+    assert wf.after_gate(state) == "template_reply" and wf.after_templates(state) == "compose"
 
 
-def test_partly_blocked_ticket_still_drafts_the_allowed_part():
-    assert wf.after_gate({"classification": _cls(2), "blocked_intents": [1]}) == "retrieve"
+def test_partly_blocked_ticket_renders_its_template_then_drafts_the_allowed_part():
+    state = {"classification": _cls(2), "blocked_intents": [1], "template_parts": ["ack_kyc"]}
+    assert wf.after_gate(state) == "template_reply" and wf.after_templates(state) == "retrieve"
+    assert wf.after_gate({"classification": _cls(1), "blocked_intents": []}) == "retrieve"
 
 
 def test_failed_post_check_gets_exactly_one_redraft():

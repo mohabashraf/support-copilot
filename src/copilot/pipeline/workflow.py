@@ -26,7 +26,8 @@ traces and the LLM only ever see placeholders; the placeholder → value mapping
 the state. The background worker runs this graph (tickets/worker.py).
 
 Implemented: pattern_check, injection_check, risk_classifier, classify_safety, classify_triage,
-validate_classification, confidence_gate, policy_gate, template_reply, compose, route.
+validate_classification, confidence_gate, policy_gate, template_reply, retrieve, draft, compose,
+route.
 The other nodes are marked @placeholder: they produce nothing and monitoring reports them as
 placeholders, never as work done.
 Dependencies (the risk classifier, later the LLM clients) come in through LangGraph's runtime
@@ -36,7 +37,7 @@ View it: `uv run langgraph dev` (LangGraph Studio) or `uv run copilot graph` (Me
 
 import operator
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from functools import lru_cache
 from typing import Annotated, Any, Literal, TypedDict
 
@@ -47,10 +48,10 @@ from langgraph.types import RetryPolicy
 
 from copilot import telemetry as tel
 from copilot.log import get_logger
+from copilot.pipeline import grounding, prompts, templates, validation
 from copilot.pipeline import injection as injection_gate
 from copilot.pipeline import patterns as pattern_rules
 from copilot.pipeline import policy as policy_rules
-from copilot.pipeline import prompts, templates, validation
 from copilot.pipeline import routing as routing_rules
 from copilot.pipeline.llm import LLMOutputError, structured
 from copilot.pipeline.risk_classifier import load_injection_rules
@@ -104,6 +105,7 @@ class State(InputState, OutputState, total=False):
     template_texts: list[dict]  # template_reply: {key, text, translated}
     notes_for_agent: list[str]  # internal notes shown next to the draft, never sent
     retrieved: list[tuple[str, float]]  # (chunk_id, score)
+    sources: list[dict]  # retrieve: the chunks given to the drafter (id, section, text, flags)
     draft: DraftOut | None
     draft_attempts: int
     post_check_failures: list[str]
@@ -122,44 +124,70 @@ class Deps:
     classify_llm: Any = None  # ChatAnthropic for the classification calls (or a test fake)
     confidence_threshold: float = 0.7  # PRD FR-5.1 low_confidence (CONFIDENCE_THRESHOLD)
     low_resource_languages: tuple[str, ...] = ("ckb", "sw")  # LOW_RESOURCE_LANGUAGES
+    retriever: Any = None  # retrieval.search.Retriever over the served KB (or a test fake)
+    draft_llm: Any = None  # ChatAnthropic for the draft call (LLM_DRAFT_MODEL)
+    top_k: int = 5  # RETRIEVAL_TOP_K
+    weak_retrieval_threshold: float = 0.44  # WEAK_RETRIEVAL_THRESHOLD (per embedding model)
+
+
+def build_deps(st, risk, guard, retriever) -> Deps:
+    """Deps from settings + already-loaded services (the worker: load_services)."""
+    from copilot.pipeline.llm import chat_model  # noqa: PLC0415
+
+    return Deps(
+        risk,
+        guard,
+        chat_model(st.llm_classify_model, st.anthropic_api_key, st.llm_timeout_s),
+        st.confidence_threshold,
+        tuple(st.low_resource_languages),
+        retriever,
+        chat_model(st.llm_draft_model, st.anthropic_api_key, st.llm_timeout_s),
+        st.retrieval_top_k,
+        st.weak_retrieval_threshold,
+    )
 
 
 @lru_cache
 def default_deps() -> Deps:
-    """For callers that pass no context (LangGraph Studio, scripts): build from .env.
-    Loads bge-m3 (~10 s) once. The worker passes its own Deps instead."""
+    """For callers that pass no context (LangGraph Studio, scripts): build from .env, with an
+    in-memory index of the KB. Loads bge-m3 (~10 s) once. The worker passes its own Deps."""
     from copilot.config import get_settings  # noqa: PLC0415
+    from copilot.kb.ingest import build_kb  # noqa: PLC0415
     from copilot.pipeline.injection_guard import InjectionGuard  # noqa: PLC0415
-    from copilot.pipeline.llm import chat_model  # noqa: PLC0415
     from copilot.pipeline.risk_classifier import (  # noqa: PLC0415
         RiskClassifier,
         load_injection_rules,
     )
     from copilot.retrieval.embeddings import get_embedder  # noqa: PLC0415
+    from copilot.retrieval.index import InMemoryIndex  # noqa: PLC0415
+    from copilot.retrieval.indexer import index_kb  # noqa: PLC0415
+    from copilot.retrieval.search import Retriever  # noqa: PLC0415
 
     st, rules = get_settings(), load_injection_rules()
-    return Deps(
-        RiskClassifier(get_embedder(st.embedding_model), model_name=st.embedding_model),
-        InjectionGuard(
-            st.injection_guard_model,
-            {"weak": rules["guard_weak"], "strong": rules["guard_strong"]},
-            st.huggingface_api_key.get_secret_value() if st.huggingface_api_key else None,
-        ),
-        chat_model(st.llm_classify_model, st.anthropic_api_key, st.llm_timeout_s),
-        st.confidence_threshold,
-        tuple(st.low_resource_languages),
+    embedder, index = get_embedder(st.embedding_model), InMemoryIndex()
+    index_kb(build_kb(), embedder, index)
+    guard = InjectionGuard(
+        st.injection_guard_model,
+        {"weak": rules["guard_weak"], "strong": rules["guard_strong"]},
+        st.huggingface_api_key.get_secret_value() if st.huggingface_api_key else None,
     )
+    risk = RiskClassifier(embedder, model_name=st.embedding_model)
+    return build_deps(st, risk, guard, Retriever(embedder, index))
+
+
+_REQUIRED = ("risk_classifier", "injection_guard", "classify_llm", "retriever", "draft_llm")
 
 
 def _deps(runtime: Runtime | None) -> Deps:
+    """The caller's Deps; any missing service is taken from default_deps (loaded only then)."""
     ctx = getattr(runtime, "context", None)
-    ok = (
-        isinstance(ctx, Deps)
-        and ctx.risk_classifier is not None
-        and ctx.injection_guard is not None
-        and ctx.classify_llm is not None
-    )
-    return ctx if ok else default_deps()
+    if not isinstance(ctx, Deps):
+        return default_deps()
+    missing = [f for f in _REQUIRED if getattr(ctx, f) is None]
+    if not missing:
+        return ctx
+    d = default_deps()
+    return replace(ctx, **{f: getattr(d, f) for f in missing})
 
 
 def _text(state: State) -> str:
@@ -352,19 +380,70 @@ def template_reply(state: State) -> dict:
     return {"steps": ["template_reply"], "template_texts": texts, "notes_for_agent": notes}
 
 
-@placeholder
-def retrieve(state: State) -> dict:
-    # TODO step 7: top-k search with the existing Retriever (defective/promo chunks excluded)
-    return {"steps": ["retrieve"], "retrieved": []}
+def retrieve(state: State, runtime: Runtime[Deps]) -> dict:
+    """Search the KB for the ANSWERABLE parts only (pipeline/grounding.py): triage's English
+    search query + each allowed intent's quote, best score per chunk, top k. Defective, promo and
+    compliance chunks are never returned. Best score below the threshold → weak_retrieval (no
+    draft: a person answers; threshold from `copilot eval retrieval`)."""
+    deps = _deps(runtime)
+    qs = grounding.queries(state["classification"], state.get("blocked_intents", []))
+    hits = grounding.merge(
+        [deps.retriever.search(q, deps.top_k, grounding.EXCLUDED_FLAGS) for q in qs], deps.top_k
+    )
+    best = hits[0].score if hits else 0.0
+    weak = bool(qs) and best < deps.weak_retrieval_threshold
+    return {
+        "steps": ["retrieve"],
+        "retrieved": [(h.chunk_id, round(h.score, 4)) for h in hits],
+        "sources": [] if weak else [grounding.source(h) for h in hits],
+        "reasons": ["weak_retrieval"] if weak else [],
+    }
 
 
-@placeholder
-def draft(state: State) -> dict:
-    # TODO step 3: LLM call 2: answer only from the retrieved chunks, cite chunk IDs, or abstain
+def draft(state: State, runtime: Runtime[Deps]) -> dict:
+    """LLM call 2: reply to the ALLOWED intents only, from the retrieved chunks only; cites chunk
+    IDs, or abstains / answers partially. Validated: structured output, Pydantic, then
+    grounding.check_draft (unknown citation, empty answer, answer without citation → retry)."""
+    c: Classification = state["classification"]
+    blocked = set(state.get("blocked_intents", []))
+    allowed = [it for i, it in enumerate(c.intents) if i not in blocked]
+    sources = state.get("sources", [])
+    questions = [f'"{it.text}" ({it.topic})' for it in allowed if it.text.strip()]
+    has_question = bool(c.search_query.strip())
+    r = structured(
+        _deps(runtime).draft_llm,
+        DraftOut,
+        prompts.DRAFT_SYSTEM,
+        prompts.draft_user(
+            c.reply_language,
+            questions if has_question else [],
+            len(blocked),
+            sources,
+            state.get("subject", ""),
+            state.get("body", ""),
+        ),  # fmt: skip
+        name="draft",
+    )
+    d = grounding.check_draft(r.parsed, {s["id"] for s in sources}, has_question)
+    cited = {s["id"]: s for s in sources if s["id"] in d.cited_chunk_ids}
+    reasons, notes = [], list(state.get("notes_for_agent", []))
+    if d.abstain or d.partial:
+        reasons.append("not_in_kb")
+    if any("conflict" in s["flags"] for s in cited.values()):
+        reasons.append("kb_conflict")
+    if any("route" in s["flags"] for s in cited.values()):
+        reasons.append("account_action_required")  # the KB itself says: contact support
+    if d.note_for_agent.strip():
+        notes.append(f"Drafter: {d.note_for_agent.strip()}")
+    if d.uncovered:
+        notes.append("Not covered by the help pages: " + "; ".join(d.uncovered))
     return {
         "steps": ["draft"],
-        "draft": None,
+        "draft": d,
         "draft_attempts": state.get("draft_attempts", 0) + 1,
+        "reasons": reasons,
+        "notes_for_agent": notes,
+        "llm_usage": [{"node": "draft", **r.usage.model_dump()}],
     }
 
 
@@ -376,24 +455,39 @@ def post_check(state: State) -> dict:
 
 def compose(state: State) -> dict:
     """One reply in intent order (PRD FR-4.6): each blocked intent's template where it first
-    appears, the grounded draft where the first allowed intent is. If an allowed intent has no
-    usable draft, there is NO reply (null): a person writes it (routing adds no_draft).
-    TODO (with draft): page citations from the cited chunk IDs."""
+    appears, the grounded draft where the first allowed intent is. An allowed part with no
+    usable draft (abstained, weak retrieval) is left out and the agent is told to add it; with
+    nothing at all to show, there is NO reply (null) and a person writes it.
+    Citations: one per (cited chunk, page), for the agent."""
     c = state.get("classification")
     texts = {t["key"]: t["text"] for t in state.get("template_texts", [])}
     gates = (state.get("policy") or {}).get("intents", [])
     draft = state.get("draft")
     usable = draft is not None and not draft.abstain and bool(draft.reply.strip())
-    if c is None or any(not g["blocked"] for g in gates) and not usable:
+    if c is None:
         return {"steps": ["compose"]}
-    parts, used = [], set()
+    parts, used, missing = [], set(), []
     for g in gates:
-        tag = g["template"] if g["blocked"] else "draft"
-        piece = texts.get(tag) if g["blocked"] else draft.reply.strip()
+        if g["blocked"]:
+            tag, piece = g["template"], texts.get(g["template"])
+        elif usable:
+            tag, piece = "draft", draft.reply.strip()
+        else:
+            missing.append(c.intents[g["index"]].text)
+            continue
         if piece and tag not in used:
             used.add(tag)
             parts.append(piece)
-    return {"steps": ["compose"], "reply": "\n\n".join(parts) if parts else None}
+    out: dict = {"steps": ["compose"], "reply": "\n\n".join(parts) if parts else None}
+    if usable:
+        out["citations"] = grounding.citations(draft.cited_chunk_ids, state.get("sources", []))
+    if missing and parts:
+        notes = list(state.get("notes_for_agent", []))
+        notes.append(
+            "Draft is INCOMPLETE: add an answer to " + "; ".join(f'"{m}"' for m in missing)
+        )
+        out["notes_for_agent"] = notes
+    return out
 
 
 def route(state: State) -> dict:
@@ -435,14 +529,29 @@ def after_risk(state: State) -> list[str] | Literal["route"]:
 
 def after_gate(state: State) -> Literal["route", "retrieve", "template_reply"]:
     """2nd line: the safety LLM suspects an injection the gate missed → no draft, a person.
-    All intents blocked → only a template reply. Anything answerable → grounded draft."""
+    Any part blocked → its template first (also on a mixed ticket). Else → grounded draft."""
     if (state.get("safety") or {}).get("injection_suspected"):
         return "route"
+    if state.get("template_parts"):
+        return "template_reply"
+    return "retrieve"
+
+
+def after_templates(state: State) -> Literal["retrieve", "compose"]:
+    """All intents blocked → only the templates. A mixed ticket → draft the allowed part too."""
     c = state.get("classification")
     n_intents = len(c.intents) if c else 1
     if len(state.get("blocked_intents", [])) >= n_intents:
-        return "template_reply"
+        return "compose"
     return "retrieve"
+
+
+def after_retrieve(state: State) -> Literal["draft", "compose"]:
+    """Weak retrieval → no draft call (a person answers; reason weak_retrieval). A ticket with no
+    question (a thank-you) still gets a short polite draft (PRD FR-2.1c)."""
+    if "weak_retrieval" in state.get("reasons", []):
+        return "compose"
+    return "draft"
 
 
 def after_post_check(state: State) -> Literal["draft", "compose"]:
@@ -509,7 +618,7 @@ LLM_RETRY = RetryPolicy(
         anthropic.InternalServerError,
     ),
 )
-RETRY = {"classify_safety": LLM_RETRY, "classify_triage": LLM_RETRY}
+RETRY = {"classify_safety": LLM_RETRY, "classify_triage": LLM_RETRY, "draft": LLM_RETRY}
 
 
 def build_graph(checkpointer=None):
@@ -525,10 +634,10 @@ def build_graph(checkpointer=None):
     g.add_edge("validate_classification", "confidence_gate")
     g.add_edge("confidence_gate", "policy_gate")
     g.add_conditional_edges("policy_gate", after_gate)
-    g.add_edge("retrieve", "draft")
+    g.add_conditional_edges("retrieve", after_retrieve)
     g.add_edge("draft", "post_check")
     g.add_conditional_edges("post_check", after_post_check)
-    g.add_edge("template_reply", "compose")
+    g.add_conditional_edges("template_reply", after_templates)
     g.add_edge("compose", "route")
     g.add_edge("route", "audit")
     g.add_edge("audit", END)

@@ -441,7 +441,7 @@ def worker_cmd(
         typer.echo(str(err), err=True)
         raise typer.Exit(1) from None
     tel.register_queue_gauge(services.tickets)
-    from copilot.pipeline.workflow import Deps, build_graph  # noqa: PLC0415
+    from copilot.pipeline.workflow import build_deps, build_graph  # noqa: PLC0415
 
     # Checkpoints in Postgres: a retry resumes from the failed step, even after a crash.
     app_graph = None
@@ -455,7 +455,7 @@ def worker_cmd(
         services.tickets,
         poll_s=poll,
         audit=services.audit,
-        deps=Deps(services.risk, services.guard),
+        deps=build_deps(st, services.risk, services.guard, services.retriever),
         app=app_graph,
     )
 

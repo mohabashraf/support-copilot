@@ -53,7 +53,7 @@ def test_both_classifiers_run_then_validate_then_gate():
     assert s["triage"]["prompt_version"] == "triage-v1"
     assert s["confidence"]["passed"] and "low_confidence" not in s.get("reasons", [])
     nodes = [u["node"] for u in s["llm_usage"]]
-    assert sorted(nodes) == ["classify_safety", "classify_triage"]
+    assert sorted(nodes) == ["classify_safety", "classify_triage", "draft"]
 
 
 def test_low_self_reported_confidence_routes_to_a_person():
