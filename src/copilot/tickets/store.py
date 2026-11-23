@@ -197,6 +197,12 @@ class PgTicketStore:
                 FROM {table} t,
                      jsonb_array_elements(COALESCE(t.result->'risk'->'signals', '[]')) s
                 UNION ALL
+                SELECT t.number, 'prompt_injection', 'model',
+                       t.result->'injection'->'model'->>'strength',
+                       (t.result->'injection'->'model'->>'probability')::float, 'injection model'
+                FROM {table} t
+                WHERE t.result->'injection'->'model'->>'strength' IS NOT NULL
+                UNION ALL
                 SELECT t.number, 'spam_or_empty', 'pattern', 'strong', 1.0,
                        t.result->'patterns'->>'spam_reason'
                 FROM {table} t WHERE t.result->'patterns'->>'spam_reason' IS NOT NULL"""

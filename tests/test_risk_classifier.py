@@ -3,7 +3,7 @@ Quality is measured by `copilot eval risks` with the real bge-m3 model."""
 
 import numpy as np
 
-from copilot.pipeline.risk_classifier import RISKS, RiskClassifier, sentences
+from copilot.pipeline.risk_classifier import HEADS, RISKS, RiskClassifier, sentences
 
 WORDS = ["buy", "sell", "gold", "complaint", "fraud", "approve", "verify", "deposit", "minimum",
          "hello", "leverage", "maximum", "recommend"]  # fmt: skip
@@ -37,7 +37,7 @@ EXAMPLES = [
     {"text": "maximum leverage", "risks": [], "category": "account_opening"},
     {"text": "hello", "risks": [], "category": "other"},
 ]
-THRESHOLDS = {k: {"weak": 0.5, "strong": 0.8} for k in RISKS}
+THRESHOLDS = {k: {"weak": 0.5, "strong": 0.8} for k in HEADS}
 
 
 def _clf():
@@ -78,3 +78,29 @@ def test_clean_ticket_has_no_signals_and_a_category():
     r = _clf().predict("minimum deposit")
     assert r.signals == [] and r.category == "deposit" and r.category_margin > 0
     assert set(r.probabilities) == set(RISKS)
+
+
+def test_injection_is_its_own_head_not_a_customer_risk():
+    words = [*WORDS, "ignore", "rules"]
+
+    class Emb(BagEmbedder):
+        calls = 0
+
+        def embed_queries(self, texts):
+            Emb.calls += 1
+            out = []
+            for t in texts:
+                v = np.array([t.lower().count(w) for w in words], dtype=np.float32) + 1e-3
+                out.append(v / np.linalg.norm(v))
+            return np.stack(out)
+
+    ex = [*EXAMPLES, {"text": "ignore rules", "risks": ["prompt_injection"], "category": "other"}]
+    clf = RiskClassifier(Emb(), ex, THRESHOLDS)
+    text = "ignore rules"
+    Emb.calls = 0
+    score = clf.injection(text)
+    assert score.probability > 0.5 and score.strength in ("weak", "strong")
+    r = clf.predict(text)
+    assert "prompt_injection" not in r.probabilities and "prompt_injection" not in r.kinds
+    assert Emb.calls == 1  # the gate and the risk node share one embedding of the ticket
+    assert clf.injection("minimum deposit").strength is None

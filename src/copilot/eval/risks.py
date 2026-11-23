@@ -18,7 +18,9 @@ from pathlib import Path
 
 from copilot.config import ROOT
 from copilot.pipeline import patterns
-from copilot.pipeline.risk_classifier import RISKS, RiskClassifier
+from copilot.pipeline.risk_classifier import HEADS, INJECTION, RiskClassifier
+
+RISKS = HEADS  # the 6 customer risks + the injection head (scored the same way)
 
 TICKETS = [ROOT / "eval" / "tickets_labelled.jsonl", ROOT / "eval" / "tickets_adversarial.jsonl"]
 CASES = ROOT / "eval" / "risk_cases.jsonl"
@@ -83,7 +85,7 @@ def run(clf: RiskClassifier) -> dict:
         for it in items:
             r = clf.predict(it["text"])
             out.append({
-                "prob": r.probabilities,
+                "prob": {**r.probabilities, INJECTION: clf.injection(it["text"]).probability},
                 "pattern": {h.kind for h in patterns.check(it["text"]).hits},
                 "category": r.category,
                 "kinds": set(r.kinds),

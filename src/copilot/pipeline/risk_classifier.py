@@ -13,6 +13,11 @@ complaint, just asking" = not a complaint) teach it the boundary that plain simi
 Exact phrases (prompt injection, account security) and spam run BEFORE this, in patterns.py
 (node pattern_check), so they don't depend on this model.
 
+Prompt injection is NOT one of the risks: it is an attack on the co-pilot, not a customer
+topic, and it is decided earlier, by its own gate (node injection_check, pipeline/injection.py),
+before any LLM reads the ticket. This module only provides the injection head's score for that
+gate (`injection()`); `predict()` returns the customer risks.
+
 Evidence on every signal: the probability, which part of the ticket (sentence index), and the
 nearest training example of that risk (our own text, never the customer's).
 
@@ -44,8 +49,9 @@ RISKS = (
     "aml_compliance",
     "vulnerable_customer",
     "security_sensitive",
-    "prompt_injection",
 )
+INJECTION = "prompt_injection"  # its own head, read by the injection gate (not a customer risk)
+HEADS = (*RISKS, INJECTION)
 TRAINING = ROOT / "classifier" / "training_examples.jsonl"
 THRESHOLDS = ROOT / "classifier" / "thresholds.toml"
 CACHE = ROOT / ".cache"
@@ -61,6 +67,13 @@ class RiskSignal:
     method: Literal["classifier"]
     unit: int  # -1 = whole ticket, else sentence index
     nearest_example: str  # closest training example of this risk (our text, not the customer's)
+
+
+@dataclass(frozen=True)
+class InjectionScore:
+    probability: float  # highest over the whole ticket and each sentence
+    strength: Strength | None  # None = below the weak threshold
+    unit: int  # -1 = whole ticket, else sentence index
 
 
 @dataclass
@@ -110,8 +123,9 @@ class RiskClassifier:
         self.thresholds = thresholds if thresholds is not None else load_thresholds()
         x = self._embed_examples(model_name)
         self._x = x
+        self._last: tuple[str, list[str], np.ndarray] | None = None
         self.heads: dict[str, LogisticRegression | None] = {}
-        for kind in RISKS:
+        for kind in HEADS:
             y = np.array([kind in e["risks"] for e in self.examples], dtype=int)
             if y.min() == y.max():  # no positives (or no negatives): nothing to learn
                 log.warning("risk has no training examples", extra={"risk": kind})
@@ -142,10 +156,29 @@ class RiskClassifier:
             np.save(path, vecs)
         return vecs
 
+    def _vectors(self, text: str) -> tuple[list[str], np.ndarray]:
+        """Whole ticket + each sentence, embedded once per ticket (the injection gate and the
+        risk node read the same ticket one after the other)."""
+        if self._last is None or self._last[0] != text:
+            units = sentences(text)
+            texts = [text, *units] if len(units) > 1 else [text]
+            self._last = (text, texts, self.embedder.embed_queries(texts))
+        return self._last[1], self._last[2]
+
+    def injection(self, text: str) -> InjectionScore:
+        head = self.heads[INJECTION]
+        if head is None:
+            return InjectionScore(0.0, None, -1)
+        texts, vecs = self._vectors(text)
+        probs = head.predict_proba(vecs)[:, 1]
+        i = int(np.argmax(probs))
+        p = round(float(probs[i]), 3)
+        t = self.thresholds.get(INJECTION, {"weak": 0.5, "strong": 0.8})
+        strength = "strong" if p >= t["strong"] else "weak" if p >= t["weak"] else None
+        return InjectionScore(p, strength, i - 1 if len(texts) > 1 else -1)
+
     def predict(self, text: str) -> RiskResult:
-        units = sentences(text)
-        texts = [text, *units] if len(units) > 1 else [text]
-        vecs = self.embedder.embed_queries(texts)
+        texts, vecs = self._vectors(text)
         result = RiskResult()
 
         for kind in RISKS:

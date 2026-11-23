@@ -1,7 +1,7 @@
 """Exact checks that run FIRST, before any model or LLM sees the ticket (node `pattern_check`).
 
-- Prompt injection: literal instruction-override strings. If one matches, the LLM nodes use a
-  hardened prompt and the ticket gets NO AI draft: a person replies (reason prompt_injection).
+- Prompt injection: literal instruction-override strings. They feed the injection gate
+  (injection_check, pipeline/injection.py): no LLM call, no AI draft, a person replies.
 - Account security: literal requests to change contact details or switch off 2FA.
 - Spam / empty: no letters (only emojis or symbols), one character repeated, mass links or
   promotional phrases. These skip every model and LLM call and go to a person at low priority

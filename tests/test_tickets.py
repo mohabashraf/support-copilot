@@ -64,8 +64,9 @@ def test_worker_runs_the_graph_and_records_every_step(store):
     done = store.get(rec.number)
     assert done.status == "done" and done.attempts == 1
     assert done.steps[0] == "pattern_check"
-    assert set(done.steps[1:4]) == {"risk_classifier", "classify_safety", "classify_triage"}
-    assert done.steps[4:] == [
+    assert done.steps[1:3] == ["injection_check", "risk_classifier"]
+    assert set(done.steps[3:5]) == {"classify_safety", "classify_triage"}
+    assert done.steps[5:] == [
         "policy_gate", "retrieve", "draft", "post_check", "compose", "route", "audit"
     ]  # fmt: skip
     # No drafter yet: routing (real) sends it to a person and says why; still not complete.

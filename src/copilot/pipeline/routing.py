@@ -8,9 +8,9 @@ to the strictest destination any reason asks for:
 Reasons decided here today, from the implemented checks:
 
     spam_or_empty     pattern_check spam/empty            support_agent, LOW priority
-    prompt_injection  ANY injection signal: an exact      senior_support, no AI draft
-                      pattern or the risk classifier
-                      (weak or strong)
+    prompt_injection  the injection gate fired (an exact  senior_support, no AI draft
+                      pattern or the injection model,
+                      weak or strong; pipeline/injection.py)
     security_sensitive  an exact account-security pattern  senior_support
     no_draft          no AI draft exists and nothing      support_agent
                       above explains why
@@ -40,18 +40,8 @@ _RANK = {"support_agent": 0, "senior_support": 1, "compliance": 2}
 
 
 def injection_evidence(state: dict) -> list[str]:
-    """Every injection signal on the ticket, as detector name + score (never the text)."""
-    out = [
-        f"pattern:{h['pattern']}"
-        for h in (state.get("patterns") or {}).get("hits", [])
-        if h["kind"] == "prompt_injection"
-    ]
-    out += [
-        f"classifier:prompt_injection {s['probability']:.2f} ({s['strength']})"
-        for s in (state.get("risk") or {}).get("signals", [])
-        if s["kind"] == "prompt_injection"
-    ]
-    return out
+    """The injection gate's evidence (pipeline/injection.py): detector names + scores."""
+    return list((state.get("injection") or {}).get("evidence", []))
 
 
 def decide(state: dict) -> Routing:

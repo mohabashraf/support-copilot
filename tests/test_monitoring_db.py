@@ -56,7 +56,7 @@ def test_grafana_role_reads_the_views(ticket):
         _as_grafana(f"SELECT count(*) FROM tickets_test_pii_detections WHERE number = {n}")[0][0]
         >= 1
     )
-    assert _as_grafana(f"SELECT count(*) FROM tickets_test_steps WHERE number = {n}")[0][0] == 11
+    assert _as_grafana(f"SELECT count(*) FROM tickets_test_steps WHERE number = {n}")[0][0] == 12
 
 
 @pytest.mark.parametrize(

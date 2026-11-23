@@ -24,7 +24,12 @@ def pool():
 # ---- A fake risk classifier for unit tests (the real one loads bge-m3, ~2 GB) -----------------
 
 from copilot.pipeline import workflow as _wf  # noqa: E402
-from copilot.pipeline.risk_classifier import RISKS, RiskResult, RiskSignal  # noqa: E402
+from copilot.pipeline.risk_classifier import (  # noqa: E402
+    RISKS,
+    InjectionScore,
+    RiskResult,
+    RiskSignal,
+)
 
 _FAKE_WORDS = {"buy": "trading_advice", "complaint": "complaint", "approve": "kyc_decision"}
 
@@ -32,6 +37,12 @@ _FAKE_WORDS = {"buy": "trading_advice", "complaint": "complaint", "approve": "ky
 class FakeRiskClassifier:
     """Deterministic stand-in: flags a risk when a trigger word appears. Quality is measured by
     `copilot eval risks` with the real model, not here."""
+
+    def injection(self, text: str) -> InjectionScore:
+        """ "pretend you are" = an injection no exact pattern knows (weak model signal)."""
+        if "pretend you are" in text.lower():
+            return InjectionScore(0.61, "weak", -1)
+        return InjectionScore(0.02, None, -1)
 
     def predict(self, text: str) -> RiskResult:
         r = RiskResult(probabilities={k: 0.0 for k in RISKS}, category="other")

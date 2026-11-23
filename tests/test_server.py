@@ -56,10 +56,10 @@ def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
     routing = done["result"]["routing"]
     assert routing["decision"] == "human_required" and routing["reasons"] == ["no_draft"]
     assert done["complete"] is False and done["result"]["reply"] is None
-    # 3 of the 11 steps on this path are implemented; the rest are reported as placeholders.
-    assert done["steps_completed"] == "3/11"
+    # 4 of the 12 steps on this path are implemented; the rest are reported as placeholders.
+    assert done["steps_completed"] == "4/12"
     completed = {st["node"] for st in done["steps"] if st["status"] == "completed"}
-    assert completed == {"pattern_check", "risk_classifier", "route"}
+    assert completed == {"pattern_check", "injection_check", "risk_classifier", "route"}
     assert "4111" not in str(done)
 
 

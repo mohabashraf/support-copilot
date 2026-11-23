@@ -174,6 +174,7 @@ def process(
                 # Signals from the implemented checks (no customer text: names, probabilities,
                 # and the nearest TRAINING example as evidence).
                 "patterns": state.get("patterns"),
+                "injection": state.get("injection"),  # the injection gate: detected + evidence
                 "risk": state.get("risk"),
                 # Honest completeness: did every node the ticket passed through do real work?
                 "complete": not placeholders,
@@ -197,6 +198,7 @@ def process(
                     ai_draft=result["reply"],  # produced from masked text: placeholders only
                     cited_chunks=[c.get("chunk_id") for c in result["citations"] or []],
                     patterns=result["patterns"],
+                    injection=result["injection"],
                     risk_signals=(result["risk"] or {}).get("signals"),
                     routing=result["routing"],  # null when no real routing was made
                     complete=result["complete"],
@@ -239,6 +241,11 @@ def process(
         tel.RISK_SIGNALS.add(1, {"kind": hit["kind"], "strength": "strong", "method": "pattern"})
     if pats.get("spam_reason"):
         tel.SPAM.add(1, {"reason": pats["spam_reason"]})
+    model = (result.get("injection") or {}).get("model") or {}
+    if model.get("strength"):
+        tel.RISK_SIGNALS.add(
+            1, {"kind": "prompt_injection", "strength": model["strength"], "method": "model"}
+        )
     for sig in (result.get("risk") or {}).get("signals", []):
         tel.RISK_SIGNALS.add(
             1, {"kind": sig["kind"], "strength": sig["strength"], "method": sig["method"]}

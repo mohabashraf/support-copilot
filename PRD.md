@@ -116,7 +116,7 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
   | `vulnerable_customer` | distress, hopelessness, self-harm or hardship signals | classification flag + deterministic phrase rules (both; either fires) |
   | `security_sensitive` | another person's account/data, contact-detail change, 2FA/password/security changes | classification flag + deterministic rules |
   | `multi_intent_blocked` | at least one intent of a multi-intent ticket is blocked by the policy gate | per-intent gate results |
-  | `prompt_injection` | ANY injection signal: an exact instruction-override phrase (pattern_check) or the injection detectors (risk classifier; Prompt Guard 2 next), weak or strong. **No AI draft**: classification still runs with a hardened prompt; a person replies (senior support) | exact patterns before any model or LLM, then the models |
+  | `prompt_injection` | The **injection gate** (`injection_check`, right after pattern_check, before any LLM) fires on ANY layer: an exact instruction-override phrase or the injection model (Prompt Guard 2 next), weak or strong. **No LLM call and no AI draft**; only the local risk classifier runs so the agent sees what else is in the ticket; a person replies (senior support). Second line: the safety LLM call also flags injection on tickets that passed the gate | exact patterns + local model, before any LLM; then the safety LLM |
   | `spam_or_empty` | empty, emoji/symbols only, repeated characters, mass links, promotional phrases. **No model and no LLM call**; low priority; never dropped | exact checks in pattern_check |
   | `no_draft` | no AI draft was produced and no other reason explains it (drafter not built yet, or skipped): a person writes the reply | routing rule |
 
@@ -209,6 +209,7 @@ Both phases are **built**, not only designed. Phase 1 is tagged in git (`v1-ship
 ### Phase 2: Scale up (~10,000 tickets/month, growing KB and SOPs) (git tag `v2-scale`)
 - Retrieval over a larger KB (hybrid search + reranking, metadata, versioning).
 - Async queue/worker processing, retries, dead-letter queue, idempotency.
+- **Known gap (Phase 2): content-aware dedup.** Phase 1 dedups by the helpdesk ticket ID only (`UNIQUE`, `ON CONFLICT DO NOTHING`). Not covered: the same message under two IDs (email + chat → two tickets), and **a follow-up under the same ID, which is ignored today**. Phase 2: hash the masked content; same ID + new content → queued as an update of that ticket; near-duplicate detection across IDs.
 - Caching of repeated questions; cheaper model for classification, stronger model only where needed.
 - Helpdesk integration (e.g. Zendesk/Freshdesk webhook), monitoring dashboards, alerting on violations.
 - KB ingestion pipeline with change detection and conflict reporting to content owners.

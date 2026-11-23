@@ -15,7 +15,7 @@ It never talks to customers directly: an agent reviews and sends every reply.
 | Retrieval: multilingual embeddings (bge-m3) + pgvector, evaluated (R@3 0.90, MRR 0.88, Arabic Hit@3 1.00) | ✅ done |
 | PII masking before anything else sees the ticket: Presidio + GLiNER, encrypted vault, residual-PII monitor, evaluated | ✅ done |
 | Tickets as background jobs: `POST /tickets` → ticket number, Postgres queue, worker(s), `GET /tickets/{number}` for status/progress/result, retries, crash recovery (D11) | ✅ done |
-| Workflow: LangGraph graph (D3): pattern_check → risk_classifier ∥ classify_safety ∥ classify_triage → policy_gate → … | ✅ **pattern_check** (exact phrases, spam), **risk_classifier** (bge-m3 + logistic regression, D12) and **route** (reason codes → queue) implemented. Spam → a person at low priority; prompt injection (any signal) → **no AI draft**, senior support. The LLM calls, gate, draft and checks are placeholders (reported as such), so other tickets go to a person with reason `no_draft` |
+| Workflow: LangGraph graph (D3): pattern_check → risk_classifier ∥ classify_safety ∥ classify_triage → policy_gate → … | ✅ **pattern_check** (exact phrases, spam), **injection_check** (its own gate, before any LLM), **risk_classifier** (bge-m3 + logistic regression, 6 risks, D12) and **route** (reason codes → queue) implemented. Spam → a person at low priority; prompt injection (any signal) → **no LLM call, no AI draft**, senior support. The LLM calls, gate, draft and checks are placeholders (reported as such), so other tickets go to a person with reason `no_draft` |
 | Agent API: inbox, ticket with draft/citations/why, audited customer details, send / edit / handle manually | ✅ done (local, no login; Phase 2: SSO) |
 | Audit log (legal record): processing, PII reveals, agent decisions with AI draft AND final text, masked | ✅ done |
 | Monitoring end to end: OpenTelemetry → Grafana (metrics, traces, logs), LangSmith for LLM calls | ✅ done |
@@ -87,10 +87,13 @@ mask PII (Presidio + GLiNER) ──► encrypted vault (placeholder → value, 3
 tickets table (Postgres = the queue): status queued ──► 202 + ticket number
    │
    ▼  worker (separate process; claims with FOR UPDATE SKIP LOCKED; lease → crash recovery)
-LangGraph:  classify ─► policy_gate ─┬─► retrieve ─► draft ─► post_check ─┬─► compose ─► route ─► audit
-                                     │                ▲                   │
-                                     │                └── redraft once ───┘
-                                     └─► template_reply ───────────────────► compose
+LangGraph:  pattern_check ─┬─ spam ─────────────────────────────────────────────► route (low priority)
+                           └► injection_check ─► risk_classifier ─┬─ injection ───► route (no LLM, no draft)
+                                                                  └► classify_safety ∥ classify_triage
+             ─► policy_gate ─┬─► retrieve ─► draft ─► post_check ─┬─► compose ─► route ─► audit
+                             │                ▲                   │
+                             │                └── redraft once ───┘
+                             └─► template_reply ───────────────────► compose
 ```
 Each node's completion is saved, so `GET /tickets/{number}` shows live progress. Errors are retried (max 3), then `failed`; a ticket whose worker died is picked up again when its lease expires.
 

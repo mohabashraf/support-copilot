@@ -20,33 +20,21 @@ def test_security_pattern_goes_to_senior_support_even_with_a_draft():
     assert r.evidence == ["pattern:disable_2fa"]
 
 
+INJ = {"detected": True, "evidence": ["pattern:mode_switch"], "model": None}
+
+
 def test_all_reasons_are_kept_and_the_strictest_destination_wins():
-    hits = {"hits": [{"kind": "prompt_injection", "pattern": "mode_switch"}], "spam_reason": None}
-    r = decide({"patterns": hits, "reasons": ["hard_rule_topic"]})
+    r = decide({"patterns": NO_HITS, "injection": INJ, "reasons": ["hard_rule_topic"]})
     assert r.reasons == ["prompt_injection", "hard_rule_topic"]  # no_draft: already explained
     assert r.destination == "senior_support" and r.priority == "normal"
 
 
 def test_spam_plus_injection_is_not_low_priority():
-    hits = {
-        "hits": [{"kind": "prompt_injection", "pattern": "mode_switch"}],
-        "spam_reason": "links",
-    }
-    r = decide({"patterns": hits})
+    r = decide({"patterns": {"hits": [], "spam_reason": "links"}, "injection": INJ})
     assert r.reasons == ["spam_or_empty", "prompt_injection"] and r.priority == "normal"
 
 
-def test_injection_evidence_from_both_layers():
-    state = {
-        "patterns": {"hits": [{"kind": "prompt_injection", "pattern": "system_note_to_ai"}]},
-        "risk": {
-            "signals": [
-                {"kind": "prompt_injection", "probability": 0.67, "strength": "weak"},
-                {"kind": "kyc_decision", "probability": 0.52, "strength": "weak"},
-            ]
-        },
-    }
-    assert injection_evidence(state) == [
-        "pattern:system_note_to_ai",
-        "classifier:prompt_injection 0.67 (weak)",
-    ]
+def test_injection_evidence_comes_from_the_gate():
+    gate = {"detected": True, "evidence": ["pattern:system_note_to_ai", "model:0.67 (weak)"]}
+    assert injection_evidence({"injection": gate}) == gate["evidence"]
+    assert injection_evidence({}) == []
