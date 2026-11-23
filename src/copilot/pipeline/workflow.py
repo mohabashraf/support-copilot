@@ -26,9 +26,9 @@ traces and the LLM only ever see placeholders; the placeholder → value mapping
 the state. The background worker runs this graph (tickets/worker.py).
 
 Implemented: pattern_check, injection_check, risk_classifier, classify_safety, classify_triage,
-validate_classification, confidence_gate, route. The other nodes are
-marked @placeholder: they produce nothing and monitoring reports them as placeholders, never as
-work done.
+validate_classification, confidence_gate, policy_gate, template_reply, compose, route.
+The other nodes are marked @placeholder: they produce nothing and monitoring reports them as
+placeholders, never as work done.
 Dependencies (the risk classifier, later the LLM clients) come in through LangGraph's runtime
 context (`Deps`), so nodes are testable with fakes.
 View it: `uv run langgraph dev` (LangGraph Studio) or `uv run copilot graph` (Mermaid diagram).
@@ -49,7 +49,8 @@ from copilot import telemetry as tel
 from copilot.log import get_logger
 from copilot.pipeline import injection as injection_gate
 from copilot.pipeline import patterns as pattern_rules
-from copilot.pipeline import prompts, validation
+from copilot.pipeline import policy as policy_rules
+from copilot.pipeline import prompts, templates, validation
 from copilot.pipeline import routing as routing_rules
 from copilot.pipeline.llm import LLMOutputError, structured
 from copilot.pipeline.risk_classifier import load_injection_rules
@@ -97,8 +98,11 @@ class State(InputState, OutputState, total=False):
     llm_usage: Annotated[list[dict], operator.add]  # one Usage per LLM call (tokens, cost)
     risk: dict  # risk_classifier: signals, probabilities, category (+ probability, margin)
     classification: Classification | None
+    policy: dict  # policy_gate: per-intent result, ticket rule, evidence, compliance
     blocked_intents: list[int]  # indexes into classification.intents
-    template_parts: list[str]  # decline / neutral acknowledgement texts for blocked intents
+    template_parts: list[str]  # template keys for the blocked intents, in reply order
+    template_texts: list[dict]  # template_reply: {key, text, translated}
+    notes_for_agent: list[str]  # internal notes shown next to the draft, never sent
     retrieved: list[tuple[str, float]]  # (chunk_id, score)
     draft: DraftOut | None
     draft_attempts: int
@@ -312,17 +316,40 @@ def confidence_gate(state: State, runtime: Runtime[Deps]) -> dict:
     }
 
 
-@placeholder
 def policy_gate(state: State) -> dict:
-    # TODO step 4: block intents that touch a hard rule (advice, complaint/KYC/AML decision,
-    # vulnerable customer, security request). Code, not a prompt.
-    return {"steps": ["policy_gate"], "blocked_intents": [], "template_parts": []}
+    """The hard rules, in code (pipeline/policy.py): per intent, blocked or allowed; vulnerable
+    or security-sensitive blocks the whole ticket. Strictest of LLM, classifier and patterns."""
+    r = policy_rules.gate(
+        state["classification"], state.get("risk"), (state.get("patterns") or {}).get("hits", [])
+    )
+    vulnerable = r.ticket_rule == "vulnerable"
+    notes = ["Vulnerable customer: reply personally; no product talk."] if vulnerable else []
+    return {
+        "steps": ["policy_gate"],
+        "policy": {
+            "intents": [vars(g) for g in r.intents],
+            "ticket_rule": r.ticket_rule,
+            "evidence": r.evidence,
+            "compliance": r.compliance,
+        },
+        "blocked_intents": r.blocked,
+        "template_parts": r.templates,
+        "reasons": r.reasons,
+        "notes_for_agent": notes,
+    }
 
 
-@placeholder
 def template_reply(state: State) -> dict:
-    # TODO step 4: fixed decline / neutral acknowledgement (templates.py); no LLM writes it
-    return {"steps": ["template_reply"]}
+    """Fixed texts for the blocked intents (pipeline/templates.py), in the reply language.
+    No LLM writes them. A language without approved text gets English + a note for the agent."""
+    lang = state["classification"].reply_language
+    texts, notes = [], list(state.get("notes_for_agent", []))
+    for key in state.get("template_parts", []):
+        text, translated = templates.render(key, lang)
+        texts.append({"key": key, "text": text, "translated": translated})
+        if not translated:
+            notes.append(f"Template '{key}' has no approved {lang} text: English used, translate.")
+    return {"steps": ["template_reply"], "template_texts": texts, "notes_for_agent": notes}
 
 
 @placeholder
@@ -347,10 +374,26 @@ def post_check(state: State) -> dict:
     return {"steps": ["post_check"], "post_check_failures": []}
 
 
-@placeholder
 def compose(state: State) -> dict:
-    # TODO step 7: merge the grounded draft and any template parts; build page citations
-    return {"steps": ["compose"]}  # placeholder: no reply produced (null), not an empty one
+    """One reply in intent order (PRD FR-4.6): each blocked intent's template where it first
+    appears, the grounded draft where the first allowed intent is. If an allowed intent has no
+    usable draft, there is NO reply (null): a person writes it (routing adds no_draft).
+    TODO (with draft): page citations from the cited chunk IDs."""
+    c = state.get("classification")
+    texts = {t["key"]: t["text"] for t in state.get("template_texts", [])}
+    gates = (state.get("policy") or {}).get("intents", [])
+    draft = state.get("draft")
+    usable = draft is not None and not draft.abstain and bool(draft.reply.strip())
+    if c is None or any(not g["blocked"] for g in gates) and not usable:
+        return {"steps": ["compose"]}
+    parts, used = [], set()
+    for g in gates:
+        tag = g["template"] if g["blocked"] else "draft"
+        piece = texts.get(tag) if g["blocked"] else draft.reply.strip()
+        if piece and tag not in used:
+            used.add(tag)
+            parts.append(piece)
+    return {"steps": ["compose"], "reply": "\n\n".join(parts) if parts else None}
 
 
 def route(state: State) -> dict:

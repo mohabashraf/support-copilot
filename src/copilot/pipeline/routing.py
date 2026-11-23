@@ -15,9 +15,10 @@ Reasons decided here today, from the implemented checks:
     no_draft          no AI draft exists and nothing      support_agent
                       above explains why
 
-Reasons from later nodes (policy_gate, post_check, classify_*) arrive in `state["reasons"]` and
-are merged in the same way. A ticket with no reason at all is `auto_draft_ok` (an agent still
-reviews it before it is sent).
+Reasons from later nodes (confidence_gate, policy_gate, post_check) arrive in `state["reasons"]`
+and are merged in the same way. A KYC or AML decision request (policy_gate) sends the ticket to
+compliance whatever the other reasons are. A ticket with no reason at all is `auto_draft_ok`
+(an agent still reviews it before it is sent).
 
 Injection threshold: any signal, even a weak one, blocks the AI draft. A false alarm costs an
 agent a few minutes; a missed injection could put attacker text into a customer reply.
@@ -36,6 +37,10 @@ DESTINATION: dict[str, Destination] = {
     "vulnerable_customer": "senior_support",
     "angry_urgent": "senior_support",
     "multi_intent_blocked": "senior_support",
+    "low_confidence": "senior_support",
+    "low_resource_language": "support_agent",  # an agent who reads the language checks it
+    "account_action_required": "support_agent",  # the agent checks the account, then sends
+    "post_check_failed": "senior_support",
 }
 _RANK = {"support_agent": 0, "senior_support": 1, "compliance": 2}
 
@@ -75,9 +80,12 @@ def decide(state: dict) -> Routing:
     if not state.get("reply") and not reasons:
         reasons.append("no_draft")
 
+    evidence += (state.get("policy") or {}).get("evidence", [])
     if not reasons:
-        return Routing(decision="auto_draft_ok", destination=None, reasons=[])
+        return Routing(decision="auto_draft_ok", destination=None, reasons=[], evidence=evidence)
     destination = max((DESTINATION.get(r, "senior_support") for r in reasons), key=_RANK.get)
+    if (state.get("policy") or {}).get("compliance"):  # a KYC / AML decision: compliance decides
+        destination = "compliance"
     return Routing(
         decision="human_required",
         destination=destination,

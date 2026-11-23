@@ -108,6 +108,9 @@ def test_only_implemented_nodes_are_marked_implemented():
         "classify_triage",
         "validate_classification",
         "confidence_gate",
+        "policy_gate",
+        "template_reply",
+        "compose",
         "route",
     }
 

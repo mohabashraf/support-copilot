@@ -56,8 +56,8 @@ def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
     routing = done["result"]["routing"]
     assert routing["decision"] == "human_required" and routing["reasons"] == ["no_draft"]
     assert done["complete"] is False and done["result"]["reply"] is None
-    # 8 of the 14 steps on this path are implemented; the rest are reported as placeholders.
-    assert done["steps_completed"] == "8/14"
+    # 10 of the 14 steps on this path are implemented; the rest are reported as placeholders.
+    assert done["steps_completed"] == "10/14"
     completed = {st["node"] for st in done["steps"] if st["status"] == "completed"}
     assert completed == {
         "pattern_check",
@@ -67,6 +67,8 @@ def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
         "classify_triage",
         "validate_classification",
         "confidence_gate",
+        "policy_gate",
+        "compose",
         "route",
     }
     assert "4111" not in str(done)
