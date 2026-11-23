@@ -77,6 +77,8 @@ def test_advice_wording_fails(reply):
         "Your funds should reach your account soon.",
         "We recommend contacting support if your funds have not arrived.",
         "We can't guarantee a specific time.",
+        "The pages do not state a guaranteed processing time.",  # eval X09
+        "Withdrawals are not guaranteed within an hour.",
         "Please choose the account type that suits you on the accounts page.",
     ],
 )
@@ -86,7 +88,13 @@ def test_normal_support_sentences_pass(reply):
 
 @pytest.mark.parametrize(
     "reply",
-    ["Your account has been approved.", "We guarantee it today.", "تمت الموافقة على طلبك"],
+    [
+        "Your account has been approved.",
+        "We guarantee it today.",
+        "تمت الموافقة على طلبك",
+        "Withdrawals are guaranteed within 1 hour.",
+        "It is guaranteed to arrive today.",
+    ],
 )
 def test_promises_and_account_claims_fail(reply):
     lang = "ar" if "ت" in reply else "en"

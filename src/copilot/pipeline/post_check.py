@@ -52,9 +52,11 @@ _ADVICE_AR = [
     ("should_trade_ar", rf"(يجب|ينبغي|عليك)\s+(أن\s+)?(\S+\s+)?{_ACT_AR}"),
     ("prediction_ar", r"(سيرتفع|سينخفض|سوف يرتفع|سوف ينخفض)"),
 ]  # fmt: skip
-_NOT = r"(?<!not )(?<!cannot )(?<!can't )(?<!can’t )(?<!unable to )"
 _PROMISE = [
-    ("guarantee", rf"\b{_NOT}(guarantee|guaranteed|promise|we assure)\w*"),
+    # positive statements only: "they do not state a guaranteed time" is fine (eval X09)
+    ("guarantee", r"\b(we|i)\s+(can\s+|will\s+)?(guarantee|promise|assure)\b"
+                  r"|\b(is|are|will be|it's)\s+guaranteed\b"
+                  r"|(?<!not )\bguaranteed\s+(to|within|by)\b"),
     ("account_claim", r"\byour (account|verification|withdrawal|deposit|request|refund|documents?)"
                       r" (has|have) been (approved|verified|unfrozen|processed|completed|accepted|"
                       r"sent|credited|released)"),  # fmt: skip

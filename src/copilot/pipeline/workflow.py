@@ -435,8 +435,9 @@ def draft(state: State, runtime: Runtime[Deps]) -> dict:
     d = grounding.check_draft(r.parsed, {s["id"] for s in sources}, has_question)
     cited = {s["id"]: s for s in sources if s["id"] in d.cited_chunk_ids}
     reasons, notes = [], list(state.get("notes_for_agent", []))
-    if d.abstain:
-        reasons.append("not_in_kb")  # partial: answered + the gap in a note (FR-3.2b), not routed
+    # partial: answered + the gap in a note (FR-3.2b); routed only when the gap is sensitive
+    if d.abstain or (d.partial and d.gap_needs_person):
+        reasons.append("not_in_kb")
     if low_resource:
         notes.append(f"Draft is in English ({c.reply_language} is a low-resource language): "
                      "translate, or have a native speaker reply.")  # fmt: skip
@@ -458,14 +459,16 @@ def draft(state: State, runtime: Runtime[Deps]) -> dict:
     }
 
 
-def post_check(state: State) -> dict:
+def post_check(state: State, runtime: Runtime[Deps]) -> dict:
     """Deterministic checks on the draft (pipeline/post_check.py): numbers only from cited
     chunks, no advice wording, no promises or account claims, known citations and placeholders,
     the right script. A failure → one redraft with the failures as feedback; a second failure →
     post_check_failed, and the draft is withheld (a person writes the reply)."""
     d = state.get("draft")
     c = state["classification"]
-    fails = post_checks.check(d, state.get("sources", []), _text(state), c.reply_language)
+    # the language the draft was WRITTEN in: English for a low-resource language (FR-5.1)
+    lang = "en" if c.reply_language in _deps(runtime).low_resource_languages else c.reply_language
+    fails = post_checks.check(d, state.get("sources", []), _text(state), lang)
     out: dict = {"steps": ["post_check"], "post_check_failures": fails}
     if fails and state.get("draft_attempts", 0) >= MAX_DRAFT_ATTEMPTS:
         out["reasons"] = ["post_check_failed"]

@@ -155,6 +155,12 @@ class DraftOut(BaseModel):
     )
     cited_chunk_ids: list[str] = Field(description="IDs of every source used in the reply.")
     uncovered: list[str] = Field(description="Parts of the question the sources do not cover.")
+    gap_needs_person: bool = Field(
+        default=False,
+        description="True if an uncovered part is out of scope or sensitive (a religious, "
+        "legal, tax or regulatory question, or whether something suits this customer): a "
+        "person must answer it, not just a note.",
+    )
     note_for_agent: str = Field(description="Short internal note: conflicts, gaps, caveats.")
 
 

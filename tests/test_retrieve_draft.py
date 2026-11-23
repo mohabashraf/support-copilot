@@ -153,10 +153,20 @@ def test_mixed_ticket_without_a_grounded_answer_keeps_the_template_and_says_what
 
 
 def test_low_resource_language_gets_an_english_draft_for_the_agent():
-    llm = _Draft()
+    llm = _Draft(_d(reply="It starts from 8 USD.", cited_chunk_ids=["faq#min-deposit"]))
     chat = FakeChat()
     chat.triage_overrides = {"language": "ckb", "reply_language": "ckb"}
     s = _run("What is the minimum deposit?", llm, chat)
     assert "<reply_language>en</reply_language>" in llm.prompts[0]
     assert "low_resource_language" in s["routing"].reasons
     assert any("Draft is in English (ckb" in n for n in s["notes_for_agent"])
+    assert s["post_check_failures"] == [] and s["reply"]  # checked as English (eval KU1 bug)
+
+
+def test_partial_with_a_sensitive_gap_goes_to_a_person():
+    """Real case X27: 'Islamic accounts, so is forex halal?' → fact answered, ruling declined."""
+    out = _d(partial=True, reply="Our accounts are described as Islamic-friendly.",
+             cited_chunk_ids=["open#faq-islamic"], uncovered=["religious ruling"],
+             gap_needs_person=True)  # fmt: skip
+    s = _run("Do you offer an Islamic-friendly account? Is forex halal?", _Draft(out))
+    assert "not_in_kb" in s["routing"].reasons and s["reply"]
