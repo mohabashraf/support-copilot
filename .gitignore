@@ -9,3 +9,7 @@ logs/
 
 # Local API keys (plain text): never commit. .env holds only their hashes.
 .support-copilot-keys
+
+# Test coverage data (pytest --cov)
+.coverage
+htmlcov/
