@@ -88,7 +88,8 @@ tickets table (Postgres = the queue): status queued ──► 202 + ticket numbe
    │
    ▼  worker (separate process; claims with FOR UPDATE SKIP LOCKED; lease → crash recovery)
 LangGraph:  pattern_check ─┬─ spam ─────────────────────────────────────────────► route (low priority)
-                           └► injection_check ─► risk_classifier ─┬─ injection ───► route (no LLM, no draft)
+                           ├─ injection phrase ─────────► risk_classifier ─────► route (no LLM, no draft)
+                           └► injection_check (model) ─► risk_classifier ─┬─ injection ───► route (no LLM, no draft)
                                                                   └► classify_safety ∥ classify_triage
              ─► policy_gate ─┬─► retrieve ─► draft ─► post_check ─┬─► compose ─► route ─► audit
                              │                ▲                   │

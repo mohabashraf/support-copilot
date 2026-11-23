@@ -1,12 +1,13 @@
 """The ticket workflow (D3): a LangGraph STATE MACHINE, not autonomous agents.
 
     pattern_check ─┬─ spam / empty: no model, no LLM ───────────────────────────────► route
-      (exact       │                                                                   ▲
-       phrases,    └─► injection_check ─► risk_classifier ─┬─ injection: NO LLM, ───────┤
-       spam)          (patterns + model,  (bge-m3 + LR,    │  no AI draft               │
-                       BEFORE any LLM)     6 risks, D12)   │                            │
-                                                           └─► classify_safety ─┐       │
-                                                           └─► classify_triage ─┴► policy_gate
+      (exact       ├─ injection phrase (certain) ───────┐                              ▲
+       phrases,    │                                    ▼                              │
+       spam)       └─► injection_check ─► risk_classifier ─┬─ injection: NO LLM, ───────┤
+                      (model: catches      (bge-m3 + LR,    │  no AI draft               │
+                       what patterns miss) 6 risks, D12)    │                            │
+                                                            └─► classify_safety ─┐       │
+                                                            └─► classify_triage ─┴► policy_gate
                                                                                       │
              ┌─ all blocked ─► template_reply ──────────────────────────────► compose ┤
     policy_gate                                                                ▲       │
@@ -235,18 +236,22 @@ def audit(state: State) -> dict:
 LLM_CLASSIFIERS = ["classify_safety", "classify_triage"]
 
 
-def after_patterns(state: State) -> Literal["route", "injection_check"]:
+def after_patterns(state: State) -> Literal["route", "risk_classifier", "injection_check"]:
     """Spam / empty → straight to routing (a person, low priority): no model, no LLM, no cost.
-    Everything else → the injection gate."""
+    An exact injection phrase is certain → skip the gate, run only the local risk classifier
+    (so the agent sees what else was asked) and route. Everything else → the injection gate,
+    which catches what the patterns missed."""
     if (state.get("patterns") or {}).get("spam_reason"):
         return "route"
+    if routing_rules.injection_evidence(state):
+        return "risk_classifier"
     return "injection_check"
 
 
 def after_risk(state: State) -> list[str] | Literal["route"]:
-    """Injection (any layer) → routing: the attacker's text never reaches an LLM.
-    Clean → the two LLM classification calls in parallel."""
-    if (state.get("injection") or {}).get("detected"):
+    """Injection (exact pattern or the gate's model) → routing: the attacker's text never reaches
+    an LLM. Clean → the two LLM classification calls in parallel."""
+    if routing_rules.injection_evidence(state):
         return "route"
     return LLM_CLASSIFIERS
 

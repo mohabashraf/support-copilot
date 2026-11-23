@@ -3,8 +3,10 @@
 Prompt injection is an attack on the co-pilot, not a customer topic, so it is not one of the
 risks. It is decided on its own, right after pattern_check and BEFORE any LLM reads the ticket:
 
-    layer 1  exact patterns      (pattern_check: "ignore previous instructions", "SYSTEM NOTE:")
-    layer 2  injection model     (the risk classifier's injection head on bge-m3; any language)
+    layer 1  exact patterns      (pattern_check: "ignore previous instructions", "SYSTEM NOTE:").
+                                 Certain: a hit skips this gate and goes straight to routing.
+    layer 2  injection model     (the risk classifier's injection head on bge-m3; any language):
+                                 THIS node, for tickets the patterns found clean
     layer 3  Prompt Guard 2      (next: Meta's dedicated detector, once access is granted)
     ── after the gate ──
     2nd line the safety LLM call also flags injection; if it does, no draft (classify_safety)

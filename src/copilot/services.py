@@ -70,6 +70,7 @@ def load_services(
         masker.warm_up()  # load GLiNER at startup, not on the first customer's ticket
     tickets = PgTicketStore(pool)
     risk = RiskClassifier(embedder, model_name=st.embedding_model)  # trains in ~1 s (cached)
+    risk.warm_up()  # first bge-m3 call at startup, not on the first customer's ticket
     return Services(
         store, Retriever(embedder, index), masker, vault, tickets, AuditLog(st.audit_log), risk
     )

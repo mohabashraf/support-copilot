@@ -156,6 +156,14 @@ class RiskClassifier:
             np.save(path, vecs)
         return vecs
 
+    def warm_up(self) -> None:
+        """Run one realistic ticket through bge-m3 and every head at startup, so the first real
+        ticket doesn't pay the model's first-call cost (~1.6 s measured)."""
+        text = "Hi, what is the minimum deposit? Also, should I buy gold now?"
+        self.injection(text)
+        self.predict(text)
+        self._last = None
+
     def _vectors(self, text: str) -> tuple[list[str], np.ndarray]:
         """Whole ticket + each sentence, embedded once per ticket (the injection gate and the
         risk node read the same ticket one after the other)."""

@@ -628,7 +628,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Expected result of pattern_check (and the routing it leads to) for this case.",
-                  "const EXPECT = {\"hits\": [{\"kind\": \"prompt_injection\", \"pattern\": \"ignore_previous_instructions\"}], \"spam\": null, \"reasonsInclude\": [\"prompt_injection\"], \"destination\": \"senior_support\", \"steps\": [\"pattern_check\", \"injection_check\", \"risk_classifier\", \"route\", \"audit\"]};",
+                  "const EXPECT = {\"hits\": [{\"kind\": \"prompt_injection\", \"pattern\": \"ignore_previous_instructions\"}], \"spam\": null, \"reasonsInclude\": [\"prompt_injection\"], \"destination\": \"senior_support\", \"steps\": [\"pattern_check\", \"risk_classifier\", \"route\", \"audit\"]};",
                   "pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
                   "const n = pm.response.json().ticket_number;",
                   "pm.collectionVariables.set(\"ticketNumber\", n);",
@@ -700,7 +700,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Expected result of pattern_check (and the routing it leads to) for this case.",
-                  "const EXPECT = {\"hits\": [{\"kind\": \"prompt_injection\", \"pattern\": \"system_note_to_ai\"}], \"spam\": null, \"reasonsInclude\": [\"prompt_injection\"], \"destination\": \"senior_support\", \"steps\": [\"pattern_check\", \"injection_check\", \"risk_classifier\", \"route\", \"audit\"]};",
+                  "const EXPECT = {\"hits\": [{\"kind\": \"prompt_injection\", \"pattern\": \"system_note_to_ai\"}], \"spam\": null, \"reasonsInclude\": [\"prompt_injection\"], \"destination\": \"senior_support\", \"steps\": [\"pattern_check\", \"risk_classifier\", \"route\", \"audit\"]};",
                   "pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
                   "const n = pm.response.json().ticket_number;",
                   "pm.collectionVariables.set(\"ticketNumber\", n);",
@@ -772,7 +772,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Expected result of pattern_check (and the routing it leads to) for this case.",
-                  "const EXPECT = {\"hits\": [{\"kind\": \"prompt_injection\", \"pattern\": \"mode_switch\"}], \"spam\": null, \"reasonsInclude\": [\"prompt_injection\"], \"destination\": \"senior_support\", \"steps\": [\"pattern_check\", \"injection_check\", \"risk_classifier\", \"route\", \"audit\"]};",
+                  "const EXPECT = {\"hits\": [{\"kind\": \"prompt_injection\", \"pattern\": \"mode_switch\"}], \"spam\": null, \"reasonsInclude\": [\"prompt_injection\"], \"destination\": \"senior_support\", \"steps\": [\"pattern_check\", \"risk_classifier\", \"route\", \"audit\"]};",
                   "pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
                   "const n = pm.response.json().ticket_number;",
                   "pm.collectionVariables.set(\"ticketNumber\", n);",
@@ -844,7 +844,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Expected result of pattern_check (and the routing it leads to) for this case.",
-                  "const EXPECT = {\"hits\": [{\"kind\": \"prompt_injection\", \"pattern\": \"output_schema_spoof\"}], \"spam\": null, \"reasonsInclude\": [\"prompt_injection\"], \"destination\": \"senior_support\", \"steps\": [\"pattern_check\", \"injection_check\", \"risk_classifier\", \"route\", \"audit\"]};",
+                  "const EXPECT = {\"hits\": [{\"kind\": \"prompt_injection\", \"pattern\": \"output_schema_spoof\"}], \"spam\": null, \"reasonsInclude\": [\"prompt_injection\"], \"destination\": \"senior_support\", \"steps\": [\"pattern_check\", \"risk_classifier\", \"route\", \"audit\"]};",
                   "pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
                   "const n = pm.response.json().ticket_number;",
                   "pm.collectionVariables.set(\"ticketNumber\", n);",
@@ -916,7 +916,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Expected result of pattern_check (and the routing it leads to) for this case.",
-                  "const EXPECT = {\"hits\": [{\"kind\": \"prompt_injection\", \"pattern\": \"ar_ignore_instructions\"}], \"spam\": null, \"reasonsInclude\": [\"prompt_injection\"], \"destination\": \"senior_support\", \"steps\": [\"pattern_check\", \"injection_check\", \"risk_classifier\", \"route\", \"audit\"]};",
+                  "const EXPECT = {\"hits\": [{\"kind\": \"prompt_injection\", \"pattern\": \"ar_ignore_instructions\"}], \"spam\": null, \"reasonsInclude\": [\"prompt_injection\"], \"destination\": \"senior_support\", \"steps\": [\"pattern_check\", \"risk_classifier\", \"route\", \"audit\"]};",
                   "pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
                   "const n = pm.response.json().ticket_number;",
                   "pm.collectionVariables.set(\"ticketNumber\", n);",

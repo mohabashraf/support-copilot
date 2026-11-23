@@ -288,8 +288,14 @@ class Masker:
         return cls(st.pii_ner, st.pii_gliner_model, st.pii_gliner_threshold)
 
     def warm_up(self) -> None:
-        """Load the models now (GLiNER ~10 s) so the first ticket doesn't pay for it."""
-        self.mask_ticket(text="warm up")
+        """Load the models now (GLiNER ~10 s) so the first ticket doesn't pay for it. A realistic
+        ticket (name, card, phone, email, Arabic) so every recognizer and code path runs once:
+        two words left the first real ticket at ~1.4 s."""
+        self.mask_ticket(
+            subject="Deposit failed",
+            body="Hi, I'm John Smith, card 4111 1111 1111 1111, phone +20 100 123 4567, "
+            "email john@example.com. أنا محمد علي. What is the minimum deposit?",
+        )
 
     def mask(self, text: str) -> Masked:
         r = self.mask_ticket(text=text)

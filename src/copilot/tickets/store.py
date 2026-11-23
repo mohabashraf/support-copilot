@@ -162,6 +162,8 @@ class PgTicketStore:
                     result->'routing'->>'destination' AS queue,
                     (result->'routing'->'reasons')::text AS reasons,
                     result->'routing'->>'priority' AS priority,
+                    (result->'injection'->>'detected')::bool AS injection_detected,
+                    (result->'injection'->'model'->>'probability')::float AS injection_score,
                     (result->'routing'->'evidence')::text AS evidence,
                     agent_decision, agent_name, error IS NOT NULL AS has_error,
                     jsonb_array_length(pii_detections) AS pii_count,
