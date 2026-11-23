@@ -277,6 +277,11 @@ def eval_risks(out: str = typer.Option(None, help="Write the full JSON report he
         f"category accuracy: dev {rep['category']['dev_accuracy']} · "
         f"test {rep['category']['test_accuracy']}"
     )
+    typer.echo("category when sure (p ≥ cutoff): coverage · right   [thresholds.toml [category]]")
+    for t, d in rep["category_when_sure"]["dev"].items():
+        e = rep["category_when_sure"]["test"][t]
+        typer.echo(f"  p≥{t}  dev {d['coverage']:.0%} {d['right']:>6}   "
+                   f"test {e['coverage']:.0%} {e['right']:>6}")  # fmt: skip
     for m in rep["test_misses"]:
         typer.echo(f"  MISS  {m['id']} {m['lang']:3} {m['risk']:20} p={m['p']}")
     for m in rep["test_false_alarms"]:

@@ -22,6 +22,7 @@ import re
 from dataclasses import dataclass, field
 
 from copilot.pipeline.llm import LLMOutputError
+from copilot.pipeline.risk_classifier import load_category_rules
 from copilot.pipeline.schemas import Category, Classification, Intent, SafetyOut, TriageOut
 
 # Strictest first: the ticket's category is its most restrictive intent (PRD FR-2.1d).
@@ -51,9 +52,10 @@ _SCRIPT_LANGS = {
     "cyrillic": {"ru", "uk", "bg", "sr", "kk", "be", "mk", "ky", "tg", "mn"},
     "cjk": {"zh", "zh-TW", "zh-CN", "ja", "ko"},
 }
-# The risk classifier's category must be this sure (probability AND margin) before its
-# disagreement counts as a signal. Measured on the dev set; tune with `copilot eval`.
-CLASSIFIER_SURE_P, CLASSIFIER_SURE_MARGIN = 0.8, 0.4
+# The local classifier's category must be this sure before its disagreement counts as a signal.
+# From classifier/thresholds.toml [category], measured by `copilot eval risks` (see the comment
+# there). Its 'other' never counts: it means "nothing specific found", not a different topic.
+CLASSIFIER_SURE_P = load_category_rules()["sure_probability"]
 
 
 # ---- 1. one answer ---------------------------------------------------------------------------
@@ -180,9 +182,8 @@ def confidence(
     if disagree := [f for f in fixes if f.startswith("category ") or ".topic " in f]:
         r.signals.append("llm_disagreement:" + "; ".join(disagree))
     # the local classifier, when SURE, disagrees with every topic the LLMs found
-    if risk and (cat := risk.get("category")):
-        sure = (risk.get("category_probability", 0) >= CLASSIFIER_SURE_P
-                and risk.get("category_margin", 0) >= CLASSIFIER_SURE_MARGIN)  # fmt: skip
+    if risk and (cat := risk.get("category")) and cat != "other":
+        sure = risk.get("category_probability", 0) >= CLASSIFIER_SURE_P
         topics = {c.category, *(i.topic for i in c.intents)}
         if sure and cat not in topics:
             r.signals.append(f"classifier_disagrees:{cat} p={risk['category_probability']}")

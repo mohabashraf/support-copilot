@@ -77,6 +77,28 @@ def _scores(preds: list[dict], items: list[dict], kind: str, t: float) -> dict:
     }  # fmt: skip
 
 
+CATEGORY_SWEEP = (0.5, 0.6, 0.7, 0.8, 0.9)
+
+
+def category_when_sure(preds: list[dict], items: list[dict]) -> dict:
+    """Per probability cutoff: how often the category head is "sure" (coverage) and how often
+    it is right when sure. Sets [category] sure_probability in classifier/thresholds.toml."""
+    out = {}
+    for t in CATEGORY_SWEEP:
+        sure = [(p, it) for p, it in zip(preds, items, strict=True) if p["category_p"] >= t]
+        right = sum(p["category"] == it["category"] for p, it in sure)
+        out[str(t)] = {
+            "coverage": round(len(sure) / len(items), 3),
+            "right": f"{right}/{len(sure)}",
+            "wrong": [
+                {"id": it["id"], "said": p["category"], "gold": it["category"]}
+                for p, it in sure
+                if p["category"] != it["category"]
+            ],  # fmt: skip
+        }
+    return out
+
+
 def run(clf: RiskClassifier) -> dict:
     dev, test = _items()
 
@@ -88,6 +110,7 @@ def run(clf: RiskClassifier) -> dict:
                 "prob": {**r.probabilities, INJECTION: clf.injection(it["text"]).probability},
                 "pattern": {h.kind for h in patterns.check(it["text"]).hits},
                 "category": r.category,
+                "category_p": r.category_probability,
                 "kinds": set(r.kinds),
             })  # fmt: skip
         return out
@@ -134,6 +157,10 @@ def run(clf: RiskClassifier) -> dict:
         ),  # noqa: E501
     }
     return {
+        "category_when_sure": {
+            "dev": category_when_sure(pdev, dev),
+            "test": category_when_sure(ptest, test),
+        },
         "examples": len(clf.examples),
         "dev_n": len(dev),
         "test_n": len(test),

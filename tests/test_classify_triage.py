@@ -158,10 +158,11 @@ def _c(**kw):
 
 
 def test_sure_classifier_disagreeing_with_every_llm_topic_is_a_signal():
-    risk = {"category": "aml_compliance", "category_probability": 0.9, "category_margin": 0.6}
+    risk = {"category": "aml_compliance", "category_probability": 0.9}
     assert _gate(_c(), risk=risk).signals == ["classifier_disagrees:aml_compliance p=0.9"]
-    unsure = {**risk, "category_margin": 0.1}
-    assert _gate(_c(), risk=unsure).passed
+    assert _gate(_c(), risk={**risk, "category_probability": 0.55}).passed  # not sure
+    # 'other' = "nothing specific found": never a disagreement (the one sure miss measured)
+    assert _gate(_c(), risk={"category": "other", "category_probability": 0.95}).passed
 
 
 def test_language_code_must_fit_the_script():
