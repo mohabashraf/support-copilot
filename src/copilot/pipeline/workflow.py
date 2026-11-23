@@ -25,9 +25,7 @@ PII is masked BEFORE the graph runs (tickets/service.py `intake`), so the graph 
 traces and the LLM only ever see placeholders; the placeholder → value mapping never enters
 the state. The background worker runs this graph (tickets/worker.py).
 
-Implemented: pattern_check, injection_check, risk_classifier, classify_safety, classify_triage,
-validate_classification, confidence_gate, policy_gate, template_reply, retrieve, draft, compose,
-route.
+Implemented: every node except audit.
 The other nodes are marked @placeholder: they produce nothing and monitoring reports them as
 placeholders, never as work done.
 Dependencies (the risk classifier, later the LLM clients) come in through LangGraph's runtime
@@ -52,6 +50,7 @@ from copilot.pipeline import grounding, prompts, templates, validation
 from copilot.pipeline import injection as injection_gate
 from copilot.pipeline import patterns as pattern_rules
 from copilot.pipeline import policy as policy_rules
+from copilot.pipeline import post_check as post_checks
 from copilot.pipeline import routing as routing_rules
 from copilot.pipeline.llm import LLMOutputError, structured
 from copilot.pipeline.risk_classifier import load_injection_rules
@@ -409,6 +408,7 @@ def draft(state: State, runtime: Runtime[Deps]) -> dict:
     allowed = [it for i, it in enumerate(c.intents) if i not in blocked]
     sources = state.get("sources", [])
     questions = [f'"{it.text}" ({it.topic})' for it in allowed if it.text.strip()]
+    fails = state.get("post_check_failures", [])  # set → this is the redraft
     has_question = bool(c.search_query.strip())
     r = structured(
         _deps(runtime).draft_llm,
@@ -421,7 +421,8 @@ def draft(state: State, runtime: Runtime[Deps]) -> dict:
             sources,
             state.get("subject", ""),
             state.get("body", ""),
-        ),  # fmt: skip
+            feedback=post_checks.feedback(fails) if fails else "",
+        ),
         name="draft",
     )
     d = grounding.check_draft(r.parsed, {s["id"] for s in sources}, has_question)
@@ -447,10 +448,21 @@ def draft(state: State, runtime: Runtime[Deps]) -> dict:
     }
 
 
-@placeholder
 def post_check(state: State) -> dict:
-    # TODO step 5: numbers not in cited text, missing citations, advice wording, unknown chunk IDs
-    return {"steps": ["post_check"], "post_check_failures": []}
+    """Deterministic checks on the draft (pipeline/post_check.py): numbers only from cited
+    chunks, no advice wording, no promises or account claims, known citations and placeholders,
+    the right script. A failure → one redraft with the failures as feedback; a second failure →
+    post_check_failed, and the draft is withheld (a person writes the reply)."""
+    d = state.get("draft")
+    c = state["classification"]
+    fails = post_checks.check(d, state.get("sources", []), _text(state), c.reply_language)
+    out: dict = {"steps": ["post_check"], "post_check_failures": fails}
+    if fails and state.get("draft_attempts", 0) >= MAX_DRAFT_ATTEMPTS:
+        out["reasons"] = ["post_check_failed"]
+        notes = list(state.get("notes_for_agent", []))
+        notes.append(f"AI draft withheld: failed checks twice ({'; '.join(fails)}).")
+        out["notes_for_agent"] = notes
+    return out
 
 
 def compose(state: State) -> dict:
@@ -463,7 +475,12 @@ def compose(state: State) -> dict:
     texts = {t["key"]: t["text"] for t in state.get("template_texts", [])}
     gates = (state.get("policy") or {}).get("intents", [])
     draft = state.get("draft")
-    usable = draft is not None and not draft.abstain and bool(draft.reply.strip())
+    usable = (
+        draft is not None
+        and not draft.abstain
+        and bool(draft.reply.strip())
+        and not state.get("post_check_failures")
+    )  # a draft that failed is never shown
     if c is None:
         return {"steps": ["compose"]}
     parts, used, missing = [], set(), []

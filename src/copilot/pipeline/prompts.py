@@ -144,7 +144,8 @@ internal (conflicts, gaps, caveats); empty if nothing to add."""
 
 
 def draft_user(reply_language: str, questions: list[str], n_handled: int,
-               sources: list[dict], subject: str, body: str) -> str:  # fmt: skip
+               sources: list[dict], subject: str, body: str,
+               feedback: str = "") -> str:  # fmt: skip
     qs = "\n".join(f"- {q}" for q in questions) or "- (no question: see rule 9)"
     other = (f"<handled_separately>{n_handled} other part(s) of this ticket get a separate "
              "fixed reply.</handled_separately>\n") if n_handled else ""  # fmt: skip
@@ -158,4 +159,5 @@ def draft_user(reply_language: str, questions: list[str], n_handled: int,
         f"<questions_to_answer>\n{qs}\n</questions_to_answer>\n{other}"
         f"<sources>\n{src}\n</sources>\n"
         f"{safety_user(subject, body)}"
+        + (f"\n<feedback>\n{feedback}\n</feedback>" if feedback else "")
     )

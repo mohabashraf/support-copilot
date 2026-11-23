@@ -111,6 +111,7 @@ def test_only_implemented_nodes_are_marked_implemented():
         "template_reply",
         "retrieve",
         "draft",
+        "post_check",
         "compose",
         "route",
     }

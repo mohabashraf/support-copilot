@@ -41,7 +41,7 @@ def test_inbox_lists_tickets_with_counts_and_filters(env):
     assert inbox["counts"] == {"done": 1}
     row = inbox["items"][0]
     assert row["ticket_number"] == n and not row["handled_by_agent"]
-    assert row["steps_completed"] == "12/14" and row["complete"] is False
+    assert row["steps_completed"] == "13/14" and row["complete"] is False
     # The (fake) drafter answered and nothing was flagged: an agent reviews and sends it.
     assert row["decision"] == "auto_draft_ok" and row["queue"] is None
     assert row["reasons"] == []

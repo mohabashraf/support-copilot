@@ -59,4 +59,4 @@ def test_ticket_metrics_say_incomplete_and_give_the_real_routing_reason(reader):
     }
     assert ("pattern_check", "true") in by_node and ("risk_classifier", "true") in by_node
     assert ("route", "true") in by_node
-    assert ("post_check", "false") in by_node  # placeholders are labelled as such
+    assert ("audit", "false") in by_node  # placeholders are labelled as such
