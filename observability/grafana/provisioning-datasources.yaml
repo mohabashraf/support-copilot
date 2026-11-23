@@ -1,0 +1,14 @@
+# Grafana → Postgres with the read-only role: the tickets_monitoring view only (no ticket text).
+apiVersion: 1
+datasources:
+  - name: Tickets (Postgres, read-only)
+    uid: tickets-db
+    type: grafana-postgresql-datasource
+    url: db:5432
+    user: grafana_ro
+    jsonData:
+      database: copilot
+      sslmode: disable
+      postgresVersion: 1700
+    secureJsonData:
+      password: grafana_ro  # local dev only

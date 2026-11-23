@@ -2,7 +2,11 @@
 #   db       Postgres + pgvector (D7)
 #   indexer  one-off job: builds/updates the KB + vectors (copilot kb index, D8), then exits
 #   app      the FastAPI server; starts only after the indexer succeeded
+#   worker   background worker: runs queued tickets through the workflow (scale: --scale worker=3)
+#   lgtm     monitoring (D6): OTel Collector + Tempo + Prometheus + Loki + Grafana (dev image)
+#            Grafana: http://localhost:3000 (admin/admin) → dashboard "Support Co-pilot"
 # Only the database:                  docker compose up -d db   (for local `uv run` development)
+# Database + monitoring:              docker compose up -d db lgtm
 
 x-copilot: &copilot
   build: .
@@ -11,6 +15,7 @@ x-copilot: &copilot
   environment:
     DATABASE_URL: postgresql://copilot:copilot@db:5432/copilot  # "db" = the service below
     HOST: 0.0.0.0  # listen outside the container, so the host can reach the server
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4318  # "lgtm" = the monitoring service below
   volumes:
     - hf-cache:/cache/huggingface  # embedding model downloaded once, shared by both services
     - ./logs:/app/logs  # log files land in ./logs on the host, as with `uv run`
@@ -23,9 +28,11 @@ services:
       POSTGRES_PASSWORD: copilot  # local development only; real deployments use secrets
       POSTGRES_DB: copilot
     ports:
-      - "5433:5432"  # 5433 on the host to avoid clashing with a local Postgres
+      - "127.0.0.1:5433:5432"  # host-only; 5433 avoids clashing with a local Postgres
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # first start of a fresh volume: create Grafana's read-only role (D6)
+      - ./observability/postgres/grafana_readonly.sql:/docker-entrypoint-initdb.d/10-grafana-readonly.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U copilot -d copilot"]
       interval: 2s
@@ -43,7 +50,7 @@ services:
   app:
     <<: *copilot
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"  # host-only in Phase 1 (Phase 2: behind a gateway with TLS)
     depends_on:
       indexer:
         condition: service_completed_successfully  # read-only server: needs an indexed KB
@@ -54,6 +61,29 @@ services:
       retries: 30
       start_period: 20s
 
+  worker:
+    <<: *copilot
+    command: ["copilot", "worker"]
+    depends_on:
+      indexer:
+        condition: service_completed_successfully
+
+  lgtm:
+    # All-in-one OpenTelemetry backend for local/demo use (Grafana's own guidance: dev/test only;
+    # production = Grafana Cloud or a self-hosted LGTM cluster, same OTLP endpoint contract).
+    image: grafana/otel-lgtm:0.29.0
+    ports:
+      - "127.0.0.1:3000:3000"  # Grafana (default admin/admin: never expose)
+      - "127.0.0.1:9090:9090"  # Prometheus UI (metrics, PromQL)
+      - "127.0.0.1:4317:4317"  # OTLP gRPC
+      - "127.0.0.1:4318:4318"  # OTLP HTTP (the app sends here)
+    volumes:
+      - ./observability/grafana/provisioning-dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/copilot.yaml:ro
+      - ./observability/grafana/provisioning-datasources.yaml:/otel-lgtm/grafana/conf/provisioning/datasources/copilot-postgres.yaml:ro
+      - ./observability/grafana/dashboards:/otel-lgtm/copilot-dashboards:ro
+      - lgtm-data:/data
+
 volumes:
   pgdata:
+  lgtm-data:
   hf-cache:

@@ -24,6 +24,9 @@ NOISY = [
     "urllib3",
     "httpx",
     "filelock",
+    "presidio-analyzer",  # logs every recognizer it loads
+    "gliner",
+    "httpx2",
 ]
 _STD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", (), None).__dict__) | {
     "message",
@@ -80,6 +83,8 @@ def setup_logging(st: Settings) -> None:
     root.setLevel(st.log_level)
     for name in NOISY:
         logging.getLogger(name).setLevel(logging.WARNING)
+    # Presidio warns at load time about every non-English recognizer it skips: noise.
+    logging.getLogger("presidio-analyzer").setLevel(logging.ERROR)
 
 
 def get_logger(name: str) -> logging.Logger:

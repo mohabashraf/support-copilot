@@ -1,0 +1,10 @@
+# Grafana loads every dashboard JSON in observability/grafana/dashboards/ (mounted by docker compose)
+apiVersion: 1
+providers:
+  - name: "Support Co-pilot"
+    folder: "Support Co-pilot"
+    type: file
+    allowUiUpdates: true
+    options:
+      path: /otel-lgtm/copilot-dashboards
+      foldersFromFilesStructure: false
