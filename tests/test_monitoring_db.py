@@ -111,3 +111,18 @@ def test_every_dashboard_sql_query_runs_as_grafana(ticket):
             _as_grafana(sql)
         except psycopg.Error as err:
             pytest.fail(f"dashboard panel {title!r}: {err}")
+
+
+def test_the_readonly_script_keeps_every_live_monitoring_view_readable(ticket):
+    """The script REVOKEs everything, then must grant all four views back. It once re-granted
+    only tickets_monitoring, so running it (tests do) broke the journey and risk panels."""
+    PgTicketStore(ticket[1].pool)  # the app's own views exist (as in Docker)
+    with psycopg.connect(DB, autocommit=True) as conn:
+        conn.execute((ROOT / "observability/postgres/grafana_readonly.sql").read_text())
+    for view in (
+        "tickets_monitoring",
+        "tickets_pii_detections",
+        "tickets_steps",
+        "tickets_risk_signals",
+    ):
+        _as_grafana(f"SELECT count(*) FROM {view}")  # raises if not granted

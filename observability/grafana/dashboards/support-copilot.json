@@ -1417,7 +1417,12 @@
         }
       },
       "description": "Placeholders replace the values before anything else sees the ticket (LLM, graph, LangSmith, logs). Real values: encrypted vault, 30-day expiry, agent access audited.",
-      "id": 44
+      "id": 44,
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no PII found in this ticket"
+        }
+      }
     },
     {
       "type": "table",
@@ -2479,7 +2484,8 @@
             },
             "fillOpacity": 8,
             "drawStyle": "line"
-          }
+          },
+          "noValue": "no LLM calls yet (LLM steps not built)"
         },
         "overrides": []
       },
@@ -2561,11 +2567,12 @@
             "uid": "tempo"
           },
           "queryType": "traceql",
-          "query": "{resource.service.name=\"support-copilot\" && name=\"ticket\"}",
+          "query": "{resource.service.name=\"support-copilot\" && name=~\"ticket\\\\.(intake|process)\"}",
           "limit": 20,
           "tableType": "traces"
         }
-      ]
+      ],
+      "description": "One trace per ticket.intake (API: masking) and ticket.process (worker: the graph). Click a trace ID to open it."
     },
     {
       "type": "logs",
