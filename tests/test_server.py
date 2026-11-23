@@ -1,12 +1,27 @@
-"""The API serves the knowledge base."""
+"""The API exposes only what the business uses: POST /tickets and GET /health."""
 
+import pytest
+from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
 from copilot.kb.ingest import build_kb
+from copilot.pipeline.pii import Masker
+from copilot.pipeline.pii_vault import InMemoryPiiVault
 from copilot.server.app import create_app
 from copilot.services import Services
+from copilot.tickets.store import InMemoryTicketStore
+from copilot.tickets.worker import run_once
+from tests.keys import HELPDESK, KEYS, SARA
 
-client = TestClient(create_app(Services(build_kb())))  # no model download in unit tests
+vault = InMemoryPiiVault(Fernet.generate_key().decode(), retention_days=1)
+tickets = InMemoryTicketStore()
+# No model download in unit tests: spaCy masker, memory vault + queue, no retriever.
+client = TestClient(
+    create_app(
+        Services(build_kb(), masker=Masker(ner="spacy"), vault=vault, tickets=tickets),
+        api_keys=KEYS,
+    )
+)
 
 
 def test_health():
@@ -15,18 +30,67 @@ def test_health():
     assert r.json()["chunks"] == 26
 
 
-def test_list_chunks_and_filter_by_flag():
-    assert len(client.get("/kb/chunks").json()) == 26
-    defective = client.get("/kb/chunks", params={"flag": "defective"}).json()
-    assert [c["id"] for c in defective] == ["withdraw#steps"]
+def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
+    r = client.post(
+        "/tickets",
+        headers=HELPDESK,
+        json={"id": "S1", "subject": "Deposit", "body": "card 4111 1111 1111 1111 failed"},
+    )
+    assert r.status_code == 202
+    b = r.json()
+    n = b["ticket_number"]
+    assert b["status"] == "queued" and r.headers["location"] == f"/tickets/{n}"
+    assert "4111" not in r.text  # the response never carries a real PII value
+    assert vault.reveal("S1", "[CARD_1]") == "4111 1111 1111 1111"
+
+    queued = client.get(f"/tickets/{n}", headers=HELPDESK).json()
+    assert queued["status"] == "queued" and queued["result"] is None
+
+    assert run_once(tickets)  # the background worker
+    done = client.get(f"/tickets/{n}", headers=HELPDESK).json()
+    assert done["status"] == "done"
+    assert done["steps_done"][0] == "classify" and done["steps_done"][-1] == "audit"
+    assert done["result"]["routing"] is not None and done["seconds_processing"] is not None
+    assert "4111" not in str(done)
 
 
-def test_get_one_chunk_with_hash_in_id():
-    r = client.get("/kb/chunks/faq#min-deposit".replace("#", "%23"))
-    assert r.status_code == 200
-    assert "8 USD" in r.json()["text"]
-    assert len(r.json()["sources"]) == 2
+def test_same_ticket_again_returns_the_same_number():
+    first = client.post("/tickets", headers=HELPDESK, json={"id": "S9", "body": "hi"})
+    again = client.post("/tickets", headers=HELPDESK, json={"id": "S9", "body": "hi"})
+    assert (
+        again.status_code == 200 and again.json()["ticket_number"] == first.json()["ticket_number"]
+    )
 
 
-def test_unknown_chunk_is_404():
-    assert client.get("/kb/chunks/nope%23nothing").status_code == 404
+def test_unknown_ticket_is_404():
+    assert client.get("/tickets/999999", headers=SARA).status_code == 404
+
+
+def test_ticket_without_body_is_rejected():
+    assert client.post("/tickets", headers=HELPDESK, json={"id": "S2"}).status_code == 422
+
+
+@pytest.mark.parametrize(
+    "method, path",
+    [
+        ("get", "/kb/chunks"),
+        ("post", "/search"),
+        ("post", "/pii/mask"),
+        ("get", "/agent"),
+        ("get", "/docs"),
+        ("get", "/openapi.json"),
+    ],
+)
+def test_no_endpoints_the_business_does_not_use(method, path):
+    assert getattr(client, method)(path).status_code == 404
+
+
+def test_possible_unmasked_pii_is_logged_as_a_warning(caplog):
+    # Fails the Luhn check, so it is not masked as a card; but it is still a 16-digit number.
+    client.post(
+        "/tickets",
+        headers=HELPDESK,
+        json={"id": "S3", "body": "my card 4111 1111 1111 1112 failed"},
+    )
+    warnings = [r for r in caplog.records if r.getMessage() == "possible unmasked pii"]
+    assert warnings and warnings[0].kinds == ["long_number"]

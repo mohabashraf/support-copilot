@@ -6,7 +6,6 @@ Routes ask for what they need; they never build it themselves.
 from fastapi import Request
 
 from copilot.kb.store import KBReader
-from copilot.retrieval.search import Retriever
 from copilot.services import Services
 
 
@@ -18,5 +17,17 @@ def get_kb(request: Request) -> KBReader:
     return get_services(request).kb
 
 
-def get_retriever(request: Request) -> Retriever:
-    return get_services(request).retriever
+def get_masker(request: Request):
+    return get_services(request).masker
+
+
+def get_vault(request: Request):
+    return get_services(request).vault
+
+
+def get_tickets(request: Request):
+    return get_services(request).tickets
+
+
+def get_audit(request: Request):
+    return get_services(request).audit

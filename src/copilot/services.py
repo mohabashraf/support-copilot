@@ -11,13 +11,17 @@ from dataclasses import dataclass
 
 from psycopg_pool import ConnectionPool
 
+from copilot.audit import AuditLog
 from copilot.config import Settings
 from copilot.kb.ingest import build_kb
 from copilot.kb.store import KBReader, KBStore
+from copilot.pipeline.pii import Masker
+from copilot.pipeline.pii_vault import InMemoryPiiVault, PgPiiVault, PiiVault
 from copilot.retrieval.embeddings import get_embedder
 from copilot.retrieval.index import InMemoryIndex, PgVectorIndex, VectorIndex
 from copilot.retrieval.indexer import index_kb
 from copilot.retrieval.search import Retriever
+from copilot.tickets.store import InMemoryTicketStore, PgTicketStore, TicketStore
 
 
 class NotIndexedError(RuntimeError):
@@ -28,9 +32,15 @@ class NotIndexedError(RuntimeError):
 class Services:
     kb: KBReader  # KBStore (Postgres, live) or KnowledgeBase (memory mode, tests)
     retriever: Retriever | None = None
+    masker: Masker | None = None  # PII masking before the graph (pipeline/pii.py)
+    vault: PiiVault | None = None  # encrypted placeholder → value mapping (pipeline/pii_vault.py)
+    tickets: TicketStore | None = None  # the job queue (tickets/store.py)
+    audit: AuditLog | None = None  # legal record, append-only (audit.py)
 
 
-def load_services(st: Settings, pool: ConnectionPool | None = None) -> Services:
+def load_services(
+    st: Settings, pool: ConnectionPool | None = None, warm_masker: bool = True
+) -> Services:
     """KB reader + retriever for serving. Never writes: indexing is `copilot kb index` (D8).
 
     `pool` is required for VECTOR_STORE=pgvector (see copilot/db.py open_pool).
@@ -39,7 +49,12 @@ def load_services(st: Settings, pool: ConnectionPool | None = None) -> Services:
         kb = build_kb()
         embedder, index = get_embedder(st.embedding_model), InMemoryIndex()
         index_kb(kb, embedder, index)
-        return Services(kb, Retriever(embedder, index))
+        vault = InMemoryPiiVault(st.pii_encryption_key.get_secret_value(), st.pii_retention_days)
+        masker = Masker.from_settings(st)
+        tickets = InMemoryTicketStore()
+        return Services(
+            kb, Retriever(embedder, index), masker, vault, tickets, AuditLog(st.audit_log)
+        )
 
     if pool is None:
         raise ValueError("VECTOR_STORE=pgvector needs a connection pool (copilot.db.open_pool)")
@@ -47,7 +62,14 @@ def load_services(st: Settings, pool: ConnectionPool | None = None) -> Services:
     embedder = get_embedder(st.embedding_model)
     index = PgVectorIndex(pool, st.embedding_model, embedder.dim)
     require_indexed(store, index, st.embedding_model)
-    return Services(store, Retriever(embedder, index))
+    vault = PgPiiVault(pool, st.pii_encryption_key.get_secret_value(), st.pii_retention_days)
+    masker = Masker.from_settings(st)
+    if warm_masker:  # the API masks; the worker doesn't, so it skips the ~10 s GLiNER load
+        masker.warm_up()  # load GLiNER at startup, not on the first customer's ticket
+    tickets = PgTicketStore(pool)
+    return Services(
+        store, Retriever(embedder, index), masker, vault, tickets, AuditLog(st.audit_log)
+    )
 
 
 def require_indexed(store: KBStore, index: VectorIndex, model: str) -> None:

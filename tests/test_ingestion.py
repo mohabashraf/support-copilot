@@ -145,15 +145,16 @@ def test_server_sees_a_new_kb_immediately_without_reload(pg_kb):
     store, index = pg_kb
     kb = build_kb()
     index_kb(kb, FakeEmbedder(), index, store)
-    client = TestClient(create_app(Services(store, Retriever(FakeEmbedder(), index))))
+    retriever = Retriever(FakeEmbedder(), index)
+    client = TestClient(create_app(Services(store, retriever)))
     assert client.get("/health").json() == {"status": "ok", "kb_hash": kb.kb_hash, "chunks": 26}
 
     kb2 = _add(kb)
     index_kb(kb2, FakeEmbedder(), index, store)  # `copilot kb index` while the server runs
     assert client.get("/health").json()["chunks"] == 27
-    assert client.get("/kb/chunks/fees%23intro").status_code == 200
-    r = client.post("/search", json={"query": "withdrawal fees payment method", "k": 3})
-    assert r.status_code == 200 and "fees#intro" in [h["chunk_id"] for h in r.json()["hits"]]
+    assert store.get_chunk("fees#intro") is not None
+    hits = retriever.search("withdrawal fees payment method", k=3)  # what the drafter will use
+    assert "fees#intro" in [h.chunk_id for h in hits]
 
 
 @pg
