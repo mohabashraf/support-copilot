@@ -116,8 +116,9 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
   | `vulnerable_customer` | distress, hopelessness, self-harm or hardship signals | classification flag + deterministic phrase rules (both; either fires) |
   | `security_sensitive` | another person's account/data, contact-detail change, 2FA/password/security changes | classification flag + deterministic rules |
   | `multi_intent_blocked` | at least one intent of a multi-intent ticket is blocked by the policy gate | per-intent gate results |
-  | `prompt_injection` | an exact instruction-override phrase (pattern_check). **No AI draft**: classification still runs with a hardened prompt; a person replies | exact patterns, before any model or LLM |
+  | `prompt_injection` | ANY injection signal: an exact instruction-override phrase (pattern_check) or the injection detectors (risk classifier; Prompt Guard 2 next), weak or strong. **No AI draft**: classification still runs with a hardened prompt; a person replies (senior support) | exact patterns before any model or LLM, then the models |
   | `spam_or_empty` | empty, emoji/symbols only, repeated characters, mass links, promotional phrases. **No model and no LLM call**; low priority; never dropped | exact checks in pattern_check |
+  | `no_draft` | no AI draft was produced and no other reason explains it (drafter not built yet, or skipped): a person writes the reply | routing rule |
 
   For `low_resource_language`, the agent receives the classification and an **English draft** with citations instead of a possibly poor translation of a financial answer.
 

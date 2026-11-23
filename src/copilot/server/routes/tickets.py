@@ -80,6 +80,8 @@ class TicketSummary(BaseModel):
     decision: str | None  # auto_draft_ok | human_required | null = not decided
     queue: str | None  # support_agent | senior_support | compliance | null = not decided
     reasons: list[str]
+    priority: str | None  # normal | low (spam_or_empty) | null = not decided
+    evidence: list[str]  # detector names + scores behind the reasons, never customer text
     pii_types: list[str]
     handled_by_agent: bool
     created_at: datetime
@@ -299,6 +301,8 @@ def _summary(r: TicketRecord) -> TicketSummary:
         decision=routing.get("decision"),
         queue=routing.get("destination"),
         reasons=routing.get("reasons", []),
+        priority=routing.get("priority"),
+        evidence=routing.get("evidence", []),
         pii_types=r.pii_types,
         handled_by_agent=r.agent_decision is not None,
         created_at=r.created_at,

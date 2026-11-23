@@ -39,8 +39,9 @@ ReasonCode = Literal[
     "vulnerable_customer",
     "security_sensitive",
     "multi_intent_blocked",
-    "prompt_injection",  # exact injection phrase found: no AI draft, a person replies
+    "prompt_injection",  # injection found (pattern or model): no AI draft, a person replies
     "spam_or_empty",  # no model, no LLM; a person at low priority (nothing is dropped)
+    "no_draft",  # no AI draft was produced (and no other reason explains it): a person writes it
 ]
 
 
@@ -139,6 +140,10 @@ class Routing(BaseModel):
     decision: Literal["auto_draft_ok", "human_required"]
     destination: Destination | None
     reasons: list[ReasonCode]
+    priority: Literal["normal", "low"] = "normal"  # low = spam_or_empty only
+    # Why, for the agent and monitoring: detector names and scores ("pattern:system_note_to_ai",
+    # "classifier:prompt_injection 0.67"), never the customer's text.
+    evidence: list[str] = Field(default_factory=list)
 
 
 class Result(BaseModel):

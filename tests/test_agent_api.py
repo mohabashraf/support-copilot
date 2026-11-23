@@ -41,8 +41,10 @@ def test_inbox_lists_tickets_with_counts_and_filters(env):
     assert inbox["counts"] == {"done": 1}
     row = inbox["items"][0]
     assert row["ticket_number"] == n and not row["handled_by_agent"]
-    assert row["steps_completed"] == "2/11" and row["complete"] is False
-    assert row["queue"] is None and row["decision"] is None  # nothing decided: no fake routing
+    assert row["steps_completed"] == "3/11" and row["complete"] is False
+    # Routing ran before the fixture added a draft, so it saw none: a person writes it.
+    assert row["decision"] == "human_required" and row["queue"] == "support_agent"
+    assert row["reasons"] == ["no_draft"]
     assert client.get("/tickets", params={"status": "queued"}, headers=SARA).json()["items"] == []
     assert (
         client.get("/tickets", params={"queue": "compliance"}, headers=SARA).json()["items"] == []

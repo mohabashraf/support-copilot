@@ -35,7 +35,7 @@ def _points(reader, name: str) -> list[tuple[dict, float]]:
     return out
 
 
-def test_ticket_metrics_say_incomplete_and_not_decided_while_nodes_are_placeholders(reader):
+def test_ticket_metrics_say_incomplete_and_give_the_real_routing_reason(reader):
     store = InMemoryTicketStore()
     service.intake(
         Ticket(id="T1", body="Hi, this is Ahmed Hassan, card 4111 1111 1111 1111"),
@@ -45,14 +45,19 @@ def test_ticket_metrics_say_incomplete_and_not_decided_while_nodes_are_placehold
     )
     run_once(store)
     tickets = _points(reader, "copilot.tickets")
-    assert ({"decision": "not_decided", "destination": "not_decided", "complete": "false"}, 1) in [
-        (a, v) for a, v in tickets
+    # No drafter yet → a person writes the reply, and the metric says why (no_draft).
+    assert (
+        {"decision": "human_required", "destination": "support_agent", "complete": "false"},
+        1,
+    ) in [(a, v) for a, v in tickets]
+    assert [a for a, v in _points(reader, "copilot.routing.reasons") if v] == [
+        {"reason": "no_draft"}
     ]
-    assert not any(a.get("decision") == "human_required" for a, _ in tickets)  # nothing invented
     pii = {(a["type"], a["recognizer"]) for a, v in _points(reader, "copilot.pii.detections") if v}
     assert ("card", "CreditCardRecognizer") in pii and ("name", "SpacyRecognizer") in pii
     by_node = {
         (a["node"], a["implemented"]) for a, _ in _points(reader, "copilot.graph.node.duration")
     }
     assert ("pattern_check", "true") in by_node and ("risk_classifier", "true") in by_node
-    assert ("route", "false") in by_node  # placeholders are labelled as such
+    assert ("route", "true") in by_node
+    assert ("draft", "false") in by_node  # placeholders are labelled as such

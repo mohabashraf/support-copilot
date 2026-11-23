@@ -15,11 +15,11 @@ It never talks to customers directly: an agent reviews and sends every reply.
 | Retrieval: multilingual embeddings (bge-m3) + pgvector, evaluated (R@3 0.90, MRR 0.88, Arabic Hit@3 1.00) | ✅ done |
 | PII masking before anything else sees the ticket: Presidio + GLiNER, encrypted vault, residual-PII monitor, evaluated | ✅ done |
 | Tickets as background jobs: `POST /tickets` → ticket number, Postgres queue, worker(s), `GET /tickets/{number}` for status/progress/result, retries, crash recovery (D11) | ✅ done |
-| Workflow: LangGraph graph (D3): pattern_check → risk_classifier ∥ classify_safety ∥ classify_triage → policy_gate → … | ✅ **pattern_check** (exact phrases, spam) and **risk_classifier** (bge-m3 + logistic regression, D12) implemented; the LLM calls, gate, draft, checks and routing are placeholders (reported as such) |
+| Workflow: LangGraph graph (D3): pattern_check → risk_classifier ∥ classify_safety ∥ classify_triage → policy_gate → … | ✅ **pattern_check** (exact phrases, spam), **risk_classifier** (bge-m3 + logistic regression, D12) and **route** (reason codes → queue) implemented. Spam → a person at low priority; prompt injection (any signal) → **no AI draft**, senior support. The LLM calls, gate, draft and checks are placeholders (reported as such), so other tickets go to a person with reason `no_draft` |
 | Agent API: inbox, ticket with draft/citations/why, audited customer details, send / edit / handle manually | ✅ done (local, no login; Phase 2: SSO) |
 | Audit log (legal record): processing, PII reveals, agent decisions with AI draft AND final text, masked | ✅ done |
 | Monitoring end to end: OpenTelemetry → Grafana (metrics, traces, logs), LangSmith for LLM calls | ✅ done |
-| LLM nodes, hard-rule detectors, routing, end-to-end eval + model benchmark, business case with measured numbers | ⏳ next (needs a valid `ANTHROPIC_API_KEY`) |
+| Prompt Guard 2 as a dedicated injection detector, LLM nodes, policy gate, end-to-end eval + model benchmark, business case with measured numbers | ⏳ next |
 
 ## Quick start
 

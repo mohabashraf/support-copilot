@@ -2,11 +2,12 @@
 
                       ┌─► risk_classifier ─┐   (bge-m3 + logistic regression, D12)
     pattern_check ────┼─► classify_safety ─┼─► policy_gate ─┬─ all blocked ─► template_reply ─┐
-      │ (exact        └─► classify_triage ─┘                └─► retrieve ─► draft ─► post_check
-      │  phrases,                                                          ▲            │
-      │  spam)                                                             └─ redraft ──┤
-      │                                                                                 ▼
-      └─ spam / empty: no model, no LLM ───────────────────────────────────► route ◄── compose
+      │ (exact        └─► classify_triage ─┘        │       └─► retrieve ─► draft ─► post_check
+      │  phrases,                                   │                      ▲            │
+      │  spam)                                      │                      └─ redraft ──┤
+      │                                             │                                   ▼
+      │                 prompt injection (any signal): NO AI draft ────────► route ◄── compose
+      └─ spam / empty: no model, no LLM ───────────────────────────────────► route
                                                                                │
                                                                                ▼
                                                                              audit ─► END
@@ -18,8 +19,9 @@ PII is masked BEFORE the graph runs (tickets/service.py `intake`), so the graph 
 traces and the LLM only ever see placeholders; the placeholder → value mapping never enters
 the state. The background worker runs this graph (tickets/worker.py).
 
-Implemented: pattern_check, risk_classifier. The other nodes are marked @placeholder: they
-produce nothing and monitoring reports them as placeholders, never as work done.
+Implemented: pattern_check, risk_classifier, route (pipeline/routing.py). The other nodes are
+marked @placeholder: they produce nothing and monitoring reports them as placeholders, never as
+work done.
 Dependencies (the risk classifier, later the LLM clients) come in through LangGraph's runtime
 context (`Deps`), so nodes are testable with fakes.
 View it: `uv run langgraph dev` (LangGraph Studio) or `uv run copilot graph` (Mermaid diagram).
@@ -37,6 +39,7 @@ from langgraph.runtime import Runtime
 from copilot import telemetry as tel
 from copilot.log import get_logger
 from copilot.pipeline import patterns as pattern_rules
+from copilot.pipeline import routing as routing_rules
 from copilot.pipeline.schemas import Classification, DraftOut, Routing
 
 log = get_logger(__name__)
@@ -201,11 +204,9 @@ def compose(state: State) -> dict:
     return {"steps": ["compose"]}  # placeholder: no reply produced (null), not an empty one
 
 
-@placeholder
 def route(state: State) -> dict:
-    # TODO step 6: every reason code that fires → auto_draft_ok or human_required + destination
-    # A placeholder decides NOTHING: no routing is produced (null = not decided), never a fake one.
-    return {"steps": ["route"]}
+    """Reason codes → auto_draft_ok or human_required + destination (pipeline/routing.py)."""
+    return {"steps": ["route"], "routing": routing_rules.decide(state)}
 
 
 @placeholder
@@ -228,8 +229,12 @@ def after_patterns(state: State) -> list[str] | Literal["route"]:
     return CLASSIFIERS
 
 
-def after_gate(state: State) -> Literal["retrieve", "template_reply"]:
-    """All intents blocked → only a template reply. Anything answerable → grounded draft."""
+def after_gate(state: State) -> Literal["route", "retrieve", "template_reply"]:
+    """Prompt injection (any signal: exact pattern or classifier) → NO AI draft at all: straight
+    to routing, a person replies. All intents blocked → only a template reply. Anything
+    answerable → grounded draft."""
+    if routing_rules.injection_evidence(state):
+        return "route"
     c = state.get("classification")
     n_intents = len(c.intents) if c else 1
     if len(state.get("blocked_intents", [])) >= n_intents:

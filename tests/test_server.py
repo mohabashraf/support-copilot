@@ -52,12 +52,14 @@ def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
     assert [st["node"] for st in done["steps"]][0] == "pattern_check"
     assert [st["node"] for st in done["steps"]][-1] == "audit"
     assert done["seconds_processing"] is not None
-    # Honest: placeholder nodes produce nothing, so no routing and the ticket is not complete.
-    assert done["result"]["routing"] is None and done["complete"] is False
-    # 2 of the 11 steps on this path are implemented; the rest are reported as placeholders.
-    assert done["steps_completed"] == "2/11"
+    # No AI draft exists yet, so routing (real) sends it to a person; the ticket is not complete.
+    routing = done["result"]["routing"]
+    assert routing["decision"] == "human_required" and routing["reasons"] == ["no_draft"]
+    assert done["complete"] is False and done["result"]["reply"] is None
+    # 3 of the 11 steps on this path are implemented; the rest are reported as placeholders.
+    assert done["steps_completed"] == "3/11"
     completed = {st["node"] for st in done["steps"] if st["status"] == "completed"}
-    assert completed == {"pattern_check", "risk_classifier"}
+    assert completed == {"pattern_check", "risk_classifier", "route"}
     assert "4111" not in str(done)
 
 

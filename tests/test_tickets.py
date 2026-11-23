@@ -68,8 +68,10 @@ def test_worker_runs_the_graph_and_records_every_step(store):
     assert done.steps[4:] == [
         "policy_gate", "retrieve", "draft", "post_check", "compose", "route", "audit"
     ]  # fmt: skip
-    # Routing is still a placeholder: nothing is decided, and the result says so.
-    assert done.result["routing"] is None and done.result["complete"] is False
+    # No drafter yet: routing (real) sends it to a person and says why; still not complete.
+    assert done.result["routing"]["reasons"] == ["no_draft"]
+    assert done.result["routing"]["destination"] == "support_agent"
+    assert done.result["complete"] is False
     assert done.trace_id and done.finished_at
     assert run_once(store) is False  # queue empty
 
