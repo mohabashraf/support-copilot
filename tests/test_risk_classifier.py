@@ -3,7 +3,7 @@ Quality is measured by `copilot eval risks` with the real bge-m3 model."""
 
 import numpy as np
 
-from copilot.pipeline.risk_classifier import HEADS, RISKS, RiskClassifier, sentences
+from copilot.pipeline.risk_classifier import HEADS, RISKS, RiskClassifier, score, sentences
 
 WORDS = ["buy", "sell", "gold", "complaint", "fraud", "approve", "verify", "deposit", "minimum",
          "hello", "leverage", "maximum", "recommend"]  # fmt: skip
@@ -104,3 +104,12 @@ def test_injection_is_its_own_head_not_a_customer_risk():
     assert "prompt_injection" not in r.probabilities and "prompt_injection" not in r.kinds
     assert Emb.calls == 1  # the gate and the risk node share one embedding of the ticket
     assert clf.injection("minimum deposit").strength is None
+
+
+def test_the_label_matches_the_number_shown():
+    """Ticket 181: 0.795 was shown as "0.80 (weak)". Round first, then decide."""
+    t = {"weak": 0.5, "strong": 0.8}
+    assert score(0.795, t) == (0.8, "strong")
+    assert score(0.794, t) == (0.79, "weak")
+    assert score(0.495, t) == (0.5, "weak")
+    assert score(0.494, t) == (0.49, None)

@@ -30,6 +30,7 @@ import json
 import re
 import tomllib
 from dataclasses import dataclass, field
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Literal
 
@@ -95,6 +96,14 @@ class RiskResult:
 # Split after . ! ? ؟ followed by space; after CJK 。！？ even without a space; on newlines; and
 # before numbered items ("1) … 2) …").
 _SPLIT = re.compile(r"(?<=[.!?؟])\s+|(?<=[。！？])\s*|\n+|\s+(?=\d\)\s)")
+
+
+def score(raw: float, t: dict[str, float]) -> tuple[float, Strength | None]:
+    """Round to 2 decimals FIRST, then compare with the thresholds: the number shown and its
+    label always agree (0.795 is shown as 0.80, so it is strong, never "0.80 (weak)")."""
+    # Half-up on the decimal value (Python's round() gives 0.49 for 0.495: binary floats).
+    p = float(Decimal(str(float(raw))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    return p, "strong" if p >= t["strong"] else "weak" if p >= t["weak"] else None
 
 
 def sentences(text: str) -> list[str]:
@@ -180,9 +189,7 @@ class RiskClassifier:
         texts, vecs = self._vectors(text)
         probs = head.predict_proba(vecs)[:, 1]
         i = int(np.argmax(probs))
-        p = round(float(probs[i]), 3)
-        t = self.thresholds.get(INJECTION, {"weak": 0.5, "strong": 0.8})
-        strength = "strong" if p >= t["strong"] else "weak" if p >= t["weak"] else None
+        p, strength = score(probs[i], self.thresholds.get(INJECTION, {"weak": 0.5, "strong": 0.8}))
         return InjectionScore(p, strength, i - 1 if len(texts) > 1 else -1)
 
     def predict(self, text: str) -> RiskResult:
@@ -196,15 +203,14 @@ class RiskClassifier:
                 continue
             probs = head.predict_proba(vecs)[:, 1]
             i = int(np.argmax(probs))
-            p = float(probs[i])
-            result.probabilities[kind] = round(p, 3)
-            t = self.thresholds.get(kind, {"weak": 0.5, "strong": 0.8})
-            if p >= t["weak"]:
+            p, strength = score(probs[i], self.thresholds.get(kind, {"weak": 0.5, "strong": 0.8}))
+            result.probabilities[kind] = p
+            if strength:
                 result.signals.append(
                     RiskSignal(
                         kind=kind,
-                        probability=round(p, 3),
-                        strength="strong" if p >= t["strong"] else "weak",
+                        probability=p,
+                        strength=strength,
                         method="classifier",
                         unit=i - 1 if len(texts) > 1 else -1,
                         nearest_example=self._nearest(kind, vecs[i]),
