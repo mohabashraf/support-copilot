@@ -25,3 +25,12 @@ strong = 0.8
 [risk.prompt_injection]
 weak = 0.5
 strong = 0.8
+
+# The injection gate (pipeline/injection.py), measured with `copilot eval injection`:
+# guard = NeuralTrust prompt-guard-oss-small (INJECTION_GUARD_MODEL); head = our bge-m3 head,
+# a backup that fires only at head_detect (0.6: below it, it mostly flags polite messages).
+# NOTE: 0.6 was chosen after seeing the 165-case result; re-check on fresh/real tickets.
+[injection]
+guard_weak = 0.5
+guard_strong = 0.8
+head_detect = 0.6

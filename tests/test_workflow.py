@@ -71,7 +71,7 @@ def test_injection_seen_only_by_the_model_is_stopped_before_any_llm_too():
     assert state["patterns"]["hits"] == []
     assert state["steps"] == MODEL_INJECTION_PATH
     assert state["injection"]["detected"] is True
-    assert state["routing"].evidence == ["model:0.61 (weak)"]
+    assert state["routing"].evidence == ["guard:0.97 (strong)", "head:0.61"]
 
 
 def test_normal_ticket_without_a_draft_goes_to_a_person_with_reason_no_draft():
@@ -79,7 +79,9 @@ def test_normal_ticket_without_a_draft_goes_to_a_person_with_reason_no_draft():
     assert state["injection"] == {
         "detected": False,
         "evidence": [],
+        "guard": {"probability": 0.01, "strength": None, "model": "fake-guard"},
         "model": {"probability": 0.02, "strength": None, "unit": -1},
+        "head_threshold": 0.6,
     }
     r = state["routing"]
     assert r.decision == "human_required" and r.reasons == ["no_draft"]

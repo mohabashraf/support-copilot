@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     # PII masking (pipeline/pii.py): gliner = multilingual names/addresses; spacy = English only
     pii_ner: Literal["gliner", "spacy"]
     pii_gliner_model: str
+    injection_guard_model: str  # dedicated injection detector (pipeline/injection_guard.py)
     pii_gliner_threshold: float = Field(ge=0, le=1)
 
     # PII vault (pipeline/pii_vault.py): encrypted placeholder → value mapping with an expiry
@@ -69,8 +70,10 @@ class Settings(BaseSettings):
     langsmith_agent_id: str  # stable agent ID in the LangSmith workspace
     langsmith_agent_environment: Literal["local", "development", "staging", "production"]
     langsmith_api_key: SecretStr | None  # empty in .env = tracing off; never logged
+    # Hugging Face read token: only for gated models (Llama Prompt Guard 2). Never logged.
+    huggingface_api_key: SecretStr | None
 
-    @field_validator("langsmith_api_key", mode="before")
+    @field_validator("langsmith_api_key", "huggingface_api_key", mode="before")
     @classmethod
     def _empty_key(cls, v: str | None) -> str | None:
         return v or None

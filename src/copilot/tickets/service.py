@@ -301,11 +301,13 @@ def process(
         tel.RISK_SIGNALS.add(1, {"kind": hit["kind"], "strength": "strong", "method": "pattern"})
     if pats.get("spam_reason"):
         tel.SPAM.add(1, {"reason": pats["spam_reason"]})
-    model = (result.get("injection") or {}).get("model") or {}
-    if model.get("strength"):
-        tel.RISK_SIGNALS.add(
-            1, {"kind": "prompt_injection", "strength": model["strength"], "method": "model"}
-        )
+    for ev in (result.get("injection") or {}).get("evidence", []):
+        layer = ev.split(":")[0]  # guard / head (patterns are counted from pattern_check below)
+        if layer in ("guard", "head"):
+            strength = "strong" if "(strong)" in ev else "weak"
+            tel.RISK_SIGNALS.add(
+                1, {"kind": "prompt_injection", "strength": strength, "method": layer}
+            )
     for sig in (result.get("risk") or {}).get("signals", []):
         tel.RISK_SIGNALS.add(
             1, {"kind": sig["kind"], "strength": sig["strength"], "method": sig["method"]}

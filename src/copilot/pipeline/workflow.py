@@ -44,11 +44,15 @@ from copilot.log import get_logger
 from copilot.pipeline import injection as injection_gate
 from copilot.pipeline import patterns as pattern_rules
 from copilot.pipeline import routing as routing_rules
+from copilot.pipeline.risk_classifier import load_injection_rules
 from copilot.pipeline.schemas import Classification, DraftOut, Routing
 
 log = get_logger(__name__)
 
-MAX_DRAFT_ATTEMPTS = 2  # first draft + one redraft after a failed post_check
+MAX_DRAFT_ATTEMPTS = 2
+_INJECTION_RULES = (
+    load_injection_rules()
+)  # classifier/thresholds.toml [injection]  # first draft + one redraft after a failed post_check
 
 
 # ---- State ----------------------------------------------------------------------------------
@@ -94,6 +98,7 @@ class Deps:
     """What nodes need from outside (passed as LangGraph runtime context)."""
 
     risk_classifier: Any = None  # pipeline.risk_classifier.RiskClassifier (or a test fake)
+    injection_guard: Any = None  # pipeline.injection_guard.InjectionGuard (or a test fake)
 
 
 @lru_cache
@@ -101,16 +106,32 @@ def default_deps() -> Deps:
     """For callers that pass no context (LangGraph Studio, scripts): build from .env.
     Loads bge-m3 (~10 s) once. The worker passes its own Deps instead."""
     from copilot.config import get_settings  # noqa: PLC0415
-    from copilot.pipeline.risk_classifier import RiskClassifier  # noqa: PLC0415
+    from copilot.pipeline.injection_guard import InjectionGuard  # noqa: PLC0415
+    from copilot.pipeline.risk_classifier import (  # noqa: PLC0415
+        RiskClassifier,
+        load_injection_rules,
+    )
     from copilot.retrieval.embeddings import get_embedder  # noqa: PLC0415
 
-    st = get_settings()
-    return Deps(RiskClassifier(get_embedder(st.embedding_model), model_name=st.embedding_model))
+    st, rules = get_settings(), load_injection_rules()
+    return Deps(
+        RiskClassifier(get_embedder(st.embedding_model), model_name=st.embedding_model),
+        InjectionGuard(
+            st.injection_guard_model,
+            {"weak": rules["guard_weak"], "strong": rules["guard_strong"]},
+            st.huggingface_api_key.get_secret_value() if st.huggingface_api_key else None,
+        ),
+    )
 
 
 def _deps(runtime: Runtime | None) -> Deps:
     ctx = getattr(runtime, "context", None)
-    return ctx if isinstance(ctx, Deps) and ctx.risk_classifier is not None else default_deps()
+    ok = (
+        isinstance(ctx, Deps)
+        and ctx.risk_classifier is not None
+        and ctx.injection_guard is not None
+    )
+    return ctx if ok else default_deps()
 
 
 def _text(state: State) -> str:
@@ -129,11 +150,17 @@ def pattern_check(state: State) -> dict:
 
 
 def injection_check(state: State, runtime: Runtime[Deps]) -> dict:
-    """The injection gate (pipeline/injection.py), BEFORE any LLM: exact patterns + the
-    injection model. Any signal → no LLM call, no AI draft, a person replies."""
+    """The injection gate (pipeline/injection.py), BEFORE any LLM: the guard model (NeuralTrust)
+    + our bge-m3 head as a backup. Any layer → no LLM call, no AI draft, a person replies."""
+    deps, text = _deps(runtime), _text(state)
     hits = (state.get("patterns") or {}).get("hits", [])
-    model = _deps(runtime).risk_classifier.injection(_text(state))
-    return {"steps": ["injection_check"], "injection": injection_gate.check(hits, model)}
+    gate = injection_gate.check(
+        hits,
+        head=deps.risk_classifier.injection(text),
+        guard=deps.injection_guard.score(text),
+        head_threshold=_INJECTION_RULES["head_detect"],
+    )
+    return {"steps": ["injection_check"], "injection": gate}
 
 
 def risk_classifier(state: State, runtime: Runtime[Deps]) -> dict:

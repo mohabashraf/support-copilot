@@ -14,7 +14,7 @@ from copilot.pipeline.schemas import Ticket
 from copilot.tickets import service
 from copilot.tickets.store import MAX_ATTEMPTS, InMemoryTicketStore, PgTicketStore
 from copilot.tickets.worker import run_once
-from tests.conftest import FakeRiskClassifier
+from tests.conftest import FakeInjectionGuard, FakeRiskClassifier
 from tests.pg import db_up
 
 MASKER = Masker(ner="spacy")
@@ -158,7 +158,7 @@ def test_a_failed_ticket_resumes_from_the_failed_step_not_from_the_start(
     nodes = [(n, flaky_gate if n == "policy_gate" else fn) for n, fn in wf.NODES]
     monkeypatch.setattr(wf, "NODES", nodes)
     app = wf.build_graph(checkpointer=saver)
-    deps = wf.Deps(Counting())
+    deps = wf.Deps(Counting(), FakeInjectionGuard())
 
     rec, _ = service.intake(
         Ticket(id="R1", body="What is the minimum deposit?"), MASKER, None, store

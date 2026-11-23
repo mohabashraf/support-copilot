@@ -15,9 +15,10 @@ from copilot.audit import AuditLog
 from copilot.config import Settings
 from copilot.kb.ingest import build_kb
 from copilot.kb.store import KBReader, KBStore
+from copilot.pipeline.injection_guard import InjectionGuard
 from copilot.pipeline.pii import Masker
 from copilot.pipeline.pii_vault import InMemoryPiiVault, PgPiiVault, PiiVault
-from copilot.pipeline.risk_classifier import RiskClassifier
+from copilot.pipeline.risk_classifier import RiskClassifier, load_injection_rules
 from copilot.retrieval.embeddings import get_embedder
 from copilot.retrieval.index import InMemoryIndex, PgVectorIndex, VectorIndex
 from copilot.retrieval.indexer import index_kb
@@ -38,6 +39,7 @@ class Services:
     tickets: TicketStore | None = None  # the job queue (tickets/store.py)
     audit: AuditLog | None = None  # legal record, append-only (audit.py)
     risk: object | None = None  # pipeline.risk_classifier.RiskClassifier (on bge-m3)
+    guard: object | None = None  # pipeline.injection_guard.InjectionGuard (NeuralTrust)
 
 
 def load_services(
@@ -71,8 +73,22 @@ def load_services(
     tickets = PgTicketStore(pool)
     risk = RiskClassifier(embedder, model_name=st.embedding_model)  # trains in ~1 s (cached)
     risk.warm_up()  # first bge-m3 call at startup, not on the first customer's ticket
+    rules = load_injection_rules()
+    guard = InjectionGuard(
+        st.injection_guard_model,
+        {"weak": rules["guard_weak"], "strong": rules["guard_strong"]},
+        st.huggingface_api_key.get_secret_value() if st.huggingface_api_key else None,
+    )
+    guard.warm_up()
     return Services(
-        store, Retriever(embedder, index), masker, vault, tickets, AuditLog(st.audit_log), risk
+        store,
+        Retriever(embedder, index),
+        masker,
+        vault,
+        tickets,
+        AuditLog(st.audit_log),
+        risk,
+        guard,
     )
 
 

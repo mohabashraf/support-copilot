@@ -198,6 +198,35 @@ def eval_pii(
         typer.echo(f"report → {out}")
 
 
+@eval_app.command("injection")
+def eval_injection() -> None:
+    """Injection gate: patterns, our bge-m3 head and the guard model, alone and combined."""
+    from copilot.eval import injection as injection_eval  # noqa: PLC0415
+    from copilot.pipeline.injection_guard import InjectionGuard  # noqa: PLC0415
+    from copilot.pipeline.risk_classifier import (  # noqa: PLC0415
+        RiskClassifier,
+        load_injection_rules,
+    )
+
+    st, rules = get_settings(), load_injection_rules()
+    head = RiskClassifier(get_embedder(st.embedding_model), model_name=st.embedding_model)
+    token = st.huggingface_api_key.get_secret_value() if st.huggingface_api_key else None
+    guard = InjectionGuard(
+        st.injection_guard_model,
+        {"weak": rules["guard_weak"], "strong": rules["guard_strong"]},
+        token,
+    )
+    rep = injection_eval.run(head, guard, rules["head_detect"])
+    typer.echo(f"guard {rep['guard']} · {rep['n']} cases, {rep['injections']} injections")
+    for name, r in rep["results"].items():
+        typer.echo(
+            f"{name:44} caught {r['recall']:>6} · false alarms {r['false_alarms']:>6} "
+            f"({r['false_alarm_rate']:.1%})  missed {r['missed']}  "
+            f"false alarms {r['false_alarm_ids']}"
+        )
+    typer.echo(f"saved {injection_eval.save(rep)}")
+
+
 @eval_app.command("risks")
 def eval_risks(out: str = typer.Option(None, help="Write the full JSON report here")) -> None:
     """Risk classifier: thresholds from the 76 tickets, honest scores on 62 held-out cases."""
@@ -398,7 +427,7 @@ def worker_cmd(
         services.tickets,
         poll_s=poll,
         audit=services.audit,
-        deps=Deps(services.risk),
+        deps=Deps(services.risk, services.guard),
         app=app_graph,
     )
 

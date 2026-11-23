@@ -29,6 +29,8 @@ FULL = {
     "AUDIT_LOG": "logs/audit.jsonl",
     "PII_NER": "spacy",
     "PII_GLINER_MODEL": "urchade/gliner_multi_pii-v1",
+    "INJECTION_GUARD_MODEL": "NeuralTrust/prompt-guard-oss-small",
+    "HUGGINGFACE_API_KEY": "",
     "PII_GLINER_THRESHOLD": "0.7",
     "PII_ENCRYPTION_KEY": "x" * 44,
     "PII_RETENTION_DAYS": "30",

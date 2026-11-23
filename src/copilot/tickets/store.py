@@ -172,6 +172,7 @@ class PgTicketStore:
                     result->'routing'->>'priority' AS priority,
                     (result->'injection'->>'detected')::bool AS injection_detected,
                     (result->'injection'->'model'->>'probability')::float AS injection_score,
+                    (result->'injection'->'guard'->>'probability')::float AS injection_guard_score,
                     (result->'routing'->'evidence')::text AS evidence,
                     agent_decision, agent_name, error IS NOT NULL AS has_error,
                     jsonb_array_length(pii_detections) AS pii_count,
@@ -218,11 +219,20 @@ class PgTicketStore:
                 FROM {table} t,
                      jsonb_array_elements(COALESCE(t.result->'risk'->'signals', '[]')) s
                 UNION ALL
-                SELECT t.number, 'prompt_injection', 'model',
-                       t.result->'injection'->'model'->>'strength',
-                       (t.result->'injection'->'model'->>'probability')::float, 'injection model'
+                SELECT t.number, 'prompt_injection', 'guard',
+                       t.result->'injection'->'guard'->>'strength',
+                       (t.result->'injection'->'guard'->>'probability')::float,
+                       t.result->'injection'->'guard'->>'model'
                 FROM {table} t
-                WHERE t.result->'injection'->'model'->>'strength' IS NOT NULL
+                WHERE t.result->'injection'->'guard'->>'strength' IS NOT NULL
+                UNION ALL
+                SELECT t.number, 'prompt_injection', 'head', 'backup',
+                       (t.result->'injection'->'model'->>'probability')::float,
+                       'bge-m3 head (fires at '
+                           || (t.result->'injection'->>'head_threshold') || ')'
+                FROM {table} t
+                WHERE (t.result->'injection'->'model'->>'probability')::float
+                      >= COALESCE((t.result->'injection'->>'head_threshold')::float, 0.5)
                 UNION ALL
                 SELECT t.number, 'spam_or_empty', 'pattern', 'strong', 1.0,
                        t.result->'patterns'->>'spam_reason'

@@ -667,7 +667,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -675,7 +675,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -752,7 +752,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -760,7 +760,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -837,7 +837,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -845,7 +845,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -922,7 +922,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -930,7 +930,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1007,7 +1007,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -1015,7 +1015,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1098,7 +1098,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -1106,7 +1106,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1183,7 +1183,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -1191,7 +1191,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1268,7 +1268,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -1276,7 +1276,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1353,7 +1353,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -1361,7 +1361,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1438,7 +1438,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -1446,7 +1446,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1457,8 +1457,8 @@
           ]
         },
         {
-          "name": "3C · INJECTION MODEL → injection_check DETECTED → risk_classifier → route (senior) · no LLM",
-          "description": "```\npattern_check (no rule matches) ─► injection_check: model ≥ 0.5 = DETECTED ─► risk_classifier ─► route ─► audit\n→ human · senior_support · reason prompt_injection · evidence model:<score>\n```",
+          "name": "3C · INJECTION MODEL (Prompt Guard 2 / head) → injection_check DETECTED → risk_classifier → route (senior) · no LLM",
+          "description": "```\npattern_check (no rule matches) ─► injection_check: guard (Prompt Guard 2) ≥ 0.5 OR our bge-m3 head ≥ 0.6 = DETECTED ─► risk_classifier ─► route ─► audit\n→ human · senior_support · reason prompt_injection · evidence guard:<score> and/or head:<score>\n```",
           "item": [
             {
               "name": "C1 · new wording, no rule knows it → senior · no LLM",
@@ -1529,7 +1529,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -1537,7 +1537,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1614,7 +1614,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -1622,7 +1622,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1699,7 +1699,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -1707,7 +1707,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1784,7 +1784,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -1792,7 +1792,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1801,7 +1801,7 @@
               ]
             },
             {
-              "name": "C5 · KNOWN FALSE ALARM: harmless, but the model flags it (~3%) → senior · no LLM",
+              "name": "C5 · KNOWN FALSE ALARM: harmless, but our head flags it (the gate's only false alarm in the eval) → senior · no LLM",
               "request": {
                 "method": "POST",
                 "header": [
@@ -1869,7 +1869,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -1877,7 +1877,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -1960,7 +1960,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -1968,7 +1968,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2045,7 +2045,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -2053,7 +2053,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2130,7 +2130,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -2138,7 +2138,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2221,7 +2221,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -2229,7 +2229,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2306,7 +2306,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -2314,7 +2314,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2391,7 +2391,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -2399,7 +2399,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2476,7 +2476,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -2484,7 +2484,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2561,7 +2561,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -2569,7 +2569,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2646,7 +2646,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -2654,7 +2654,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2731,7 +2731,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -2739,7 +2739,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2822,7 +2822,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -2830,7 +2830,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2907,7 +2907,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -2915,7 +2915,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -2992,7 +2992,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -3000,7 +3000,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -3077,7 +3077,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -3085,7 +3085,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]
@@ -3168,7 +3168,7 @@
                       "  pm.test(`spam_reason = ${EXPECT.spam}`, () => pm.expect(pat.spam_reason).to.eql(EXPECT.spam));",
                       "  if (EXPECT.injection === true) pm.test(\"injection_check: DETECTED by the model\", () => pm.expect(inj && inj.detected).to.eql(true));",
                       "  if (EXPECT.injection === false) pm.test(\"injection_check: clean\", () => pm.expect(inj && inj.detected).to.eql(false));",
-                      "  if (EXPECT.evidenceModel) pm.test(\"evidence names the model, not a pattern\", () => pm.expect(rt.evidence.some(e => e.startsWith(\"model:\"))).to.eql(true));",
+                      "  if (EXPECT.evidenceModel) pm.test(\"caught by a model (guard or head), not a pattern\", () => pm.expect(rt.evidence.some(e => /^(guard|head):/.test(e))).to.eql(true));",
                       "  if (EXPECT.risk) pm.test(`risk_classifier flags ${EXPECT.risk}`, () => pm.expect(sig.map(s => s.kind)).to.include(EXPECT.risk));",
                       "  if (EXPECT.noRisk) pm.test(\"risk_classifier: no risk\", () => pm.expect(sig).to.eql([]));",
                       "  if (EXPECT.reasons) pm.test(`reasons = ${EXPECT.reasons}`, () => pm.expect(rt.reasons).to.eql(EXPECT.reasons));",
@@ -3176,7 +3176,7 @@
                       "  if (EXPECT.destination) pm.test(`queue = ${EXPECT.destination}`, () => pm.expect(rt.destination).to.eql(EXPECT.destination));",
                       "  if (EXPECT.priority) pm.test(`priority = ${EXPECT.priority}`, () => pm.expect(rt.priority).to.eql(EXPECT.priority));",
                       "  pm.test(\"human_required (every ticket reaches a person today)\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
-                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|model|classifier|error):/)));",
+                      "  pm.test(\"evidence never contains the customer's text\", () => (rt.evidence || []).forEach(e => pm.expect(e).to.match(/^(pattern|spam|guard|head|error):/)));",
                       "});",
                       "get(10);"
                     ]

@@ -56,10 +56,24 @@ class FakeRiskClassifier:
         return r
 
 
+class FakeInjectionGuard:
+    """Stand-in for NeuralTrust: "pretend you are" is an attack (strong). Its quality is measured
+    by `copilot eval injection` with the real model, not here."""
+
+    def score(self, text: str):
+        from copilot.pipeline.injection_guard import GuardScore  # noqa: PLC0415
+
+        if "pretend you are" in text.lower():
+            return GuardScore(0.97, "strong", "fake-guard")
+        return GuardScore(0.01, None, "fake-guard")
+
+
 @pytest.fixture(autouse=True)
 def _fake_risk_classifier(monkeypatch):
-    """Graph runs without explicit Deps use the fake instead of loading bge-m3."""
-    monkeypatch.setattr(_wf, "default_deps", lambda: _wf.Deps(FakeRiskClassifier()))
+    """Graph runs without explicit Deps use the fakes instead of loading the real models."""
+    monkeypatch.setattr(
+        _wf, "default_deps", lambda: _wf.Deps(FakeRiskClassifier(), FakeInjectionGuard())
+    )
 
 
 @pytest.fixture(autouse=True)

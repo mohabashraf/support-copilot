@@ -119,6 +119,11 @@ def load_thresholds(path: Path = THRESHOLDS) -> dict[str, dict[str, float]]:
     return tomllib.loads(path.read_text(encoding="utf-8"))["risk"]
 
 
+def load_injection_rules(path: Path = THRESHOLDS) -> dict[str, float]:
+    """guard_weak, guard_strong, head_detect (the injection gate, pipeline/injection.py)."""
+    return tomllib.loads(path.read_text(encoding="utf-8"))["injection"]
+
+
 class RiskClassifier:
     def __init__(
         self,
