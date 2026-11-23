@@ -117,3 +117,26 @@ def test_worker_writes_the_processing_audit_record(env):
     _, _, audit, n = env
     event = [e for e in audit.read(n) if e["event"] == "ticket_processed"][0]
     assert event["steps"][-1] == "audit" and "masked_text_hash" in event
+
+
+def test_a_failed_ticket_can_be_handled_manually(env, monkeypatch):
+    """#34: a ticket that failed every attempt is handed to a person, who can take it over."""
+    from copilot.tickets import service  # noqa: PLC0415
+    from copilot.tickets.store import MAX_ATTEMPTS  # noqa: PLC0415
+
+    client, tickets, _, _ = env
+
+    def boom(record, deps=None, app=None, config=None, resume=False):
+        raise TimeoutError("LLM timed out")
+        yield
+
+    monkeypatch.setattr(service, "_stream", boom)
+    n = client.post("/tickets", json={"id": "F1", "body": "hi there"}, headers=HELPDESK).json()[
+        "ticket_number"
+    ]
+    for _ in range(MAX_ATTEMPTS):
+        run_once(tickets)
+    t = client.get(f"/tickets/{n}", headers=SARA).json()
+    assert t["status"] == "failed" and t["result"]["routing"]["reasons"] == ["technical_failure"]
+    r = client.post(f"/tickets/{n}/decision", json={"action": "manual"}, headers=SARA)
+    assert r.status_code == 200 and r.json()["agent_action"]["decision"] == "manual"

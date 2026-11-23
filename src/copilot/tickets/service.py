@@ -27,6 +27,7 @@ from langsmith import trace
 from copilot import telemetry as tel
 from copilot.audit import AuditLog, text_hash
 from copilot.log import get_logger
+from copilot.pipeline import routing as routing_rules
 from copilot.pipeline.pii import Masker
 from copilot.pipeline.pii_vault import PiiVault
 from copilot.pipeline.schemas import Ticket
@@ -261,6 +262,10 @@ def process(
                     "trace": traceback.format_exc(limit=3),
                 },
             )
+            if status == "failed":  # no more retries: a person takes it over
+                failed = _failed_result(app, config, err)
+                store.set_result(record.number, failed)
+                _hand_over_failed(record, failed, err, audit)
             root.end(error=str(err))
             return
 
@@ -313,6 +318,63 @@ def _stream(record: TicketRecord, deps: Deps | None, app, config: dict, resume: 
     inp = None if resume else {"ticket_id": record.external_id, **record.masked}
     for chunk in app.stream(inp, config, stream_mode="updates", context=deps):
         yield from chunk.items()
+
+
+def _failed_result(app, config: dict, err: Exception) -> dict:
+    """A ticket that failed every attempt still reaches a person (reason technical_failure),
+    with whatever the steps that DID finish found (spam, injection, risks), so the agent and the
+    routing see them. The checkpoint holds that partial state."""
+    try:
+        state = app.get_state(config).values or {}
+    except Exception:  # the checkpoint store itself may be what failed
+        state = {}
+    routing = routing_rules.decide({**state, "reasons": ["technical_failure"]})
+    routing.evidence.append(f"error:{type(err).__name__}")
+    steps = list(state.get("steps", []))
+    return {
+        "classification": None,
+        "reply": None,
+        "citations": None,
+        "routing": routing.model_dump(),
+        "patterns": state.get("patterns"),
+        "injection": state.get("injection"),
+        "risk": state.get("risk"),
+        "complete": False,
+        "steps_completed": sum(NODE_IMPLEMENTED.get(n, True) for n in steps),
+        "placeholder_nodes": [n for n in steps if not NODE_IMPLEMENTED.get(n, True)],
+        "failed": True,
+    }
+
+
+def _hand_over_failed(record: TicketRecord, result: dict, err: Exception, audit) -> None:
+    routing = result["routing"]
+    tel.TICKETS.add(
+        1,
+        {
+            "decision": routing["decision"],
+            "destination": routing["destination"],
+            "complete": "false",
+        },
+    )
+    for reason in routing["reasons"]:
+        tel.ROUTING_REASONS.add(1, {"reason": reason})
+    log.warning(
+        "ticket handed to a person after failing",
+        extra={"ticket_number": record.number, "ticket_id": record.external_id,
+               "attempts": record.attempts, "reasons": routing["reasons"],
+               "queue": routing["destination"]},
+    )  # fmt: skip
+    if audit is not None:
+        audit.write(
+            "ticket_failed",
+            ticket_number=record.number,
+            ticket_id=record.external_id,
+            attempts=record.attempts,
+            error=type(err).__name__,
+            patterns=result["patterns"],
+            injection=result["injection"],
+            routing=routing,
+        )
 
 
 def _drop_checkpoint(app, config: dict, ids: dict) -> None:

@@ -214,7 +214,7 @@ def decide(
 ) -> TicketStatus:
     agent = caller.name
     r = _get(tickets, number)
-    if r.status != "done":
+    if r.status not in ("done", "failed"):  # failed = handed to a person (technical_failure)
         raise HTTPException(409, f"ticket {number} is {r.status}: wait until the co-pilot is done")
     if r.agent_decision:
         raise HTTPException(409, f"ticket {number} was already handled by {r.agent_name}")
@@ -340,7 +340,7 @@ def _status(r: TicketRecord) -> TicketStatus:
         trace_id=r.trace_id,
         message=r.masked,
         pii_types=r.pii_types,
-        result=r.result if r.status == "done" else None,
+        result=r.result if r.status in ("done", "failed") else None,
         agent_action=action,
         error=r.error,
     )

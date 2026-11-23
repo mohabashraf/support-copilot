@@ -83,6 +83,7 @@ class TicketStore(Protocol):
         attempt: int | None = None,
     ) -> None: ...
     def finish(self, number: int, result: dict) -> None: ...
+    def set_result(self, number: int, result: dict) -> None: ...  # keeps the status
     def fail(self, number: int, error: str) -> Status: ...
     def counts(self) -> dict[str, int]: ...
     def list(
@@ -308,6 +309,12 @@ class PgTicketStore:
                 (Jsonb(result), number),
             )
 
+    def set_result(self, number, result):
+        with self.pool.connection() as conn:
+            conn.execute(
+                f"UPDATE {self.t} SET result = %s WHERE number = %s", (Jsonb(result), number)
+            )
+
     def fail(self, number, error):
         rec = self._one(
             f"""UPDATE {self.t} SET
@@ -414,6 +421,9 @@ class InMemoryTicketStore:
         rec = self.rows[number]
         rec.status, rec.result, rec.current_step = "done", result, None
         rec.finished_at, rec.lease_until = datetime.now(UTC), None
+
+    def set_result(self, number, result):
+        self.rows[number].result = result
 
     def fail(self, number, error):
         rec = self.rows[number]

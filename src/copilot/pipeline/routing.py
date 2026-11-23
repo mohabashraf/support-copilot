@@ -30,6 +30,7 @@ DESTINATION: dict[str, Destination] = {
     "prompt_injection": "senior_support",
     "security_sensitive": "senior_support",
     "no_draft": "support_agent",
+    "technical_failure": "support_agent",  # failed every attempt: a person takes it over
     # Filled in as their nodes are built (PRD FR-5.1 table):
     "hard_rule_topic": "senior_support",
     "vulnerable_customer": "senior_support",
