@@ -35,7 +35,8 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
 - **Options:** one LLM call (classify + draft together) · two LLM calls with a deterministic gate between · autonomous multi-agent system
 - **Decision:**
   - **Two LLM calls:** `classify` (structured output) → deterministic `policy_gate` → `draft` (grounded, cites, or abstains) only if allowed.
-  - **Orchestrated with LangGraph as a workflow (state machine)**, not as autonomous multi-agents. Nodes: `pii_mask` → `classify` → `policy_gate` → `draft` | `template_reply` → `post_check` → (`redraft` once) → `route`.
+  - **Orchestrated with LangGraph as a workflow (state machine)**, not as autonomous multi-agents. Nodes: `classify` → `policy_gate` → `retrieve` → `draft` | `template_reply` → `post_check` → (`redraft` once) → `compose` → `route` → `audit`.
+  - **Revised 2026-11-23: PII masking runs BEFORE the graph** (`process_ticket`), not as its first node: anything that enters a LangGraph run is recorded in the state, the LangSmith trace and Studio, so raw PII must never enter it. The placeholder → value mapping goes to the encrypted vault (D10).
 - **Why:**
   - **Safety order:** with one call, the model would already have written the forbidden content before we check it. The gate sits between classification and drafting.
   - **Cost:** blocked/routed tickets skip the drafting call.
@@ -60,7 +61,13 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
 - **Trade-offs / revisit when:** a runtime judge adds one more LLM call (latency + small cost, negligible vs agent time per the business case) and is itself an LLM that can be wrong. Thresholds are tuned on the eval set, not guessed. Benchmark compares with/without the runtime judge.
 
 ## D5. UI: CLI only, or CLI + minimal web page
-- **Status:** decided (2026-11-18)
+- **Status:** **revised 2026-11-23** (first decided 2026-11-18; kept below as superseded)
+- **Revised decision: the API exposes only what the business uses.**
+  - `POST /tickets`: the helpdesk sends a ticket and gets a ticket number (202); `GET /tickets/{number}`: status, progress and result (D11). `GET /health`: Docker's healthcheck. Responses carry no ticket text and no PII values.
+  - **Agent endpoints** (added 2026-11-23, JSON, no HTML): `GET /tickets` (inbox), `GET /tickets/{number}`, `GET /tickets/{number}/customer-details` (audited), `POST /tickets/{number}/decision` (audited). Agents act through a frontend or the helpdesk; Auth: API keys with roles (helpdesk | agent), hashes only in `.env`, fail closed; the agent's identity comes from the key. API docs only with `API_DOCS=true`. Phase 2: SSO (OIDC) for agents, signed webhooks / mTLS for the helpdesk.
+  - KB explorer, search playground and PII preview are **not** HTTP endpoints. Developers use the CLI (`copilot kb show`, `copilot search`), LangSmith for per-ticket traces, LangGraph Studio for the graph.
+  - **Why (owner's call):** every endpoint is attack surface and maintenance. A PII-preview endpoint in particular would let anyone probe what the masker misses. The real UI is the helpdesk itself (Phase 2: reply posted as a private note).
+- **Superseded first version (2026-11-18):**
 - **Context:** brief says "a minimal CLI or simple web page is enough"; FR-9 already requires a KB explorer web view; reviewers get a 60-minute walkthrough; 3–5 h timebox.
 - **Decision: CLI + one small web app.**
   - **CLI** (`copilot run tickets.jsonl`, `copilot eval`): batch processing and the eval/benchmark run; what reviewers can run in one command.
@@ -72,18 +79,25 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
 - **Trade-offs / revisit when:** web page costs ~1 h of the timebox; kept deliberately plain (no React, no auth, local only). In Phase 2 the real UI is the helpdesk itself (private note), so this page becomes an internal admin/debug tool.
 
 ## D6. Observability and audit
-- **Status:** decided (2026-11-18)
-- **Context:** regulated broker; tickets contain PII; every decision must be explainable to an auditor; 3–5 h timebox; reviewers must be able to run the repo without extra services.
-- **Options:** LangSmith · Langfuse · Arize Phoenix · Helicone · audit log only
-- **Decision:**
-  - **Our own append-only audit log, always on** (JSONL in Phase 1), storing **both the AI draft and the final sent text**.
-  - **Langfuse for LLM tracing**, optional via config flag (`TRACING=langfuse`); the app runs fully without it.
-  - **Phase 2:** Langfuse self-hosted + **OpenTelemetry** instrumentation, so the tracing vendor is swappable.
+- **Status:** **revised 2026-11-23** (first decided 2026-11-18: Langfuse; kept below as superseded)
+- **Context:** regulated broker; tickets contain PII; every decision must be explainable to an auditor; the owner wants to see the system **end to end** (API → masking → workflow → LLM → routing → database), not only LLM calls.
+- **Decision: four layers, each with one job.**
+
+  | Layer | Job | Tool (Phase 1) | Phase 2 |
+  |---|---|---|---|
+  | **Audit log** | legal record per ticket: processing (masked-text hash, steps, routing, AI draft, cited chunks), PII reveals (who, which types), agent decisions (AI draft vs final text, re-masked) | ours: append-only JSONL (`audit.py`) | insert-only Postgres table / WORM storage |
+  | **System monitoring** | rates, latency, errors, PII residual rate, routing mix, cost; alerts | **OpenTelemetry → Grafana LGTM** (Tempo traces, Prometheus metrics, Loki logs), local `grafana/otel-lgtm` container | Grafana Cloud or self-hosted LGTM, or Valetax's Datadog: same OTel code, new endpoint |
+  | **LLM debugging** | prompts, tokens and cost per call, why a draft is what it is | **LangSmith** (agent `support-copilot`, env `local`), masked text only | LangSmith self-hosted, or Langfuse self-hosted (both OTel-capable) |
+  | **App logs** | operations, one JSON line per event, never ticket text | JSON file + `copilot logs` / `copilot pii-report`, exported to Loki | the company's log platform |
+
 - **Why:**
-  - Audit ≠ tracing: the audit log is the legal record and must be ours, complete and retained per regulation.
-  - Langfuse is open source and self-hostable for free → in production, ticket data stays on the broker's infrastructure. Works without LangChain.
-  - Chosen over LangSmith (which I've run in production) because LangSmith self-hosting needs an enterprise plan; over Helicone because a proxy adds a third party in the data path; Phoenix is a fine alternative but one tool is enough.
-- **Trade-offs / revisit when:** Langfuse self-hosting needs several services (Postgres, ClickHouse, Redis, object storage), so it is not set up in Phase 1; demo uses the free cloud tier with synthetic tickets only. Revisit if Valetax already standardises on another tool (OpenTelemetry makes the switch cheap).
+  - **OpenTelemetry is the vendor-neutral standard:** instrument once (FastAPI, psycopg, our spans and metrics), send anywhere. No lock-in, and a PUSH model, so the API exposes no extra endpoint (D5).
+  - **LangSmith is the right tool for LangGraph/LLM debugging** but not for counters, trends and alerts on non-LLM data such as masking. Monitoring belongs in a metrics system.
+  - **Self-hostable end to end:** for a broker, ticket data and telemetry can stay on its own infrastructure.
+  - **Audit ≠ tracing:** tracing tools have retention limits and are for engineers; the audit log is the legal record and must be ours.
+  - **Ticket list in Grafana without PII:** Grafana reads Postgres through the role `grafana_ro`, which may SELECT only the view `tickets_monitoring` (derived non-text columns: status, steps, routing, agent decision, timings); `tickets` (masked message, draft, final text) and `pii_vault` are denied (verified).
+  - **Cross-linked IDs:** the OTel `ticket` span carries `langsmith.trace_id`; the LangSmith run carries `otel_trace_id`; logs carry both, so you can go dashboard → trace → logs → LLM call.
+- **Superseded first version (2026-11-18):** Langfuse for LLM tracing, OTel in Phase 2. Changed because the owner chose LangSmith (production experience, zero-code LangGraph tracing) and asked for system-wide monitoring now; Langfuse remains the Phase 2 option if LangSmith self-hosting is not available.
 
 ## D7. Vector store: pgvector (with an in-memory index for tests)
 - **Status:** decided (2026-11-18)
@@ -144,9 +158,40 @@ Template: Context → Options → Decision → Why → Trade-offs / revisit when
   - **Indexer order:** (1) add vectors for new versions (not searchable yet), (2) write chunks in one transaction (new versions searchable at once), (3) delete versions nothing matches.
   - **No KB snapshot in the server:** the explorer and `/health` read `kb_chunks` per request; the hot-reload watcher (built earlier the same day) was removed. A `kb index` run is visible to every server process immediately.
   - Startup still checks that the served model has vectors for every stored chunk (`require_indexed`), to catch "serving a model nobody indexed".
-- **Verified:** regression test runs a search between steps 1 and 2: every hit equals the stored version, text included, and a new chunk is not visible until step 2; a running app shows a new chunk on `/health`, `/kb/chunks/{id}` and `/search` with no reload. Retrieval eval unchanged (R@3 0.89, MRR 0.825).
+- **Verified:** regression test runs a search between steps 1 and 2: every hit equals the stored version, text included, and a new chunk is not visible until step 2; a running app shows a new chunk on `/health`, in the store and in search results with no reload (test updated 2026-11-23 when the KB/search endpoints were removed, D5). Retrieval eval unchanged (R@3 0.89, MRR 0.825).
 - **Trade-offs / revisit when:**
   - Each explorer or health request reads Postgres (fine at this scale; add caching only if measured).
   - HNSW + JOIN + flag filter can return fewer than k rows when many rows are filtered out; at our scale it doesn't, and pgvector's iterative index scans (`hnsw.iterative_scan`) are the fix if it does.
   - The vector table may hold two versions of a chunk during a run (tiny: changed chunks only).
+
+## D10. PII masking: Presidio + GLiNER, with an encrypted vault
+- **Status:** decided (2026-11-23)
+- **Context:** tickets carry cards, IBANs, phones, passport and account numbers, names and addresses, in many languages (Arabic, Arabizi, Russian, Vietnamese...). PII must not reach the LLM, LangSmith, logs or the audit log. The KB answers need the rest of the text intact (amounts, timelines, countries for compliance routing).
+- **Options:** own regex · Presidio with spaCy (English NER) · Presidio + a multilingual NER model (GLiNER-PII) · a cloud PII API
+- **Decision:**
+  - **Presidio Analyzer** as the framework. **Deterministic, checksum-validated patterns for identifiers** (cards with Luhn, IBAN with checksum, email, phones validated by Google's phonenumbers with Egypt/Gulf regions) + **our recognizers** for document and account numbers that only count next to a context word (English and Arabic).
+  - **GLiNER-PII (`urchade/gliner_multi_pii-v1`) as a Presidio recognizer for names and street addresses** in any language, with rules on top: pronouns/relatives/roles are never names; below score 0.8 a name needs a capitalised word that is not just sentence-initial; an address must contain a number (a city or country alone is not PII and the compliance check needs it).
+  - **Masking happens before the graph** (D3). Placeholders are typed and numbered in reading order, shared across subject and body (`[NAME_1]` is the same person everywhere).
+  - **Encrypted vault:** the placeholder → value mapping is stored in Postgres `pii_vault`, Fernet-encrypted (key in `.env`, KMS in Phase 2), expiring after `PII_RETENTION_DAYS` (30), idempotent per ticket. Cards, documents and accounts are never shown back in full (`**** 1111`).
+  - **Monitoring:** per ticket, detections (type, recognizer, score; never values) in the LangSmith `pii_mask` step and as OTel metrics; a **residual check** flags text that still looks like PII after masking (e.g. a mistyped card that fails Luhn) as a WARNING + metric, alertable.
+- **Why:** patterns are exact and explainable for identifiers; only a model finds names, and only a multilingual one finds Arabic names. Scores alone could not separate non-names ("friend" 0.87) from names ("Mohamed Samir" 0.56), so lexical rules were added and measured.
+- **Measured (`copilot eval pii`, docs/BENCHMARK.md):** on 20 NEW multilingual cases: GLiNER masks **22/22 values** and keeps 24/25 non-PII words; spaCy-only masks 14/22 (misses every non-English name). On the 76 labelled tickets: exact type match 1.00 (optimistic: rules were tuned there). Latency p50 ~170 ms per ticket (spaCy mode 5 ms).
+- **Trade-offs / revisit when:** GLiNER adds ~1 GB of model and ~170 ms; 8-digit numbers are masked as phones (valid in Qatar/Bahrain/Oman), e.g. an order number; lowercase Latin names below 0.8 are missed. Revisit with a larger labelled PII set from production samples; add more languages' pronoun lists as they appear.
+
+## D11. Tickets are background jobs: Postgres queue + worker processes
+- **Status:** decided (2026-11-23)
+- **Context:** processing a ticket means two LLM calls (seconds, sometimes timeouts or rate limits); the helpdesk must not wait or time out; a crash must never lose a ticket (NFR-7); webhooks are delivered more than once (NFR-4d); volume ~10,000/month (≈1–2/min at peak, 10× spikes).
+- **Options:** synchronous request · FastAPI BackgroundTasks (in-process) · Celery/RQ + Redis · a Postgres table as the queue
+- **Decision: Postgres table `tickets` as the queue, `copilot worker` processes.**
+  - `POST /tickets`: mask PII + vault + INSERT (status `queued`) → **202 + ticket number**. The helpdesk ticket ID is UNIQUE: the same ID again returns the existing ticket (200).
+  - Worker: claims the oldest claimable ticket with `UPDATE … WHERE number = (SELECT … FOR UPDATE SKIP LOCKED LIMIT 1)`, runs the LangGraph workflow with `stream`, saving each finished node (`current_step`, `steps`), then `done` + result.
+  - Errors → back to `queued` with the error, retried up to **3 attempts**, then `failed` (kept for a person). A claim takes a **5-minute lease**, renewed on every node; a crashed worker's ticket becomes claimable again when the lease expires.
+  - `GET /tickets/{number}`: status, current step, steps done, attempts, timings, trace ID, result or error.
+- **Why:**
+  - **No new infrastructure:** Postgres already holds the KB, vectors and vault; it is durable and transactional. SKIP LOCKED is the standard multi-worker queue pattern; at this volume it is far from its limits.
+  - **Only masked text is queued:** masking happens at intake, so the queue holds no raw PII.
+  - **Not BackgroundTasks:** in-process jobs die with the API process and can't scale separately.
+  - **Not Celery + Redis:** a second datastore to run and secure, and a broker that can lose messages unless configured carefully; nothing here needs its features yet.
+- **Observability:** queue depth by status (gauge), queue wait (histogram), failures (retried / final) on the Grafana dashboard; each ticket has an intake trace and a processing trace (LangSmith + OTel), linked by the ticket number.
+- **Trade-offs / revisit when:** workers poll every 0.5 s when idle (Phase 2: LISTEN/NOTIFY); a ticket re-runs from the start after a crash or error (nodes are idempotent; Phase 2: LangGraph checkpointer to resume mid-graph, also needed for the human-in-the-loop interrupt, FR-5b); move to a dedicated broker (SQS, RabbitMQ) only if volume grows by orders of magnitude or other services need the events.
 

@@ -1,4 +1,4 @@
-# Business case (draft v0.1, numbers are ASSUMPTIONS)
+# Business case (draft v0.2: LLM numbers still ASSUMPTIONS, infrastructure costs measured)
 
 **Question:** is this worth running at ~10,000 tickets/month, and with which configuration?
 
@@ -55,3 +55,15 @@
 ## Recommended configuration (to be confirmed by the eval run)
 - Phase 1: top-k retrieval (D1); deterministic pre/post checks; **one model that passes the eval with 0 violations**, choosing the cheaper one if several pass; prompt caching on.
 - Revisit when: volume grows ~5×, the KB passes ~20–30k tokens, or measured cost/latency exceeds target.
+
+## Measured so far (2026-11-23)
+| Item | Measured | Effect on the case |
+|---|---|---|
+| PII masking (Presidio + GLiNER, CPU) | ~170 ms per ticket, no API cost | negligible; runs on the same server |
+| Retrieval (bge-m3 + pgvector, CPU) | ~45 ms per query, no API cost | negligible |
+| End-to-end without LLM calls (`copilot replay`, 76 tickets) | p95 ≈ 250 ms | the 10 s budget is left for the two LLM calls |
+| Monitoring (OTel + Grafana LGTM) | open source, self-hosted; Grafana Cloud free tier covers this volume | ≈ $0 Phase 1; Phase 2 depends on Valetax's existing stack |
+| **LLM cost and quality per configuration** | **pending**: needs the end-to-end eval run (blocked on a valid API key) | replaces the "Running cost" assumptions above |
+
+Until the LLM run, the conclusion rests on the assumption table; the infrastructure side adds no material cost.
+

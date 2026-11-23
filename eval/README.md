@@ -12,7 +12,12 @@ Three levels, cheapest first. Each catches a different kind of failure.
 
 ---
 
-## Level 1: unit tests (planned, `tests/`)
+## Level 2d: PII masking eval (`copilot eval pii`)
+- `eval/pii_cases.jsonl`: 20 multilingual cases written after the masking rules were tuned (the honest test): every real value must disappear, every non-PII word must stay.
+- The 76 labelled tickets: per-type precision/recall against `expected.pii_types` (regression check).
+- Results: docs/BENCHMARK.md → PII masking results.
+
+## Level 1: unit tests (`tests/`)
 
 | Module | Must prove |
 |---|---|

@@ -1,6 +1,6 @@
 {
  "model": "bge-m3",
- "store": "memory",
+ "store": "pgvector",
  "kb_hash": "27685a121349f624",
  "queries": {
   "r1": 0.745,

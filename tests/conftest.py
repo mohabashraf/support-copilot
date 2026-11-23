@@ -1,6 +1,12 @@
 """Fixtures shared by several test files (pytest loads this file automatically)."""
 
+import os
+
 import pytest
+
+# Tests never send traces to LangSmith (a real key in .env must not make tests hit the network).
+os.environ["LANGSMITH_TRACING"] = "false"
+os.environ["OTEL_ENABLED"] = "false"  # nor OpenTelemetry data to a collector
 
 from copilot.config import Settings
 from copilot.db import open_pool

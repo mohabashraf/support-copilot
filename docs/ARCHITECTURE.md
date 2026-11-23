@@ -80,13 +80,13 @@ flowchart TB
         Rules["Rules & config<br/>categories, thresholds,<br/>language tiers, templates"]
         LLMIF["LLM interface<br/>(provider-agnostic)"]
         Audit["Audit log<br/>append-only JSONL"]
-        Trace["Tracing<br/>Langfuse (optional)"]
+        Trace["Monitoring: OTel → Grafana<br/>LLM traces: LangSmith"]
     end
 
     subgraph Outputs
         Results["results.jsonl"]
         CLIOUT["CLI view"]
-        Web["Web app: ticket view,<br/>KB explorer, search playground"]
+        Web["POST /tickets response<br/>(Phase 2: helpdesk private note)"]
     end
 
     Claude["Claude API"]
@@ -333,7 +333,7 @@ flowchart LR
     DIFF -->|"written last"| KBT
     subgraph SRV["SERVING: server / CLI search (read-only)"]
         SEARCH["search: ONE JOIN<br/>vector + chunk, same version<br/>→ top-k for the draft prompt"]
-        EXP["KB explorer + /health<br/>read kb_chunks per request"]
+        EXP["/health + CLI kb show<br/>read kb_chunks per request"]
     end
     KBT --> SEARCH
     VEC --> SEARCH
@@ -369,23 +369,26 @@ What leaves our service, and in what form.
 ```mermaid
 flowchart LR
     subgraph Ours["Inside our service (trusted boundary)"]
-        T["ticket<br/>(raw, with PII)"] --> M["pii_mask"]
-        M --> MAP[("PII map<br/>CARD_1 → value<br/>memory / encrypted,<br/>short-lived")]
+        T["ticket<br/>(raw, with PII)"] --> M["mask (Presidio + GLiNER)<br/>BEFORE the graph"]
+        M --> MAP[("pii_vault (Postgres)<br/>CARD_1 → Fernet(value)<br/>expires after 30 days")]
         M --> MT["masked text"]
-        MT --> CORE["workflow"]
+        MT --> CORE["LangGraph workflow"]
         CORE --> AUD[("audit log<br/>masked text + hash,<br/>draft AND final")]
     end
 
     subgraph External
         LLM["Claude API<br/>no training on data,<br/>zero retention where available"]
-        LF["Langfuse<br/>Phase 1: free cloud, synthetic only<br/>Phase 2: self-hosted"]
+        LS["LangSmith<br/>LLM traces, masked only<br/>Phase 2: self-hosted"]
+        OBS["OTel Collector → Grafana<br/>(Tempo / Prometheus / Loki)<br/>IDs, types, counts, timings only<br/>Phase 1: local container"]
     end
 
     CORE -->|"masked text only"| LLM
-    CORE -.->|"masked traces"| LF
+    CORE -.->|"masked traces"| LS
+    M -.->|"detections: type, recognizer, score<br/>never values"| OBS
+    CORE -.->|"spans, metrics, logs"| OBS
 ```
 
-The PII map **never** crosses the boundary: it is not sent to the LLM, not traced, not logged in clear text.
+The PII map **never** crosses the boundary: it is not sent to the LLM, not traced, not logged in clear text. Monitoring (D6) sees detections and counts only; a residual check flags text that still looks like PII after masking. Observability layers and tools: [DECISIONS.md D6](DECISIONS.md), PII engine: [D10](DECISIONS.md).
 
 ---
 
@@ -436,7 +439,7 @@ flowchart TB
 
     subgraph Obs["Observability"]
         OTEL["OpenTelemetry collector<br/>(PII filter)"]
-        LF["Langfuse (self-hosted)"]
+        LF["Grafana LGTM / Datadog (OTel)<br/>+ LangSmith or Langfuse self-hosted"]
         MET["Metrics + alerts<br/>violations, abstain rate,<br/>latency, cost"]
     end
     W1 -.-> OTEL
@@ -520,7 +523,7 @@ stateDiagram-v2
 | KB updates | `copilot kb index`: incremental (per-chunk hash), only writer (D8) | same job, triggered on KB/SOP change (CI or scheduler) + conflict report |
 | Vector store | pgvector (Docker) or in-memory (tests) | pgvector + Postgres full-text for hybrid search |
 | Audit log | append-only JSONL | insert-only Postgres / write-once storage |
-| Tracing | Langfuse optional (cloud, synthetic data) | Langfuse self-hosted via OpenTelemetry |
+| Monitoring / tracing | OTel → local Grafana LGTM (metrics, traces, logs); LangSmith for LLM calls (masked) | same OTel code → Grafana Cloud / self-hosted LGTM / Datadog, with alerts; LangSmith or Langfuse self-hosted |
 | Cost control | prompt caching | + answer cache, model split per step |
 | **Unchanged** | the LangGraph co-pilot core, prompts, rules, eval set | same |
 
@@ -537,16 +540,18 @@ src/copilot/
 ├── config.py               settings: models, thresholds, categories, language tiers (env + toml)
 │
 ├── server/                 ── ENTRY POINT: the FastAPI web server (thin) ──
-│   ├── app.py              create_app(): builds the app (KB, retriever, routes); main.py runs it
-│   ├── deps.py             shared dependencies (KB, retriever, workflow)
+│   ├── app.py              create_app(): only POST /tickets + GET /health (D5 revised); main.py runs it
+│   ├── deps.py             shared dependencies (KB, masker, vault)
 │   ├── middleware.py       request ID + one log line per request    ✅
 │   └── routes/
 │       ├── health.py       GET /health                         ✅
-│       ├── kb.py           GET /kb/chunks, /kb/chunks/{id}      ✅
-│       ├── search.py       POST /search  (playground)
-│       ├── tickets.py      POST /tickets, GET /tickets/{id}, POST /tickets/{id}/resume (HITL)
-│       ├── webhook.py      POST /webhook/helpdesk  (Phase 2)
-│       └── pages.py        HTML pages: ticket view, KB explorer (FR-9)
+│       ├── tickets.py      POST /tickets (202 + number), GET /tickets/{number}  ✅
+│       └── webhook.py      POST /webhook/helpdesk  (Phase 2)
+│
+├── tickets/                ── BACKGROUND JOBS (D11) ──
+│   ├── store.py            Postgres queue: create (idempotent), claim (SKIP LOCKED + lease), finish, fail  ✅
+│   ├── service.py          intake (mask → vault → enqueue) and process (graph.stream, step by step)  ✅
+│   └── worker.py           `copilot worker` loop, graceful stop  ✅
 │
 ├── db.py                   one Postgres connection pool per process (shared by store + index)  ✅
 ├── services.py             KB reader + retriever, READ-ONLY, no KB snapshot (D8, D9)   ✅
@@ -611,7 +616,7 @@ Full reasoning in [DECISIONS.md](DECISIONS.md).
 | Model chosen by benchmark (D2) | Cheapest configuration with 0 violations; model cost is small vs agent time. |
 | Layered confidence (D4) | Rules + self-report + LLM judge; no single signal trusted alone. |
 | CLI + small web app (D5) | Runnable in one command; visual walkthrough. |
-| Own audit log + Langfuse (D6) | Audit is the legal record (draft and final); tracing is for debugging. |
+| Own audit log + OTel/Grafana + LangSmith (D6) | Audit is the legal record (draft and final); Grafana monitors the system; LangSmith debugs LLM calls. |
 | pgvector, not a separate vector DB (D7) | Postgres is needed anyway in Phase 2; one database to run, secure and back up; right size for the scale |
 | Simple queue, not Kafka | 1–2 tickets/min at peak; need retries and spikes, not throughput. |
 | Fail-open | If the co-pilot is down, agents work as before. |

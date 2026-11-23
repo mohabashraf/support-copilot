@@ -1,0 +1,604 @@
+{
+  "info": {
+    "name": "Support Co-pilot (Valetax test task)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Business API only (JSON): POST /tickets (helpdesk), GET /tickets (agent inbox), GET /tickets/{number}, GET /tickets/{number}/customer-details (audited), POST /tickets/{number}/decision (audited), GET /health (Docker).\n\nRun: API `uv run python -m copilot.main` + worker `uv run copilot worker`, then Runner → Run collection (folders in order).\n\nAuth: set collection variables helpdeskKey and agentKey (secret). Local keys: ~/.support-copilot-keys (create new ones: `uv run copilot keys new <name> <helpdesk|agent>`)."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "ticketNumber",
+      "value": ""
+    },
+    {
+      "key": "ticketId",
+      "value": ""
+    },
+    {
+      "key": "helpdeskKey",
+      "value": "",
+      "type": "secret"
+    },
+    {
+      "key": "agentKey",
+      "value": "",
+      "type": "secret"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Health",
+      "description": "Server up, KB loaded from Postgres.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"KB loaded\", () => { pm.expect(b.status).to.eql(\"ok\"); pm.expect(b.chunks).to.eql(26); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Tickets",
+      "description": "Tickets are background jobs: POST returns a ticket number at once (202), the worker runs the workflow, GET shows where it stands. Start the worker first: `uv run copilot worker`. Requests here use the HELPDESK key ({{helpdeskKey}}).",
+      "item": [
+        {
+          "name": "1. Create ticket → 202 + ticket number",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tickets",
+            "description": "Masking + vault + enqueue happen here (~200 ms). The worker (`uv run copilot worker`) processes it in the background.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"PM-{{$timestamp}}\",\n  \"subject\": \"Deposit failed for Ahmed Hassan\",\n  \"body\": \"My card 4111 1111 1111 1111 failed twice. Passport number A12345678. Call +20 100 123 4567. What is the minimum deposit?\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{helpdeskKey}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"got a ticket number, status queued\", () => { pm.expect(b.ticket_number).to.be.a(\"number\"); pm.expect(b.status).to.eql(\"queued\"); });",
+                  "pm.test(\"Location header points to the status URL\", () => pm.expect(pm.response.headers.get(\"Location\")).to.eql(`/tickets/${b.ticket_number}`));",
+                  "pm.test(\"no real PII value in the response\", () => [\"4111\", \"Ahmed Hassan\", \"A12345678\"].forEach(v => pm.expect(pm.response.text()).to.not.include(v)));",
+                  "pm.collectionVariables.set(\"ticketNumber\", b.ticket_number);",
+                  "pm.collectionVariables.set(\"ticketId\", b.ticket_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Ticket status (right away)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tickets/{{ticketNumber}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{helpdeskKey}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"a valid status\", () => pm.expect([\"queued\",\"processing\",\"done\",\"failed\"]).to.include(b.status));",
+                  "pm.test(\"progress fields present\", () => { pm.expect(b).to.have.property(\"current_step\"); pm.expect(b.steps_done).to.be.an(\"array\"); pm.expect(b.max_attempts).to.eql(3); });",
+                  "console.log(`ticket ${b.ticket_number}: ${b.status}, step ${b.current_step}, done ${b.steps_done.length}/8`);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Ticket status (after the worker) → done + result",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tickets/{{ticketNumber}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{helpdeskKey}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// give the background worker a moment (real LLM runs take seconds: poll in a loop)",
+                  "setTimeout(() => {}, 1500);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"done (is the worker running? uv run copilot worker)\", () => pm.expect(b.status).to.eql(\"done\"));",
+                  "pm.test(\"every workflow step recorded\", () => pm.expect(b.steps_done).to.eql([\"classify\",\"policy_gate\",\"retrieve\",\"draft\",\"post_check\",\"compose\",\"route\",\"audit\"]));",
+                  "pm.test(\"result with routing\", () => pm.expect(b.result.routing).to.have.property(\"decision\"));",
+                  "pm.test(\"timings\", () => { pm.expect(b.seconds_in_queue).to.be.a(\"number\"); pm.expect(b.seconds_processing).to.be.a(\"number\"); });",
+                  "pm.test(\"no real PII value\", () => [\"4111\", \"Ahmed Hassan\", \"A12345678\"].forEach(v => pm.expect(pm.response.text()).to.not.include(v)));",
+                  "console.log(\"LangSmith trace:\", b.trace_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Same ticket ID again → same number, nothing re-queued",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tickets",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{ticketId}}\",\n  \"subject\": \"resent by the helpdesk\",\n  \"body\": \"same webhook delivered twice\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{helpdeskKey}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 (already known)\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"same ticket number\", () => pm.expect(pm.response.json().ticket_number).to.eql(Number(pm.collectionVariables.get(\"ticketNumber\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Arabic ticket with PII → 202",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tickets",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"PM-AR-{{$timestamp}}\",\n  \"subject\": \"سحب\",\n  \"body\": \"أنا محمد علي، سحبت فلوسي بقالها ٣ أيام ومفيش حاجة حصلت. رقمي 01001234567\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{helpdeskKey}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"202\", () => pm.response.to.have.status(202));",
+                  "pm.test(\"no real PII value\", () => [\"محمد علي\",\"01001234567\"].forEach(v => pm.expect(pm.response.text()).to.not.include(v)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Possible PII miss (mistyped card) → 202; see monitoring",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tickets",
+            "description": "Fails the Luhn check, so it is not masked as a card. Monitoring flags it: `uv run copilot logs --level WARNING`, Grafana panel 'Possible misses'.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"PM-RES-{{$timestamp}}\",\n  \"subject\": \"Card problem\",\n  \"body\": \"I typed my card as 4111 1111 1111 1112 and it failed\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{helpdeskKey}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"202\", () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Unknown ticket → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tickets/999999999",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{helpdeskKey}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Missing body → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tickets",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"PM-BAD\",\n  \"subject\": \"no body\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{helpdeskKey}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. No key → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tickets/1",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 without an API key\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Agent",
+      "description": "What a support agent (through a frontend or the helpdesk) calls, with an AGENT key (collection auth: {{agentKey}}). The agent's name comes from the key. Run after folder 1.",
+      "item": [
+        {
+          "name": "1. Inbox (all)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tickets",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"counts + items\", () => { pm.expect(b.counts).to.be.an(\"object\"); pm.expect(b.items).to.be.an(\"array\"); });",
+                  "pm.test(\"rows carry progress and routing\", () => b.items.slice(0,5).forEach(r => { pm.expect(r.progress).to.match(/^\\d\\/8$/); pm.expect(r).to.have.property(\"queue\"); }));",
+                  "pm.test(\"no real PII value\", () => pm.expect(pm.response.text()).to.not.include(\"4111 1111 1111 1111\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Inbox: support_agent queue, done",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tickets?queue=support_agent&status=done",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"filtered\", () => pm.response.json().items.forEach(r => { pm.expect(r.queue).to.eql(\"support_agent\"); pm.expect(r.status).to.eql(\"done\"); }));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Open the ticket (masked message + draft)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tickets/{{ticketNumber}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"masked customer message\", () => pm.expect(b.message.body).to.include(\"[CARD_1]\"));",
+                  "pm.test(\"no real PII value\", () => [\"4111 1111 1111 1111\", \"Ahmed Hassan\", \"A12345678\"].forEach(v => pm.expect(pm.response.text()).to.not.include(v)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Customer details with the helpdesk key → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tickets/{{ticketNumber}}/customer-details",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{helpdeskKey}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403: only agents may see customer details\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Customer details (audited)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tickets/{{ticketNumber}}/customer-details",
+            "description": "Recorded in logs/audit.jsonl as pii_revealed with the agent's name."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"card only last 4\", () => pm.expect(b[\"[CARD_1]\"]).to.eql(\"**** 1111\"));",
+                  "pm.test(\"name revealed to the agent\", () => pm.expect(b[\"[NAME_1]\"]).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Decision: send the draft (edited)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tickets/{{ticketNumber}}/decision",
+            "description": "Placeholders are filled in for the customer at send time; stored and audited re-masked next to the AI draft.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"send\",\n  \"final_text\": \"Dear [NAME_1], sorry for the trouble with card [CARD_1]. The minimum deposit is 8 USD.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const a = pm.response.json().agent_action;",
+                  "pm.test(\"recorded as edited by the agent\", () => { pm.expect(a.decision).to.eql(\"edited\"); pm.expect(a.agent).to.be.a(\"string\"); });",
+                  "pm.test(\"final text stored masked\", () => { pm.expect(a.final_text_masked).to.not.include(\"4111\"); pm.expect(a.final_text_masked).to.include(\"[CARD_1]\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Second decision → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tickets/{{ticketNumber}}/decision",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"manual\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"409 already handled\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{agentKey}}",
+        "type": "string"
+      }
+    ]
+  }
+}

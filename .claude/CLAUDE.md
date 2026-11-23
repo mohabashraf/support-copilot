@@ -19,9 +19,13 @@ uv run ruff format . && uv run ruff check .   # PEP 8 (hook + CI enforce it)
 docker compose up -d db                       # database only, for local development
 uv run copilot kb index                       # INGESTION: after any change to knowledge_base/ (D8)
 uv run python -m copilot.main                 # server: http://127.0.0.1:8000/docs
+uv run copilot worker                         # background worker (processes queued tickets)
 uv run copilot search "minimum deposit"       # read-only search
 uv run copilot eval retrieval                 # recall / precision / MRR; compare with eval/results/
-docker compose up --build                     # whole stack: db → indexer → app
+docker compose up --build                     # whole stack: db → indexer → app + lgtm (Grafana :3000)
+uv run copilot eval pii                       # PII masking eval (new cases + labelled tickets)
+uv run copilot replay                         # send the eval tickets to the running API (dashboard demo)
+uv run copilot logs -f | uv run copilot pii-report   # app logs / masking summary
 ```
 
 ## Where is X
@@ -41,6 +45,16 @@ docker compose up --build                     # whole stack: db → indexer → 
 | Retrieval metrics | `eval/metrics.py`, `eval/retrieval.py`, data in `eval/*.jsonl` |
 | HTTP routes | `server/routes/` |
 | Logging | `src/copilot/log.py` |
+| Ticket workflow (LangGraph) + `process_ticket` | `src/copilot/pipeline/workflow.py` |
+| PII masking (Presidio + GLiNER) / encrypted vault | `pipeline/pii.py` / `pipeline/pii_vault.py` |
+| Data models (ticket, LLM outputs, result) | `pipeline/schemas.py` |
+| Ticket API: helpdesk `POST /tickets` + agent endpoints (inbox, ticket, customer-details, decision) | `server/routes/tickets.py` |
+| API keys with roles (helpdesk / agent), `copilot keys new` | `server/auth.py` |
+| Audit log (append-only JSONL) | `src/copilot/audit.py` |
+| Queue (Postgres) / intake + processing / worker loop | `tickets/store.py` / `tickets/service.py` / `tickets/worker.py` |
+| LangSmith tracing / OpenTelemetry → Grafana | `src/copilot/tracing.py` / `src/copilot/telemetry.py` |
+| Grafana dashboard | `observability/grafana/dashboards/support-copilot.json` |
+| PII eval | `src/copilot/eval/pii.py`, data `eval/pii_cases.jsonl` |
 
 ## Gotchas
 - After changing `knowledge_base/` run `copilot kb index`: running servers see it at once (no KB copy in memory, D9). A starting server refuses a model with no vectors.
@@ -49,7 +63,13 @@ docker compose up --build                     # whole stack: db → indexer → 
 - Adding a setting: `.env.example` + `config.py` + your `.env`, all three (skill `add-setting`).
 - e5 embedding models need the `query: ` / `passage: ` prefixes (`retrieval/embeddings.py` `MODELS`).
 - Imports go at the top (Ruff PLC0415). The only exception is `sentence_transformers` (loads torch, ~9 s).
-- Never log ticket or query text (PII): log lengths, IDs, scores and timings.
+- Never log ticket or query text (PII): log lengths, IDs, scores and timings. Same for traces and metrics (no ticket IDs as metric labels: cardinality).
+- PII is masked BEFORE the graph (`process_ticket`): never pass raw ticket text into `graph.invoke`.
+- The API exposes only the ticket endpoints and `GET /health` (D5): JSON only, no HTML, no debug endpoints.
+- Responses show masked text; real values only through the audited customer-details endpoint; final texts are stored re-masked.
+- Every endpoint except `/health` requires `Depends(require(<roles>))`; never trust a client-sent identity (the agent comes from the key). `.env` holds key hashes only.
+- Workflow nodes must be idempotent: a ticket re-runs from the first node after an error or a worker crash (D11).
+- The `tickets` and `pii_vault` tables are NOT derived data: never drop them on a schema change.
 - Vector tables are derived data: on a schema change drop them and re-run `kb index`. Not true for future audit tables.
 - Colima has no BuildKit: no `RUN --mount` in the Dockerfile.
 

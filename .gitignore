@@ -3,3 +3,9 @@ __pycache__/
 .env
 notes/
 logs/
+
+# LangGraph Studio dev server state
+.langgraph_api/
+
+# Local API keys (plain text): never commit. .env holds only their hashes.
+.support-copilot-keys

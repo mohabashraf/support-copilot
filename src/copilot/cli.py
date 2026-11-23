@@ -12,8 +12,10 @@ from pathlib import Path
 
 import typer
 
+from copilot import telemetry
 from copilot.config import get_settings
 from copilot.db import open_pool
+from copilot.eval import pii as pii_eval
 from copilot.eval import retrieval as retrieval_eval
 from copilot.kb.ingest import build_kb
 from copilot.kb.store import KBStore
@@ -22,9 +24,12 @@ from copilot.retrieval.embeddings import get_embedder
 from copilot.retrieval.index import PgVectorIndex
 from copilot.retrieval.indexer import index_kb
 from copilot.services import NotIndexedError, load_services
+from copilot.tracing import configure_tracing, flush_traces
 
 app = typer.Typer(help="Support-ticket co-pilot")
 kb_app = typer.Typer(help="Knowledge-base commands")
+keys_app = typer.Typer(help="API keys (server/auth.py)")
+app.add_typer(keys_app, name="keys")
 app.add_typer(kb_app, name="kb")
 eval_app = typer.Typer(help="Evaluation commands")
 app.add_typer(eval_app, name="eval")
@@ -36,6 +41,10 @@ def _setup() -> None:
 
     st = get_settings()
     setup_logging(st)
+    if configure_tracing(st):
+        atexit.register(flush_traces)  # traces are sent in the background
+    if telemetry.setup_telemetry(st):
+        atexit.register(telemetry.shutdown)
 
 
 @kb_app.command("show")
@@ -145,3 +154,210 @@ def eval_retrieval(
     if out:
         Path(out).write_text(json.dumps(rep, ensure_ascii=False, indent=1), encoding="utf-8")
         typer.echo(f"report → {out}")
+
+
+@eval_app.command("pii")
+def eval_pii(
+    ner: str = typer.Option(None, help="gliner | spacy (default: PII_NER from .env)"),
+    out: str = typer.Option(None, help="Write the full JSON report here"),
+) -> None:
+    """PII masking: value recall + keep precision on NEW cases; per-type scores on 76 tickets."""
+    from copilot.pipeline.pii import Masker  # noqa: PLC0415
+
+    st = get_settings()
+    masker = Masker(ner or st.pii_ner, st.pii_gliner_model, st.pii_gliner_threshold)
+    rep = pii_eval.run(masker)
+    n, t = rep["new_cases"], rep["tickets"]
+    typer.echo(
+        f"NER {rep['ner']} · latency p50 {rep['latency_ms']['p50']} ms, "
+        f"p95 {rep['latency_ms']['p95']} ms"
+    )
+    typer.echo(
+        f"NEW CASES (n={n['n']}): value recall {n['value_recall']} "
+        f"({n['leaked']}/{n['values']} leaked) · keep precision {n['keep_precision']} "
+        f"({n['lost']}/{n['keeps']} wrongly masked)"
+    )
+    for f in n["failures"]:
+        typer.echo(
+            f"  {f['id']} {f['lang']}: missed {f['missed_values']} value(s), lost {f['lost_keep']}"
+        )
+    typer.echo(
+        f"TICKETS (n={t['n']}): exact type match {t['exact_match']} · "
+        f"residual-suspect tickets {t['residual_suspect_tickets']}"
+    )
+    for k, v in t["per_type"].items():
+        typer.echo(
+            f"  {k:8} precision {v['precision']}  recall {v['recall']}  "
+            f"(tp {v['tp']} fp {v['fp']} fn {v['fn']})"
+        )
+    for f in t["failures"][:10]:
+        typer.echo(f"  {f['id']}: expected {f['expected']} got {f['got']}")
+    if out:
+        Path(out).write_text(json.dumps(rep, ensure_ascii=False, indent=1), encoding="utf-8")
+        typer.echo(f"report → {out}")
+
+
+@app.command("graph")
+def graph_cmd() -> None:
+    """Print the ticket workflow as a Mermaid diagram (paste into the README or mermaid.live)."""
+    from copilot.pipeline.workflow import graph  # noqa: PLC0415  (loads LangGraph only when used)
+
+    typer.echo(graph.get_graph().draw_mermaid())
+
+
+@app.command("logs")
+def logs_cmd(
+    last: int = typer.Option(30, help="Show the last N lines"),
+    follow: bool = typer.Option(False, "--follow", "-f", help="Keep printing new lines"),
+    grep: str = typer.Option(None, help="Only lines containing this (request_id, ticket_id...)"),
+    level: str = typer.Option(None, help="Only this level: INFO, WARNING, ERROR"),
+) -> None:
+    """Read the app log (logs/copilot.log, JSON lines) as one readable line per event."""
+    import time  # noqa: PLC0415
+
+    path = get_settings().log_file
+    if path is None or not path.exists():
+        typer.echo(f"no log file ({path}); set LOG_FILE in .env", err=True)
+        raise typer.Exit(1)
+
+    def show(line: str) -> None:
+        if grep and grep not in line:
+            return
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            return
+        if level and rec.get("level") != level.upper():
+            return
+        core = {"ts", "level", "logger", "msg"}
+        extra = " ".join(f"{k}={v}" for k, v in rec.items() if k not in core)
+        typer.echo(
+            f"{rec.get('ts', '')[11:23]} {rec.get('level', ''):7} {rec.get('logger', '')}: "
+            f"{rec.get('msg', '')}  {extra}"
+        )
+
+    with path.open(encoding="utf-8") as f:
+        for line in f.readlines()[-last:]:
+            show(line)
+        while follow:
+            line = f.readline()
+            if line:
+                show(line)
+            else:
+                time.sleep(0.5)
+
+
+@app.command("pii-report")
+def pii_report(
+    since: str = typer.Option(None, help="Only events after this ISO time, e.g. 2026-11-23T10:00"),
+) -> None:
+    """Masking monitor: summary of the 'pii masked' log events (counts only, never values)."""
+    path = get_settings().log_file
+    if path is None or not path.exists():
+        typer.echo(f"no log file ({path})", err=True)
+        raise typer.Exit(1)
+    tickets, ms, by_type, by_rec, suspects = 0, [], {}, {}, []
+    for line in path.open(encoding="utf-8"):
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if rec.get("msg") != "pii masked" or (since and rec.get("ts", "") < since):
+            continue
+        tickets += 1
+        ms.append(rec.get("pii_ms", 0))
+        for k, v in rec.get("pii_by_type", {}).items():
+            by_type[k] = by_type.get(k, 0) + v
+        for k, v in rec.get("pii_by_recognizer", {}).items():
+            by_rec[k] = by_rec.get(k, 0) + v
+        if rec.get("pii_residual_suspect"):
+            suspects.append(
+                (rec.get("ticket_id"), rec.get("trace_id"), rec["pii_residual_suspect"])
+            )
+    if not tickets:
+        typer.echo("no 'pii masked' events yet: send tickets to POST /tickets")
+        return
+    typer.echo(f"tickets masked: {tickets}   avg masking time: {sum(ms) / len(ms):.0f} ms")
+    typer.echo("by type:       " + ", ".join(f"{k}={v}" for k, v in sorted(by_type.items())))
+    typer.echo("by recognizer: " + ", ".join(f"{k}={v}" for k, v in sorted(by_rec.items())))
+    typer.echo(f"possible misses (residual suspects): {len(suspects)} of {tickets} tickets")
+    for tid, trace_id, kinds in suspects:
+        typer.echo(f"  ⚠ ticket {tid}  kinds={kinds}  trace={trace_id}")
+
+
+@app.command("replay")
+def replay(
+    url: str = typer.Option("http://127.0.0.1:8000", help="Running API"),
+    repeat: int = typer.Option(1, help="Send the eval set this many times"),
+    delay: float = typer.Option(0.2, help="Seconds between tickets"),
+    key: str = typer.Option(
+        ..., envvar="COPILOT_HELPDESK_KEY", help="Helpdesk API key (or env COPILOT_HELPDESK_KEY)"
+    ),
+) -> None:
+    """Send the 76 eval tickets to POST /tickets (the worker processes them): realistic traffic
+    for the Grafana dashboard and a small load test. IDs get a run suffix so they are new."""
+    import time  # noqa: PLC0415
+
+    import httpx2  # noqa: PLC0415
+
+    root = Path(__file__).resolve().parents[2] / "eval"
+    tickets = [
+        json.loads(line)
+        for f in ("tickets_labelled.jsonl", "tickets_adversarial.jsonl")
+        for line in (root / f).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    run = time.strftime("%H%M%S")
+    ok = failed = 0
+    t0 = time.perf_counter()
+    for i in range(repeat):
+        for t in tickets:
+            body = {"id": f"{t['id']}-{run}-{i}", "subject": t["subject"], "body": t["body"]}
+            r = httpx2.post(
+                f"{url}/tickets",
+                json=body,
+                headers={"Authorization": f"Bearer {key}"},
+                timeout=120,
+            )
+            ok, failed = (ok + 1, failed) if r.status_code in (200, 202) else (ok, failed + 1)
+            time.sleep(delay)
+    secs = time.perf_counter() - t0
+    typer.echo(f"sent {ok + failed} tickets in {secs:.0f} s · ok {ok} · failed {failed}")
+
+
+@app.command("worker")
+def worker_cmd(
+    poll: float = typer.Option(0.5, help="Seconds between queue checks when idle"),
+) -> None:
+    """Background worker: claims queued tickets from Postgres and runs the workflow.
+    Start as many as needed; they never take the same ticket (SKIP LOCKED)."""
+    from copilot import telemetry as tel  # noqa: PLC0415
+    from copilot.tickets.worker import run_forever  # noqa: PLC0415
+
+    st = get_settings()
+    pool = open_pool(st) if st.vector_store == "pgvector" else None
+    if pool is not None:
+        atexit.register(pool.close)
+    try:
+        services = load_services(st, pool, warm_masker=False)
+    except NotIndexedError as err:
+        typer.echo(str(err), err=True)
+        raise typer.Exit(1) from None
+    tel.register_queue_gauge(services.tickets)
+    run_forever(services.tickets, poll_s=poll, audit=services.audit)
+
+
+@keys_app.command("new")
+def keys_new(name: str, role: str = typer.Argument(..., help="helpdesk | agent")) -> None:
+    """Create an API key. The key is shown ONCE; only its hash goes into .env (API_KEYS)."""
+    from copilot.server.auth import ROLES, hash_key, new_key  # noqa: PLC0415
+
+    if role not in ROLES:
+        typer.echo(f"role must be one of {ROLES}", err=True)
+        raise typer.Exit(1)
+    if ":" in name or "," in name:
+        typer.echo("name may not contain ':' or ','", err=True)
+        raise typer.Exit(1)
+    key = new_key()
+    typer.echo(f"key for {name} ({role}), shown once, give it to the caller:\n  {key}")
+    typer.echo(f"add to API_KEYS in .env (comma-separated):\n  {name}:{role}:{hash_key(key)}")

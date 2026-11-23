@@ -64,6 +64,26 @@ Run 2026-11-18, KB hash `46229716470b7620`; bge-m3 and a re-run of e5-small on 2
 3. **Remaining e5-small misses** (12 of 68 with Recall@3 < 1) are mostly one side of a conflict pair or a secondary required chunk (R07, R09, R26, R34), plus R02 ("start trading with 5 dollars" → funds-available), R29 (jurisdiction → notice) and R33 (Arabic euros). Candidates for bge-m3 and the reranker.
 4. **bge-m3 is better at ranking but not at finding, and is heavier. Decision (2026-11-22): use bge-m3 for Phase 1** (D2). On the same KB: Recall@1 0.66 → 0.75 and MRR 0.83 → 0.88 (the right chunk moves to rank 1 more often), Arabic Hit@3 0.92 → 1.00, AUROC 0.73 → 0.79. But **Recall@3 barely moves (0.89 → 0.90)**, and the drafter gets the top-k chunks, not only rank 1, so the answer quality gain is small. It fails on the same queries as e5-small (12 misses, mostly the same IDs: R02, R29, conflict pairs), so a bigger embedder does not fix them; hybrid search or a reranker is the next test. Cost, measured on this laptop (CPU): query embedding p50 **45 ms vs 12 ms**, indexing 26 chunks 2.9 s vs 0.2 s, model ~2.2 GB vs ~0.5 GB, vectors 1024 vs 384 dims (2.7× storage). The query cost is paid on **every** request (questions must use the same model as the index); the +33 ms is small next to the drafting LLM call (seconds), so latency is not the deciding factor. **Why bge-m3 anyway:** the product is multilingual-first (13 site languages, Tier 3 low-resource languages untested), rank 1 matters for the drafter's ordering and for the `weak_retrieval` signal (AUROC 0.79 vs 0.73), and the costs (+33 ms per query, ~2.2 GB RAM, slower indexing) are acceptable for one server at ~10,000 tickets/month. Honest caveat: the Arabic gain is about one query of ~12, so this is a judgement call, not a proven win; e5-small stays indexed-ready as the fallback (one command). **Scores are on a different scale per model** (bge-m3 best scores ≈ 0.4–0.7, e5-small ≈ 0.72–0.85), so the `weak_retrieval` threshold is set per model (bge-m3: t = 0.44 from this run). Phase 2: indexing cost grows with the KB (26 chunks 2.9 s on CPU → a full re-embed of 100k chunks is hours on CPU, minutes on a GPU), but ingestion is incremental, so this is paid once per model change.
 
+## PII masking results
+Command: `uv run copilot eval pii [--ner gliner|spacy] --out eval/results/pii_<ner>.json`. Definitions in `src/copilot/eval/pii.py`.
+
+Two sets, two questions:
+- **New cases** (`eval/pii_cases.jsonl`, 20 multilingual cases written AFTER the rules were tuned): *value recall* = share of real PII values that disappear from the masked text; *keep precision* = share of non-PII words (amounts, pronouns, relatives, countries, order numbers, timelines) left intact. **This is the honest number.**
+- **Labelled tickets** (76 = 42 + 34 adversarial): per-type ticket-level precision/recall against `expected.pii_types`. The rules were tuned on these, so treat it as a regression check.
+
+| NER mode | New cases: value recall | New cases: keep precision | Tickets: exact type match | Residual-suspect tickets | Latency p50 / p95 |
+|---|---|---|---|---|---|
+| **GLiNER (`PII_NER=gliner`, default)** | **1.00** (22/22) | 0.96 (24/25) | 1.00 | 0 | 170 / 212 ms |
+| spaCy, English only (`PII_NER=spacy`) | 0.64 (14/22) | 0.96 (24/25) | 1.00 | 0 | 5 / 8 ms |
+
+Run 2026-11-23, laptop CPU. Full reports: `eval/results/pii_gliner.json`, `eval/results/pii_spacy.json`.
+
+**Findings**
+1. **A multilingual NER model is required for names.** spaCy misses every non-English name (Arabic, Arabizi, Russian, Vietnamese, Indonesian, Spanish) and the street address; GLiNER masks all of them. Identifiers (cards, IBAN, phone, documents, accounts, email) are masked by the same deterministic patterns in both modes, which is why both score 1.00 on the labelled tickets (whose PII is mostly identifiers).
+2. **Known false positive:** an 8-digit order number is masked as a phone, because 8-digit numbers are valid phones in Qatar, Bahrain and Oman. Kept on purpose: losing an order number from the LLM's view costs less than leaking a phone.
+3. **Scores alone do not separate names from non-names** ("friend" 0.87, "I" 0.91 vs "Mohamed Samir" 0.56), so measured rules sit on top of the model (D10). Before the rules: 19 of 76 tickets had wrong masks; after: 0.
+4. **Cost:** ~170 ms per ticket on CPU and ~1 GB of model; small next to the LLM calls (seconds). spaCy mode stays available for tests and for an English-only deployment.
+
 ## How to read small-sample results (important for the business)
 - **0 violations in 40 tickets does not prove 0%.** Rule of three: with 0 failures in N tests, the true rate could still be up to about **3/N** (95% confidence) → up to **~7.5%** for N = 40. More tickets narrow this: N = 300 → ≤ 1%.
 - **1 violation in 40 = 2.5%** observed → at 10,000 tickets/month that is on the order of **~250 unsafe drafts per month** for an agent to catch. Not acceptable as a default, even if 20× cheaper.

@@ -8,13 +8,24 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.15.0",
+    "cryptography>=50.0.2",
+    "en-core-web-sm",
     "fastapi>=0.163.2",
+    "gliner>=0.2.30",
+    "langchain-anthropic>=1.7.12",
+    "langgraph>=1.2.24",
     "numpy>=2.5.5",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.2",
+    "opentelemetry-instrumentation-fastapi>=0.66b2",
+    "opentelemetry-instrumentation-psycopg>=0.66b2",
+    "opentelemetry-sdk>=1.45.2",
     "pgvector>=0.5.1",
+    "presidio-analyzer>=2.2.362",
     "psycopg[binary,pool]>=3.3.9",
     "pydantic>=2.14.3",
     "pydantic-settings>=2.16.3",
     "sentence-transformers>=6.3.0",
+    "sentencepiece<0.2.3",
     "torch>=2.15.0",  # direct dependency so the CPU-only source below applies
     "typer>=0.29.1",
     "uvicorn[standard]>=0.54.0",
@@ -24,6 +35,7 @@ dependencies = [
 # libraries we never use (embeddings run on CPU). macOS keeps the normal PyPI wheels.
 [tool.uv.sources]
 torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -40,6 +52,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "httpx2>=2.16.2",
+    "langgraph-cli[inmem]>=0.4.43",
     "pre-commit>=4.7.0",
     "pytest>=9.2.0",
     "ruff>=0.17.5",

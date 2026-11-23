@@ -60,7 +60,9 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
   - The placeholder → original mapping is kept **only in our service** (per ticket, in memory / encrypted store), never sent to the LLM or written to logs in clear text.
   - The model still understands the ticket ("customer shared a card number `[CARD_1]`") without seeing the value.
   - Drafts may contain placeholders; they are re-filled only where needed, and **sensitive values (full card or document numbers) are never echoed back** to the customer; at most masked (e.g. `**** 1111`).
-  - Detection: deterministic patterns (regex + Luhn check for cards) in Phase 1; a PII-detection library/model in Phase 2.
+  - Detection (**updated 2026-11-23, D10**): Presidio. Identifiers by deterministic, checksum-validated patterns (cards/Luhn, IBAN, email, phones, document and account numbers with context words in English and Arabic); names and street addresses in any language by GLiNER-PII as a Presidio recognizer. Placeholders also cover `[NAME_n]` and `[ADDRESS_n]`.
+  - Masking runs **before the workflow**, so raw PII never enters the graph state, traces, logs or the audit log. The mapping is stored **encrypted** (Fernet) in Postgres `pii_vault`, expiring after `PII_RETENTION_DAYS`.
+  - **Monitoring:** a residual check flags text that still looks like PII after masking (WARNING log, metric, dashboard panel, alertable).
 
 ### FR-2 Classification
 - FR-2.1 **Category = the topic** (one of): `deposit`, `withdrawal`, `account_opening`, `verification`, `complaint`, `trading_advice_request`, `aml_compliance`, `other`. Jurisdiction/eligibility questions ("I live in X, can I open an account?") are `aml_compliance`.
@@ -136,12 +138,12 @@ The agent always sends the final reply. The co-pilot saves time and keeps answer
 - FR-7.2 Scoring script reporting the metrics in §2.
 - FR-7.3 The evaluation run acts as a **release gate**: hard-rule violations must be 0.
 
-### FR-9 Knowledge-base explorer (web view)
-- FR-9.1 A web page listing every KB chunk: source page, section/FAQ title, text, chunk ID, and flags (duplicate, conflict, known-defective, rule-sensitive).
-- FR-9.2 **Search playground:** type a question → see the top-k retrieved chunks with similarity scores, and whether the abstain threshold would trigger.
-- FR-9.3 Per-ticket trace: for a processed ticket, show which chunks were retrieved and which were cited in the draft.
-- FR-9.4 (Optional) 2-D map of chunk embeddings (PCA/UMAP) to show clusters by topic and spot overlaps.
-- Purpose: debugging retrieval, demoing the system, and letting support leads see exactly what the co-pilot "knows".
+### FR-9 Knowledge-base inspection (developer CLI, not an API)
+- **Revised 2026-11-23:** the HTTP API exposes only what the business uses (`POST /tickets`, plus `GET /health` for the Docker healthcheck). KB inspection is a developer tool on the CLI:
+- FR-9.1 `copilot kb show [chunk_id]`: every KB chunk with source page, section, text, chunk ID and flags.
+- FR-9.2 `copilot search "<question>"`: top-k retrieved chunks with similarity scores.
+- FR-9.3 Per-ticket trace: the LangSmith trace of each ticket shows which chunks were retrieved and which were cited (trace ID returned by `POST /tickets` and written to the app log).
+- Phase 2: if support leads need to browse what the co-pilot "knows", that view belongs in an authenticated internal admin tool, not in the co-pilot's public API.
 
 ### FR-8 Business case
 - FR-8.1 One page answering: **is this worth running at ~10,000 tickets/month, and with which configuration?**
@@ -190,7 +192,7 @@ The tracing tool is **not** the audit log: it is for debugging, may have limited
 - **LLM provider terms:** no training on our data, zero data retention where available, Data Processing Agreement, known region. Verified against each provider's current terms, not assumed.
 - **Retention period:** set by Valetax compliance per their licence (Mauritius FSC) and customer jurisdictions. **Not invented here.**
 - **Privacy vs retention:** keep masked audit records for the required period; store the PII mapping separately with tighter access and shorter life.
-- **Access control:** engineers see masked traces; compliance sees the audit log; nobody sees raw PII by default.
+- **Access control:** engineers see masked traces; compliance sees the audit log; nobody sees raw PII by default. **Implemented (Phase 1):** API keys with roles (helpdesk: create/read tickets; agent: inbox, ticket, customer details, decision); customer details only for agent keys, last 4 digits for cards/documents/accounts, every reveal audited with the agent's identity from the key. Phase 2: SSO (OIDC).
 
 ## 7. Phases
 
@@ -198,7 +200,7 @@ Both phases are **built**, not only designed. Phase 1 is tagged in git (`v1-ship
 
 ### Phase 1: Ship ASAP (git tag `v1-ship`)
 - Top-k retrieval with multilingual embeddings (D1, revised); search returns vector and text together (D9); LangGraph workflow with two LLM calls and deterministic gates (D3).
-- CLI + web app (ticket view, KB explorer, search playground) (D5).
+- `POST /tickets` API + CLI (D5, revised 2026-11-23: no endpoints the business doesn't use).
 - Evaluation set + benchmark (docs/BENCHMARK.md).
 
 ### Phase 2: Scale up (~10,000 tickets/month, growing KB and SOPs) (git tag `v2-scale`)
