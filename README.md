@@ -37,11 +37,12 @@ docker compose up --scale worker=3   # more workers: they never take the same ti
 
 | What | Where |
 |---|---|
+| **Agent UI**: create a ticket, inbox, draft + citations + reasons, send / handle manually | http://localhost:8000/ui (paste the keys from `.support-copilot-keys`) |
 | API (helpdesk + agent endpoints, `GET /health`) | http://localhost:8000/docs |
 | Monitoring dashboard | http://localhost:3000 (admin/admin) → **Support Co-pilot** |
 | LLM traces | smith.langchain.com → agent `support-copilot` → environment `local` |
 | Graph (LangGraph Studio) | `uv run langgraph dev` → link printed in the terminal |
-| Postman collection | `postman/support-copilot.postman_collection.json` |
+| Postman collection (8 folders, 124 requests) | `postman/support-copilot.postman_collection.json` + `postman/local.postman_environment.json` |
 
 **Local development** (code on your machine, services in Docker):
 ```bash
@@ -70,6 +71,54 @@ What a support agent's frontend, or the helpdesk, calls, with an **agent API key
 | `GET /tickets/{number}` | **One ticket**: status and steps, the customer's message **masked**, classification, **draft reply**, **citations** (page title + URL + section), routing decision + reasons, the agent's decision, timings, trace ID |
 | `GET /tickets/{number}/customer-details` | Placeholder → real value from the encrypted vault, for the agent handling the ticket. Cards, documents and accounts still only `**** 1111`. Agent keys only; every call is written to the audit log with the agent's name (from the key). |
 | `POST /tickets/{number}/decision` | `{"action": "send", "final_text": "..."}` (recorded as `sent`, or `edited` if the draft changed) or `{"action": "manual"}`. Placeholders like `[NAME_1]` are filled in at send time; the final text is stored and audited **re-masked**, next to the AI draft (PRD §6b; the difference is the edit-rate metric). 409 if the co-pilot isn't done or the ticket was already handled. |
+
+## Agent UI (`/ui`)
+One page served by the API itself (no build step, no extra service): paste a helpdesk key and an agent key (from `.support-copilot-keys`), then
+- **create a ticket** as the helpdesk would, and watch it move through the steps;
+- **inbox** with status and queue filters (support agent / senior support / compliance), refreshed automatically;
+- **one ticket**: the masked message, an audited "reveal customer details", category / urgency / language / sentiment, the routing reasons, the co-pilot's **notes for the agent** (uncovered parts, page conflicts), the **editable draft** with its **cited help pages**, and **Send** or **Handle manually** (recorded in the audit log as sent / edited / manual).
+
+It uses the same JSON API as Postman with the caller's own keys, so it adds no new permissions. Monitoring (volumes, latency, routing, PII, cost) is the Grafana dashboard at http://localhost:3000.
+
+## Postman
+Import `postman/support-copilot.postman_collection.json` and `postman/local.postman_environment.json` (written by `copilot setup`), select the environment, run a folder with the Collection Runner. Every request that creates a ticket waits for the worker and checks the result; details per ticket in the Postman Console. Without Postman: `node postman/run_collection.mjs [folder prefix ...]` runs the same requests and test scripts with Node only.
+
+| Folder | What it proves |
+|---|---|
+| 0–2 | Health; ticket intake (202, idempotent IDs, PII never echoed, 401/404/422); agent endpoints (inbox, masked ticket, audited reveal, 403 for the helpdesk key, decisions, 409 on a second decision) |
+| 3 | **Every path through the checks**: spam, injection phrase, injection model, security phrase, risk flagged, clean question, spam + injection |
+| 4 | Never give trading advice (19 requests + 2 controls, 7 languages) |
+| 5 | Never decide a complaint, KYC or AML outcome (15 + 3 controls) |
+| 6 | Never invent policy, fees or timelines: cite or say unknown (13) |
+| 7 | **Positive scenarios: questions the help pages answer** (24, in en / ar / ru / fr / es / vi): answered, right page cited, KB fact, no uncited number |
+
+## Edge cases we handle
+| Case | What happens | Proven by |
+|---|---|---|
+| Spam: empty, emojis only, one character repeated, 3+ links, promotional phrase | No model and no LLM; to a person at **low** priority | Postman 3A, `tests/test_patterns.py` |
+| Prompt injection: "ignore previous instructions", fake JSON output, role play, Arabic, Russian, new wording | Caught by patterns or the guard model **before any LLM reads the ticket**; fixed reply only; senior support | Postman 3B, 3C, 4G, 5E; `copilot eval injection` (18/18) |
+| Trading advice: buy/sell, signals, price targets, leverage, disguised, mixed with a real question | Fixed polite decline in the customer's language; the factual part is still answered | Postman 4, `docs/EVIDENCE_TRADING_ADVICE.md` (19/19) |
+| Complaint, KYC or AML decision asked (incl. via injection) | Neutral fixed acknowledgement; KYC/AML → compliance, complaints → senior | Postman 5, `docs/EVIDENCE_COMPLAINT_KYC_AML.md` (15/15) |
+| Vulnerable customer ("lost all my savings") · angry / urgent | Personal acknowledgement, senior support · higher priority | Postman 3E, eval X25 / E15 |
+| Security-sensitive (change email/phone, disable 2FA, account access) | Fixed security text, senior support | Postman 3D |
+| Question the help pages don't answer (fees, spreads, withdrawal steps) | No reply drafted; a person answers, with a note "not covered by the help pages" | Postman 6A, eval abstain 10/10 |
+| Partly covered | The cited part is answered; the rest is listed for the agent | Postman 6C, 7 (K13) |
+| Customer states a wrong policy or number ("10 USD, right?", "guaranteed in 1 hour") | Never confirmed: the KB figure is given, or the draft is withheld and routed | Postman 6B |
+| Help pages contradict each other ("instant" vs "60 minutes") | Answer drafted and flagged `kb_conflict` for the agent | Postman 6D, 7 (K06) |
+| Defective, promotional or legal-notice KB text | Never used to answer | `tests/test_retrieve_draft.py` |
+| Any number in a reply not in a cited chunk | Redraft once, then withheld; counted as a hard-rule violation by the eval | `post_check`, `copilot eval e2e` (0 in 43 drafts) |
+| Account-specific question ("where is my withdrawal?") | Documented facts + `account_action_required` → an agent checks the account | eval X19, X33 |
+| Many languages (Arabic incl. Egyptian/Gulf, Russian, French, Spanish, Vietnamese, Thai, Chinese …) | Reply in the customer's language | Postman 7E, eval reply language 80/80 |
+| Low-resource language (Kurdish, Swahili) | English draft + a person who reads the language | eval KU1, SW1 |
+| PII anywhere: cards (Luhn), IBAN, phones, emails, passports, names and addresses in any language | Masked **before** any model, trace or log; encrypted vault; cards only ever shown as `**** 1111`; a mistyped card is flagged as a possible miss | Postman 1.5, 1.6, 2.5; `copilot eval pii` |
+| A message that is only PII (a card number) | Not spam, not injection; nothing to answer → a person | Postman 3F (F4) |
+| Same ticket ID again (webhook redelivered) | Same ticket number, nothing queued twice | Postman 1.4 |
+| Bad requests: no key / wrong role / unknown ticket / missing body | 401 / 403 / 404 / 422 | Postman 1.7–1.9, 2.4 |
+| Agent decides twice, or before the co-pilot is done | 409 | Postman 2.7, `tests/test_agent_api.py` |
+| Worker crashes mid-ticket | Lease expires, another worker resumes from the failed step; nothing lost or duplicated | `docs/EVIDENCE_SCALE.md` (172/172) |
+| LLM timeout, rate limit, invalid output | Retried; after 3 attempts the ticket goes to a person (`technical_failure`) | `LLM_RETRY` in `pipeline/workflow.py`, `tests/test_tickets.py` |
+| Classifier unsure | `low_confidence` → a person reviews | eval A01 |
+| `.env` not filled in · gated guard model without a token | One startup message naming what is missing · measured no-token fallback guard | `services.require_secrets`, `services.load_guard` |
 
 ## Security
 - **API keys with roles** (`Authorization: Bearer <key>`): `helpdesk` may create tickets and read their status; `agent` keys (one per person) may use the inbox, tickets, customer details and decisions. The agent's name comes from the key, so the audit log records who really looked or decided. `GET /health` is open (Docker).
@@ -157,9 +206,8 @@ Details and trade-offs: [docs/BENCHMARK.md](docs/BENCHMARK.md). Test strategy: [
 | [docs/EVIDENCE_GROUNDING.md](docs/EVIDENCE_GROUNDING.md) | Evidence for "never invent policy, fees or timelines; cite the KB or say it is unknown": the uncited-number check, traps, unknowns, conflicts, Postman folder 6, limits |
 | [docs/EVIDENCE_COMPLAINT_KYC_AML.md](docs/EVIDENCE_COMPLAINT_KYC_AML.md) | Evidence for "never decide a complaint, KYC or AML outcome": layers, the fixed acknowledgements, per-ticket eval results (15/15), Postman folder 5, limits |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it fits together, Phase 1 and Phase 2 |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Why: every decision with options and trade-offs (D1–D11) |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Why: every decision with options and trade-offs (D1–D17) |
 | [docs/BENCHMARK.md](docs/BENCHMARK.md) | Measured results |
-| [docs/BUSINESS_CASE.md](docs/BUSINESS_CASE.md) | Is it worth running at 10,000 tickets/month, and with which configuration? |
 | [knowledge_base/KB_FINDINGS.md](knowledge_base/KB_FINDINGS.md) | Gaps, overlaps and inconsistencies in the four help pages |
 
 ## How I built this
