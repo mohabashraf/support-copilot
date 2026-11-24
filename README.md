@@ -19,7 +19,7 @@ It never talks to customers directly: an agent reviews and sends every reply.
 | Agent API: inbox, ticket with draft/citations/why, audited customer details, send / edit / handle manually | ✅ done (local, no login; Phase 2: SSO) |
 | Audit log (legal record): processing, PII reveals, agent decisions with AI draft AND final text, masked | ✅ done |
 | Monitoring end to end: OpenTelemetry → Grafana (metrics, traces, logs), LangSmith for LLM calls | ✅ done |
-| End-to-end eval (`copilot eval e2e`, 86 tickets): release gate **PASS**: 0 hard-rule violations, must-route 59/59, advice declined 19/19, citations 40/40, $0.0007 per ticket, p95 7.6 s | ✅ done (`eval/results/e2e_run6.json`) |
+| End-to-end eval (`copilot eval e2e`, 86 tickets): release gate **PASS**: 0 hard-rule violations, must-route 59/59, advice declined 19/19, complaint/KYC/AML 15/15 to the right team, citations 40/40, $0.0007 per ticket, p50 3.5 s / p95 11.6 s | ✅ done (`eval/results/e2e_run8.json`) |
 | Business case with measured LLM cost (`docs/BUSINESS_CASE.md`) | ✅ done (agent-side figures assumed, to be replaced with Valetax data) |
 
 ## Quick start
@@ -131,7 +131,7 @@ Instrumented with **OpenTelemetry**, so production only changes the endpoint: Gr
 | Retrieval (85 queries, 68 answerable, + 28 tickets) | `uv run copilot eval retrieval` | R@3 0.90 · MRR 0.88 · Hit@3 en 0.94 / ar 1.00 / other 1.00 |
 | PII masking (20 new cases + 76 labelled tickets) | `uv run copilot eval pii` | value recall 1.00 · keep precision 0.96 · ticket type match 1.00 |
 | Risk signals: patterns + classifier (62 held-out cases, 12 languages) | `uv run copilot eval risks` | recall 1.00 every risk and language · precision 0.84 · 0 strong false alarms · category 0.89 |
-| End to end (classification, abstention, routing recall, hard-rule violations, cost) | `copilot eval e2e` | ✅ gate PASS (run 6: 0 violations, must-route 59/59, $0.0007/ticket) |
+| End to end (classification, abstention, routing recall, hard-rule violations, cost) | `copilot eval e2e` | ✅ gate PASS (run 8: 0 violations, must-route 59/59, $0.0007/ticket) |
 
 Details and trade-offs: [docs/BENCHMARK.md](docs/BENCHMARK.md). Test strategy: [eval/README.md](eval/README.md).
 
