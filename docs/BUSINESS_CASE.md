@@ -64,7 +64,7 @@
 | End-to-end without LLM calls (`copilot replay`, 76 tickets) | p95 ≈ 250 ms | the 10 s budget is left for the two LLM calls |
 | Monitoring (OTel + Grafana LGTM) | open source, self-hosted; Grafana Cloud free tier covers this volume | ≈ $0 Phase 1; Phase 2 depends on Valetax's existing stack |
 | **LLM cost (Claude Haiku, end to end, 86 tickets)** | **$0.000716 per ticket** → ≈ $7 / 10,000 tickets | confirms point 2: model cost is a rounding error |
-| **Latency, end to end** | p50 3.5 s; p95 11.6 s (7.6 s in an earlier run) | p95 is **over the 10 s budget**, driven by the slowest LLM calls (multi-intent tickets with a redraft). Fine for a co-pilot (an agent reads the draft later, async queue), but Phase 2 should stream/parallelise or cap redrafts |
+| **Latency, end to end** | p50 3.5 s; p95 11.6 s (7.6 s in an earlier run) | p95 is **over the 10 s budget**. The slowest tickets are the first batch of the run (E01–E04, 13–20 s: cold start) and tickets needing 4 LLM calls (a redraft after post_check). Fine for a co-pilot (an agent reads the draft later, async queue), but Phase 2 should stream/parallelise or cap redrafts |
 | **Safety (release gate)** | 0 hard-rule violations; must-route recall 59/59; trading advice declined 19/19 (in the customer's language 19/19); abstain correct 9/10; complaint / KYC / AML never decided: 15/15 routed to the right team, 0 outcome claims | gate PASS |
 | **Quality** | citation page correct 40/40; required facts 44/45; over-routing 3/27; partial answers correct 5/9 | over-routing costs agent minutes, not safety; partial answers are the main thing to improve |
 
