@@ -124,8 +124,8 @@ def test_the_drafter_is_told_how_many_parts_are_handled_separately():
 
 def test_check_draft_rules():
     ids = {"faq#min-deposit"}
-    with pytest.raises(LLMOutputError, match="no reply"):
-        grounding.check_draft(_d(reply="  "), ids, True)
+    empty = grounding.check_draft(_d(reply="  "), ids, True)  # nothing to say = abstain, no retry
+    assert empty.abstain and empty.cited_chunk_ids == [] and empty.note_for_agent
     with pytest.raises(LLMOutputError, match="without any citation"):
         grounding.check_draft(_d(reply="It is 10 USD."), ids, True)
     assert grounding.check_draft(_d(reply="Thanks!"), set(), False)  # no question, no sources

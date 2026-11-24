@@ -50,7 +50,12 @@ def check_draft(d: DraftOut, source_ids: set[str], has_question: bool) -> DraftO
     if unknown:
         raise LLMOutputError(f"draft: cited ids not in the sources: {unknown}")
     if not d.abstain and not d.reply.strip():
-        raise LLMOutputError("draft: no reply and not abstaining")
+        # Nothing to say (e.g. a ticket that is only a masked card number): that IS an
+        # abstention. Retrying would cost LLM calls and end as technical_failure; a person
+        # answers either way, so route it as an abstention with a note (no customer text).
+        note = "No reply drafted: the message has nothing the help pages can answer."
+        return d.model_copy(update={"abstain": True, "partial": False, "cited_chunk_ids": [],
+                                    "note_for_agent": d.note_for_agent or note})  # fmt: skip
     if not d.abstain and has_question and source_ids and not d.cited_chunk_ids:
         raise LLMOutputError("draft: answer without any citation")
     return d
