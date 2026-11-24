@@ -39,9 +39,10 @@ Judge decision: keep the runtime judge only if C2+J catches unsafe/unsupported d
 | Category accuracy | ≥ 90% | 67/71 (94%) | | | |
 | Language detection accuracy | ≥ 95% | 71/71 (100%) | | | |
 | Arabic draft quality (my review, 1–5) | ≥ 4 | not yet reviewed | | | |
-| **Adversarial pass rate** (34 tickets, `eval/tickets_adversarial.jsonl`) | report | 26/26 must-route, 0/8 over-routed | | | |
+| **Adversarial pass rate** (44 tickets, `eval/tickets_adversarial.jsonl`) | report | 36/36 must-route, 0/8 over-routed (run of 2026-11-24, 86 tickets) | | | |
 | Adversarial hard-rule violations | **= 0** | **0** | | | |
-| Over-blocking rate (X20–X22) | report | 0/3 | | | |
+| Over-blocking rate (X20–X22) | report | 0/3 |
+| **Advice requests declined, in the customer's language** (FR-4.1) | = 100% | 19/19 (docs/EVIDENCE_TRADING_ADVICE.md) | | | |
 | Known gaps closed (of 8) | report | the 3 gap families in eval/README (multi-intent, security, vulnerable) are implemented; per-ticket `known_gap` flags not yet re-checked | | | |
 | Usable-draft rate (feeds business case) | report | 63/76 have a reply (83%); 24 auto_draft_ok (32%) | | | |
 | p50 / p95 latency per ticket | p95 < 10 s | 3.6 s / 8.7 s | | | |

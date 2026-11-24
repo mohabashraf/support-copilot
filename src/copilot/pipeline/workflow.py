@@ -55,6 +55,7 @@ from copilot.pipeline import routing as routing_rules
 from copilot.pipeline.llm import LLMOutputError, structured
 from copilot.pipeline.risk_classifier import load_injection_rules
 from copilot.pipeline.schemas import Classification, DraftOut, Routing, SafetyOut, TriageOut
+from copilot.pipeline.validation import script_of
 
 log = get_logger(__name__)
 
@@ -234,6 +235,26 @@ def risk_classifier(state: State, runtime: Runtime[Deps]) -> dict:
     }
 
 
+def injection_reply(state: State) -> dict:
+    """Injection path (no LLM ever reads this ticket). If the LOCAL classifier is strongly sure
+    the ticket also asks for trading advice, add the fixed decline (the brief: detect advice
+    requests and decline politely), in the ticket's script (Arabic script → ar, else en).
+    Everything else in the ticket is left to the person (senior support)."""
+    risk = state.get("risk") or {}
+    strong = {s["kind"] for s in risk.get("signals", []) if s["strength"] == "strong"}
+    if "trading_advice" not in strong:
+        return {"steps": ["injection_reply"]}
+    lang = "ar" if script_of(_text(state)) == "arabic" else "en"
+    text, _ = templates.render("decline_advice", lang)
+    return {
+        "steps": ["injection_reply"],
+        "reply": text,
+        "reasons": ["hard_rule_topic"],
+        "notes_for_agent": ["Prompt injection: no AI read this ticket. Only the fixed "
+                            "trading-advice decline was added; answer the rest yourself."],
+    }  # fmt: skip
+
+
 # ---- Nodes (placeholders) -------------------------------------------------------------------
 
 
@@ -378,7 +399,10 @@ def template_reply(state: State, runtime: Runtime[Deps]) -> dict:
         text, translated = templates.render(key, lang)
         texts.append({"key": key, "text": text, "translated": translated})
         if not translated:
-            notes.append(f"Template '{key}' has no approved {lang} text: English used, translate.")
+            notes.append(f"Template '{key}' has no {lang} text: English used, translate.")
+        elif "machine translation" in templates.review_status(key, lang):
+            notes.append(f"Template '{key}' in {lang} is a machine translation pending native "
+                         "review: check the wording.")  # fmt: skip
     return {"steps": ["template_reply"], "template_texts": texts, "notes_for_agent": notes}
 
 
@@ -549,26 +573,28 @@ def after_patterns(state: State) -> Literal["route", "risk_classifier", "injecti
     return "injection_check"
 
 
-def after_risk(state: State) -> list[str] | Literal["route"]:
-    """Injection (exact pattern or the gate's model) → routing: the attacker's text never reaches
-    an LLM. Clean → the two LLM classification calls in parallel."""
+def after_risk(state: State) -> list[str] | Literal["injection_reply"]:
+    """Injection (exact pattern or the gate's model) → injection_reply → routing: the attacker's
+    text never reaches an LLM. Clean → the two LLM classification calls in parallel."""
     if routing_rules.injection_evidence(state):
-        return "route"
+        return "injection_reply"
     return LLM_CLASSIFIERS
 
 
 def after_gate(state: State) -> Literal["route", "retrieve", "template_reply"]:
-    """2nd line: the safety LLM suspects an injection the gate missed → no draft, a person.
-    Any part blocked → its template first (also on a mixed ticket). Else → grounded draft."""
-    if (state.get("safety") or {}).get("injection_suspected"):
-        return "route"
+    """Any part blocked → its fixed template first (also on a mixed ticket, and on an injection
+    the safety LLM caught: the decline still goes out, no draft). Injection with nothing
+    blocked → a person, no draft. Else → grounded draft."""
+    injection = (state.get("safety") or {}).get("injection_suspected")
     if state.get("template_parts"):
-        return "template_reply"
-    return "retrieve"
+        return "template_reply"  # fixed texts only (no LLM): also on an injection (eval X04)
+    return "route" if injection else "retrieve"
 
 
 def after_templates(state: State) -> Literal["retrieve", "compose"]:
     """All intents blocked → only the templates. A mixed ticket → draft the allowed part too."""
+    if (state.get("safety") or {}).get("injection_suspected"):
+        return "compose"  # an injection never reaches retrieve/draft
     c = state.get("classification")
     n_intents = len(c.intents) if c else 1
     if len(state.get("blocked_intents", [])) >= n_intents:
@@ -617,6 +643,7 @@ NODES = [
     ("pattern_check", pattern_check),
     ("injection_check", injection_check),
     ("risk_classifier", risk_classifier),
+    ("injection_reply", injection_reply),
     ("classify_safety", classify_safety),
     ("classify_triage", classify_triage),
     ("validate_classification", validate_classification),
@@ -659,7 +686,8 @@ def build_graph(checkpointer=None):
     g.add_edge(START, "pattern_check")
     g.add_conditional_edges("pattern_check", after_patterns)
     g.add_edge("injection_check", "risk_classifier")
-    g.add_conditional_edges("risk_classifier", after_risk, [*LLM_CLASSIFIERS, "route"])
+    g.add_conditional_edges("risk_classifier", after_risk, [*LLM_CLASSIFIERS, "injection_reply"])
+    g.add_edge("injection_reply", "route")
     g.add_edge(LLM_CLASSIFIERS, "validate_classification")  # waits for both
     g.add_edge("validate_classification", "confidence_gate")
     g.add_edge("confidence_gate", "policy_gate")

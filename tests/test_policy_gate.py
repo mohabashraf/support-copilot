@@ -77,14 +77,36 @@ def test_security_request_from_a_pattern_blocks_the_whole_ticket():
     assert "security_sensitive" in s["routing"].reasons
 
 
-def test_arabic_reply_uses_the_arabic_template_other_languages_get_english_and_a_note():
+def test_the_decline_is_in_the_customers_language_with_its_review_status():
     chat = FakeChat()
     chat.triage_overrides = {"reply_language": "ar", "language": "ar"}
     assert _run("Should I buy gold now", chat)["reply"] == TEMPLATES["decline_advice"]["ar"]
     chat.triage_overrides = {"reply_language": "es", "language": "es"}
     s = _run("Should I buy gold now", chat)
+    assert s["reply"] == TEMPLATES["decline_advice"]["es"]
+    assert any("es is a machine translation pending native review" in n
+               for n in s["notes_for_agent"])  # fmt: skip
+    chat.triage_overrides = {"reply_language": "zh", "language": "zh"}  # → zh-TW (alias)
+    assert _run("Should I buy gold now", chat)["reply"] == TEMPLATES["decline_advice"]["zh-TW"]
+    chat.triage_overrides = {"reply_language": "de", "language": "de"}  # not a site language
+    s = _run("Should I buy gold now", chat)
     assert s["reply"] == TEMPLATES["decline_advice"]["en"]
-    assert any("no approved es text" in n for n in s["notes_for_agent"])
+    assert any("no de text: English used" in n for n in s["notes_for_agent"])
+    chat.triage_overrides = {"reply_language": "ckb", "language": "ckb"}  # low-resource
+    assert _run("Should I buy gold now", chat)["reply"] == TEMPLATES["decline_advice"]["en"]
+
+
+SITE_LANGUAGES = ("en", "ar", "id", "ms", "th", "vi", "zh-TW", "ru", "fr", "pt", "es")
+
+
+def test_the_decline_exists_in_every_site_language_and_promises_nothing():
+    """Every non-low-resource site language has the decline; none has a number or advice."""
+    from copilot.pipeline import post_check as pc  # noqa: PLC0415
+
+    for lang in SITE_LANGUAGES:
+        text = TEMPLATES["decline_advice"][lang]
+        assert not pc.numbers(text), lang
+        assert not [n for n, rx, _ in pc._PATTERNS if rx.search(text)], lang
 
 
 def test_a_clean_question_is_allowed_and_gets_a_grounded_draft():

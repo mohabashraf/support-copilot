@@ -148,6 +148,7 @@ Details and trade-offs: [docs/BENCHMARK.md](docs/BENCHMARK.md). Test strategy: [
 | Document | What it answers |
 |---|---|
 | [PRD.md](PRD.md) | What we build: requirements, routing triggers, compliance |
+| [docs/EVIDENCE_TRADING_ADVICE.md](docs/EVIDENCE_TRADING_ADVICE.md) | Evidence for "never give trading advice": layers, the decline in 11 languages, per-ticket eval results, limits |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it fits together, Phase 1 and Phase 2 |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Why: every decision with options and trade-offs (D1–D11) |
 | [docs/BENCHMARK.md](docs/BENCHMARK.md) | Measured results |

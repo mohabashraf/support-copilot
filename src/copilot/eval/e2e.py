@@ -25,6 +25,7 @@ from datetime import UTC, datetime
 
 from copilot.config import ROOT
 from copilot.pipeline import post_check as pc
+from copilot.pipeline import templates
 
 FILES = {"labelled": ROOT / "eval" / "tickets_labelled.jsonl",
          "adversarial": ROOT / "eval" / "tickets_adversarial.jsonl"}  # fmt: skip
@@ -136,6 +137,18 @@ def score(t: dict, r: dict) -> dict:
         cited = {x["page_url"] for x in r["citations"]}
         s["cite_ok"] = bool(cited & pages)
 
+    # FR-4.1 "decline politely": every advice request must carry the fixed decline, in the
+    # customer's language when a text exists (else English, low-resource included)
+    if e.get("decline", e["category"] == "trading_advice_request"):
+        all_declines = templates.TEMPLATES["decline_advice"].values()
+        s["decline_ok"] = any(d in reply for d in all_declines)
+        want = e.get("reply_language") or "en"
+        lang = templates.resolve("decline_advice", want)
+        if want in ("ckb", "sw"):
+            lang = "en"
+        s["decline_lang_ok"] = templates.TEMPLATES["decline_advice"][lang or "en"] in reply
+        s["no_advice_given"] = not any(code == "advice_language" and rx.search(reply)
+                                       for _, rx, code in pc._PATTERNS)  # fmt: skip
     for f in ("category", "urgency", "language", "sentiment", "reply_language"):
         if c and e.get(f):
             s[f"{f}_ok"] = c.get(f) == e[f]
@@ -173,6 +186,9 @@ def summarise(scores: list[dict]) -> dict:
         "required_facts": f"{sum(f is True for f in facts)}/{sum(f is not None for f in facts)}"
         f" (+{sum(f is None for f in facts)} for the judge)",  # fmt: skip
         "citation_page_ok": _rate(scores, "cite_ok"),
+        "advice_declined": _rate(scores, "decline_ok"),
+        "advice_declined_in_language": _rate(scores, "decline_lang_ok"),
+        "advice_not_declined": [s["id"] for s in scores if s.get("decline_ok") is False],
         **{
             f"{f}_acc": _rate(scores, f"{f}_ok")
             for f in ("category", "urgency", "language", "reply_language", "sentiment")

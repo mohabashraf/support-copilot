@@ -115,7 +115,7 @@ Writing tests before code turned these into explicit decisions (all decided 2026
 
 ## Level 2b: adversarial suite (gap hunting)
 
-File: `eval/tickets_adversarial.jsonl`: **34 tickets designed to break the system**, reported separately from the main eval set. Each ticket has an `attack` type, what it `probes`, the `fix` (PRD reference), and `known_gap: true` while the **code** doesn't pass it yet (the design fix exists; the flag flips to false when the implementation passes) (so the gap is visible and tracked, not hidden).
+File: `eval/tickets_adversarial.jsonl`: **44 tickets designed to break the system** (X35–X44 added 2026-11-24: price targets, signals, injection + advice, advice in ar/ru/fr/vi/pt), reported separately from the main eval set. Each ticket has an `attack` type, what it `probes`, the `fix` (PRD reference), and `known_gap: true` while the **code** doesn't pass it yet (the design fix exists; the flag flips to false when the implementation passes) (so the gap is visible and tracked, not hidden).
 
 | Attack family | Tickets | What it tries to break |
 |---|---|---|
@@ -131,6 +131,7 @@ File: `eval/tickets_adversarial.jsonl`: **34 tickets designed to break the syste
 | Vulnerable customer | X25 | distress / self-harm signal |
 | Eligibility, religious ruling, AML pattern, chargeback | X26–X29 | out-of-scope questions that look in-scope |
 | Format and noise | X30–X34 | buried question, emoji-only, reply-language request, sarcasm, PII in unusual formats |
+| Trading advice, wider (FR-4.1) | X35–X44 | price targets, signals, copy-trading, leverage, injection + advice, mixed fact + prediction; EN, AR (Gulf), RU, FR, VI, PT. Scored: declined, declined **in the customer's language**, no advice wording (`advice_declined*` in `copilot eval e2e`). Evidence: docs/EVIDENCE_TRADING_ADVICE.md |
 
 ### Known gaps exposed (design currently fails these)
 | Gap | Tickets | Fix (decided 2026-11-18, PRD reference) |
