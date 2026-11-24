@@ -46,3 +46,37 @@ def test_pii_report_counts_types_and_flags_misses(tmp_path, monkeypatch):
     assert "tickets masked: 2" in out.stdout  # both event names are read
     assert "card=1" in out.stdout and "name=2" in out.stdout
     assert "possible misses (residual suspects): 1" in out.stdout and "ticket B" in out.stdout
+
+
+def test_setup_fills_empty_secrets_once_and_the_keys_work(tmp_path):
+    from cryptography.fernet import Fernet  # noqa: PLC0415
+
+    from copilot.config import ROOT  # noqa: PLC0415
+
+    (tmp_path / ".env.example").write_text(
+        (ROOT / ".env.example").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    res = runner.invoke(cli.app, ["setup", "--dir", str(tmp_path)])
+    assert res.exit_code == 0, res.output
+    env = dict(
+        ln.split("=", 1)
+        for ln in (tmp_path / ".env").read_text().splitlines()
+        if "=" in ln and not ln.startswith("#")
+    )
+    Fernet(env["PII_ENCRYPTION_KEY"].encode())  # a valid key
+    keys = dict(
+        ln.split("=", 1)
+        for ln in (tmp_path / ".support-copilot-keys").read_text().splitlines()
+        if "=" in ln and not ln.startswith("#")
+    )
+    table = parse_keys(env["API_KEYS"])
+    assert table[hash_key(keys["HELPDESK_KEY"])].role == "helpdesk"
+    assert table[hash_key(keys["AGENT_KEY"])].role == "agent"
+    pm = json.loads((tmp_path / "postman" / "local.postman_environment.json").read_text())
+    assert {v["key"]: v["value"] for v in pm["values"]}["agentKey"] == keys["AGENT_KEY"]
+    assert "ANTHROPIC_API_KEY" in res.output  # tells the user what is still missing
+
+    before = (tmp_path / ".env").read_text()
+    again = runner.invoke(cli.app, ["setup", "--dir", str(tmp_path)])
+    assert again.exit_code == 0 and "nothing to do" in again.output
+    assert (tmp_path / ".env").read_text() == before  # never overwrites

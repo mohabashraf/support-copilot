@@ -499,3 +499,83 @@ def keys_new(name: str, role: str = typer.Argument(..., help="helpdesk | agent")
     key = new_key()
     typer.echo(f"key for {name} ({role}), shown once, give it to the caller:\n  {key}")
     typer.echo(f"add to API_KEYS in .env (comma-separated):\n  {name}:{role}:{hash_key(key)}")
+
+
+@app.command("setup")
+def setup(
+    directory: Path = typer.Option(Path("."), "--dir", help="Folder with .env (the repo root)"),
+) -> None:
+    """One-time local setup: fill the EMPTY secrets in .env and write the Postman environment.
+
+    Creates .env from .env.example if missing; generates PII_ENCRYPTION_KEY and two API keys
+    (helpdesk + agent, hashes into API_KEYS); saves the plain keys to .support-copilot-keys and
+    postman/local.postman_environment.json (both gitignored). Never overwrites a value already set.
+    With Docker only:  docker compose run --rm --no-deps -v "$PWD:/work" -w /work app copilot setup
+    """
+    import uuid  # noqa: PLC0415
+
+    from cryptography.fernet import Fernet  # noqa: PLC0415
+
+    from copilot.server.auth import hash_key, new_key  # noqa: PLC0415
+
+    env, example = directory / ".env", directory / ".env.example"
+    if not env.exists():
+        env.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
+        typer.echo("created .env from .env.example")
+    lines = env.read_text(encoding="utf-8").splitlines()
+
+    def value(name: str) -> str:
+        return next((ln.split("=", 1)[1] for ln in lines if ln.startswith(f"{name}=")), "")
+
+    def put(name: str, val: str) -> None:
+        for i, ln in enumerate(lines):
+            if ln.startswith(f"{name}="):
+                lines[i] = f"{name}={val}"
+                return
+        lines.append(f"{name}={val}")
+
+    done = []
+    if not value("PII_ENCRYPTION_KEY").strip():
+        put("PII_ENCRYPTION_KEY", Fernet.generate_key().decode())
+        done.append("PII_ENCRYPTION_KEY generated")
+    keys_file = directory / ".support-copilot-keys"
+    keys: dict[str, str] = {}
+    if not value("API_KEYS").strip():
+        keys = {"HELPDESK_KEY": new_key(), "AGENT_KEY": new_key()}
+        put("API_KEYS", f"helpdesk:helpdesk:{hash_key(keys['HELPDESK_KEY'])},"
+                        f"sara:agent:{hash_key(keys['AGENT_KEY'])}")  # fmt: skip
+        keys_file.write_text(
+            "# Local API keys for support-copilot (keep private). .env holds only their hashes.\n"
+            + "".join(f"{k}={v}\n" for k, v in keys.items()),
+            encoding="utf-8",
+        )
+        keys_file.chmod(0o600)
+        done.append("API_KEYS created: helpdesk (POST /tickets) + sara (agent endpoints)")
+    env.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    if keys:
+        pm = directory / "postman" / "local.postman_environment.json"
+        pm.parent.mkdir(exist_ok=True)
+        variables = [("baseUrl", "http://127.0.0.1:8000", "default"),
+                     ("helpdeskKey", keys["HELPDESK_KEY"], "secret"),
+                     ("agentKey", keys["AGENT_KEY"], "secret")]  # fmt: skip
+        doc = {
+            "id": str(uuid.uuid4()),
+            "name": "Support Co-pilot (local)",
+            "values": [
+                {"key": k, "value": v, "type": t, "enabled": True} for k, v, t in variables
+            ],
+            "_postman_variable_scope": "environment",
+        }
+        pm.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+        done.append(
+            f"Postman environment: {pm.relative_to(directory)} (import it, then select it)"
+        )
+
+    for d in done or ["nothing to do: the secrets in .env are already set (never overwritten)"]:
+        typer.echo(f"  ✓ {d}")
+    if keys:
+        typer.echo(f"  ✓ plain keys saved in {keys_file.name} (shown nowhere else)")
+    if not value("ANTHROPIC_API_KEY").strip():
+        typer.echo("  ! still needed: put your Claude key in .env → ANTHROPIC_API_KEY=")
+    typer.echo("next: docker compose up --build")

@@ -25,16 +25,15 @@ It never talks to customers directly: an agent reviews and sends every reply.
 ## Quick start
 
 ```bash
-cp .env.example .env            # .env is the single source of truth (keys: see comments inside)
+cp .env.example .env            # .env is the single source of truth
 docker compose build            # Docker only: nothing else to install
-# fill in .env: ANTHROPIC_API_KEY (yours), PII_ENCRYPTION_KEY and API_KEYS (generated):
-docker compose run --rm --no-deps app python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-docker compose run --rm --no-deps app copilot keys new helpdesk helpdesk   # key shown once; add the
-docker compose run --rm --no-deps app copilot keys new sara agent          #   name:role:hash line to API_KEYS
+# one command fills the empty secrets in .env (encryption key + API keys) and writes the Postman environment:
+docker compose run --rm --no-deps -v "$PWD:/work" -w /work app copilot setup
+#   then put YOUR Claude key in .env:  ANTHROPIC_API_KEY=sk-ant-...
 docker compose up               # db → indexer (KB + vectors) → app + worker, plus lgtm (monitoring)
 docker compose up --scale worker=3   # more workers: they never take the same ticket
 ```
-A missing or invalid key stops the app at startup with one message that says which value is missing and how to generate it. **First start** downloads the models (bge-m3 embeddings, GLiNER PII, ≈ 2.5 GB) into a Docker volume: 3.5 min end to end on a fresh cloud VM; much longer on a slow connection. Later starts reuse the volume, and the indexer embeds only changed chunks (`unchanged=26, embedded=0`).
+`copilot setup` never overwrites a value that is already set. It writes the plain API keys to `.support-copilot-keys` and to `postman/local.postman_environment.json` (both gitignored; `.env` holds only their hashes). **Postman:** import the collection *and* that environment, then select the environment in the top-right picker: every request then has `baseUrl`, `helpdeskKey` and `agentKey`. Postman must be able to reach `localhost`: use the desktop app, or the Desktop Agent on postman.com (otherwise Postman shows "Could not send request"). A missing or invalid key stops the app at startup with one message that says which value is missing and how to fix it. **First start** downloads the models (bge-m3 embeddings, GLiNER PII, ≈ 2.5 GB) into a Docker volume: 3.5 min end to end on a fresh cloud VM; much longer on a slow connection. Later starts reuse the volume, and the indexer embeds only changed chunks (`unchanged=26, embedded=0`).
 
 | What | Where |
 |---|---|

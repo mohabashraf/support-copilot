@@ -47,12 +47,10 @@ class Services:
 log = get_logger(__name__)
 
 SETUP_HINT = """\
-Generate the missing values once, without installing anything (Docker only), then add them to .env:
-  PII_ENCRYPTION_KEY:  docker compose run --rm --no-deps app python -c \
-"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-  API_KEYS:            docker compose run --rm --no-deps app copilot keys new helpdesk helpdesk
-                       docker compose run --rm --no-deps app copilot keys new sara agent
-  ANTHROPIC_API_KEY:   your key from console.anthropic.com"""
+Fix (Docker only, nothing to install): run once in the repo folder, then restart:
+  docker compose run --rm --no-deps -v "$PWD:/work" -w /work app copilot setup
+It fills PII_ENCRYPTION_KEY and API_KEYS in .env (never overwrites a set value) and writes the
+Postman environment. ANTHROPIC_API_KEY: put your own key from console.anthropic.com in .env."""
 
 
 def require_secrets(st: Settings) -> None:

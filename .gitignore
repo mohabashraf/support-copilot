@@ -16,3 +16,6 @@ htmlcov/
 
 # Local caches (embeddings of classifier training examples)
 .cache/
+
+# Local Postman environment with real API keys (written by `copilot setup`)
+postman/local.postman_environment.json
