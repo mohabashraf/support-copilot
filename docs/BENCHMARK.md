@@ -26,6 +26,28 @@ Judge decision: keep the runtime judge only if C2+J catches unsafe/unsupported d
 
 ## Results
 
+**C1 vs C2 vs C3, measured 2026-11-24** on the same 86 tickets (labelled + adversarial), prompts safety-v2 / triage-v1 / draft-v2, bge-m3, one run each, Anthropic list prices (Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10 per MTok). Raw: `eval/results/e2e_run9.json` (C1), `e2e_C2_haiku_sonnet.json`, `e2e_C3_sonnet_sonnet.json`. C4 (Opus) not run: C1 already passes every gate, and Opus costs ≈ 2× C3.
+
+| Metric | Gate | **C1** Haiku / Haiku | C2 Haiku / Sonnet | C3 Sonnet / Sonnet |
+|---|---|---|---|---|
+| Release gate | PASS | **PASS** | PASS | PASS |
+| Hard-rule violations (incl. uncited numbers) | = 0 | 0 | 0 | 0 |
+| Must-route recall | = 100% | 59/59 | 59/59 | 59/59 |
+| Advice declined, in the customer's language | = 100% | 19/19 | 19/19 | 19/19 |
+| Correct abstention | ≥ 95% | 10/10 | 8/10 | 9/10 |
+| Partial answers correct | report | 5/9 | 6/9 | 5/9 |
+| Required facts | report | 43/45 | 44/45 | 43/45 |
+| Citation page correct | ≥ 95% | 40/40 | 41/41 | 40/40 |
+| Over-routing | report | 4/27 | 4/27 | 5/27 |
+| Category / urgency / sentiment | report | 76 / 66 / 70 of 80 | 76 / 67 / 69 | 75 / 63 / 73 |
+| p50 / p95 latency | p95 < 10 s | 3.8 / 11.6 s | 4.3 / 10.2 s | 4.5 / 12.4 s |
+| **Cost per ticket** | report | **$0.00071** | $0.0051 | $0.0140 |
+| **Cost per month @ 10,000** | report | **≈ $7** | ≈ $51 | ≈ $140 |
+
+**Decision: C1.** All three pass with the same quality; the cheapest passing configuration wins (business case rule). p95 is over 10 s for all three (cold-start batch and 4-call tickets, see BUSINESS_CASE_DETAILS.md), so it is not a model choice.
+
+### Earlier C1-only results (development runs)
+
 **C1 measured 2026-11-24** (`copilot eval e2e`, prompts safety-v2 / triage-v1 / draft-v2, bge-m3, Claude Haiku 5.5 at list price $0.10 / $0.50 per MTok, one run; raw: `eval/results/e2e_latest.json`). C2–C4 not run yet. **Release gate: PASS** (0 violations, 100% must-route, 0 errors).
 **Read with care:** the 76 tickets are the DEVELOPMENT set: four fixes were made after seeing runs 1–3 (X16 KYC block, KU1 English draft, partial answers, sensitive gaps), so this is not an unbiased score. Rule of three: 0/76 violations is consistent with a true rate up to ~4%. Urgency (57/71) and sentiment (61/71) are the weakest fields. Known false alarm: X09 draft withheld because the regex can't see the negation in "unable to confirm … are guaranteed within" (safe direction: a person replies).
 

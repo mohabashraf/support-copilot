@@ -1,72 +1,42 @@
-# Business case (v1.0: LLM and infrastructure costs MEASURED; agent-side figures still assumed)
+# Business case: is this worth running at ~10,000 tickets/month, and with which configuration?
 
-**Question:** is this worth running at ~10,000 tickets/month, and with which configuration?
+**Answer: yes. Run it with Claude Haiku for every LLM call (configuration C1), as a co-pilot that drafts and routes, with an agent sending every reply.** It costs about **$710/month**, mostly maintenance; the model itself is about **$7**. It saves an estimated **1.1–2.9 agents' worth of time ($1,390–5,480/month)**. Hard rules held in every measured configuration. Agent-side figures are assumptions that Valetax must confirm in a 2-week shadow run before go-live.
 
-> LLM cost, latency and quality are **measured** (end-to-end eval on the shipped code, 86 tickets, `eval/results/e2e_run9.json`). Numbers marked *(assumed)* are agent-side figures that only Valetax can supply (agent cost, handling time, real ticket mix); replace them before deciding.
+## 1. Which configuration: measured, same 86 tickets, same prompts (2026-11-24)
 
-## Assumptions
-
-| Assumption | Conservative | Base | Why |
+| | **C1 Haiku / Haiku** | C2 Haiku / Sonnet drafts | C3 Sonnet / Sonnet |
 |---|---|---|---|
-| Tickets / month | 10,000 | 10,000 | given in the brief |
-| Agent cost per hour, loaded *(assumed)* | $8 | $12 | offshore/regional support team incl. overheads |
-| Current handling time, repetitive ticket *(assumed)* | 5 min | 6 min | read, search help pages, write, tag, assign |
-| Handling time with a good draft *(assumed)* | 3 min | 2 min | read, check citations, edit, send |
-| Tickets with a usable draft *(assumed; see note)* | 40% | 60% | rest are hard-rule / out-of-scope / abstained. The eval set is deliberately risk-heavy (33% drafted on the labelled set, 18% on the adversarial set), so it can't give the real-traffic rate: measure it in shadow mode |
-| Time saved on abstained/routed tickets *(assumed)* | 0.5 min | 1 min | classification, priority, routing already done |
-| Bad drafts that pass the gates *(from eval)* | 5% of drafts | 2% of drafts | cost **+1 min** each (read, reject, rewrite) |
+| Release gate (0 hard-rule violations, all must-route tickets routed) | **PASS** | PASS | PASS |
+| Advice declined · must-route routed · uncited numbers | 19/19 · 59/59 · 0 | 19/19 · 59/59 · 0 | 19/19 · 59/59 · 0 |
+| Facts correct · right page cited · category | 43/45 · 40/40 · 76/80 | 44/45 · 41/41 · 76/80 | 43/45 · 40/40 · 75/80 |
+| Latency p50 / p95 | 3.8 s / 11.6 s | 4.3 s / 10.2 s | 4.5 s / 12.4 s |
+| **LLM cost per ticket → per month at 10,000** | **$0.0007 → $7** | $0.0051 → $51 | $0.0140 → $140 |
 
-## Calculation
+Decision rule: safety and quality first, then the **cheapest configuration that passes**. All three pass with the same quality, so the answer is **C1**. A larger model buys nothing measurable here, because the hard rules are enforced in code, not by the model. Raw results: `eval/results/e2e_run9.json`, `e2e_C2_haiku_sonnet.json`, `e2e_C3_sonnet_sonnet.json`. Prices: Anthropic list, 2026-11-24.
 
-| | Conservative | Base |
+## 2. Is it worth it at 10,000 tickets/month
+
+| Per month | Conservative | Base |
 |---|---|---|
-| Good drafts: tickets × minutes saved | 3,800 × 2 = 7,600 min | 5,880 × 4 = 23,520 min |
-| Bad drafts that passed: × −1 min | 200 × −1 = −200 min | 120 × −1 = −120 min |
-| Abstained/routed: tickets × minutes saved | 6,000 × 0.5 = 3,000 min | 4,000 × 1 = 4,000 min |
-| **Agent time saved / month** | **10,400 min ≈ 173 h** | **27,400 min ≈ 457 h** |
-| ≈ full-time agents (160 h/month) | **≈ 1.1 FTE** | **≈ 2.9 FTE** |
-| **Value / month** | **≈ $1,390** | **≈ $5,480** |
+| Agent time saved (drafted replies + pre-triaged routing) | ≈ 173 h ≈ 1.1 FTE | ≈ 457 h ≈ 2.9 FTE |
+| **Value** (at $8 / $12 per agent hour, *assumed*) | **≈ $1,390** | **≈ $5,480** |
+| Cost: LLM (measured) + hosting + 2 engineer-days maintenance | ≈ $710 | ≈ $710 |
+| **Net** | **≈ +$680** | **≈ +$4,770** |
 
-## Running cost / month *(LLM measured; hosting/maintenance estimated)*
+Positive even in the conservative case. The real costs are **maintenance and review time**, not the model. The biggest lever is the **usable-draft rate** (40% → 60% roughly triples the value), and that grows with KB coverage: the abstention log tells Valetax which pages to write. Calculation and assumptions: `BUSINESS_CASE_DETAILS.md`.
 
-| Item | Small model (measured: Claude Haiku) | Large model (headroom) |
-|---|---|---|
-| LLM calls (measured: **$0.00071 per ticket**) | **≈ $7** | even at 10× the per-ticket cost: < $100 |
-| Embeddings (tiny KB, one call per ticket) | ≈ $1 | ≈ $1 |
-| Hosting (small VM/container + queue in Phase 2) | ≈ $50–100 | ≈ $50–100 |
-| Maintenance (≈ 2 engineer-days/month: KB updates, eval, monitoring) | ≈ $600 | ≈ $600 |
-| **Total** | **≈ $660–710** | **≈ $750–800** |
+## 3. Does it hold up as volume and the KB grow (Phase 2), measured on a clean AWS VM
 
-## Result
+- **Volume:** 1 worker processed **≈ 960 tickets/hour** (86 in 322 s, all on the first attempt). 10,000/month averages about 14/hour, so that is **~70× headroom**. A 172-ticket burst on 3 workers, with one worker killed mid-run: **172/172 done, 0 lost, 0 duplicated**, and the crashed ticket was re-run automatically.
+- **KB growth, speed:** HNSW vector search **p50 1.3 ms at 10,000 chunks and 6.0 ms at 100,000** (p95 9.8 ms); the query embedding (~120 ms) dominates, not the index.
+- **KB growth, quality, which is the real risk:** adding 1,000 same-topic internal SOPs dropped Recall@3 **0.90 → 0.69**, because SOPs outrank the customer help pages. **Scoping customer-reply retrieval to customer-facing pages restored it exactly (0.90, Hit@3 0.956, MRR 0.88).** Phase 2 rule: SOPs are agent guidance in their own scope, never cited to customers; the labelled retrieval eval is a release gate on every KB update; add a re-ranker once help pages themselves grow large.
 
-| | Conservative + small model | Base + large model |
-|---|---|---|
-| Value | ≈ $1,390 | ≈ $5,480 |
-| Cost | ≈ $710 | ≈ $800 |
-| **Net / month** | **≈ +$680** | **≈ +$4,680** |
+## 4. What must be true, and how to check it before go-live
 
-## What this tells us
+| Assumption | Check |
+|---|---|
+| Agent cost/hour, minutes saved per drafted reply | Valetax figures, or a 2-week **shadow run** (co-pilot drafts, agents work as today, compare handling time) |
+| Usable-draft rate on *real* tickets (the eval set is deliberately risk-heavy) | Same shadow run: share of drafts sent with no or minor edits |
+| 0 hard-rule violations holds on real traffic | Weekly eval + audit-log sample; any violation pauses auto-drafting for that intent |
 
-1. **Worth running at 10,000 tickets/month: yes**, positive even with conservative assumptions. The main value is **absorbing ticket growth without hiring** (~1–3 agents' worth of time), plus faster first replies and consistent, compliant answers.
-2. **Model cost is a rounding error.** Even the most expensive model costs less than one minute of agent time on a fraction of tickets. **Maintenance and review effort are the real costs.** So the configuration is chosen on **safety and quality first** (0 hard-rule violations, correct abstention, multilingual quality on the eval set), then the **cheapest model that passes**.
-3. **The biggest lever is the usable-draft rate**, i.e. KB coverage. Moving from 40% → 60% roughly triples the value. The abstention log → KB gap report is how we move it.
-4. **The biggest risk is bad drafts that pass the gates**: small in minutes, large in compliance exposure. That is why hard-rule violations must be 0 and the `auto_draft_ok` precision is a release-gate metric.
-
-## Recommended configuration (confirmed by the eval run)
-- Phase 1: top-k retrieval (D1); deterministic pre/post checks; **Claude Haiku**: passes the release gate with 0 hard-rule violations, so there is no reason to pay for a larger model; prompt caching on.
-- Revisit when: volume grows ~5×, the KB passes ~20–30k tokens, or measured cost/latency exceeds target.
-
-## Measured so far (2026-11-23)
-| Item | Measured | Effect on the case |
-|---|---|---|
-| PII masking (Presidio + GLiNER, CPU) | ~170 ms per ticket, no API cost | negligible; runs on the same server |
-| Retrieval (bge-m3 + pgvector, CPU) | ~45 ms per query, no API cost | negligible |
-| End-to-end without LLM calls (`copilot replay`, 76 tickets) | p95 ≈ 250 ms | the 10 s budget is left for the two LLM calls |
-| Monitoring (OTel + Grafana LGTM) | open source, self-hosted; Grafana Cloud free tier covers this volume | ≈ $0 Phase 1; Phase 2 depends on Valetax's existing stack |
-| **LLM cost (Claude Haiku, end to end, 86 tickets)** | **$0.00071 per ticket** → ≈ $7 / 10,000 tickets | confirms point 2: model cost is a rounding error |
-| **Latency, end to end** | p50 3.8 s; p95 11.6 s (7.6 s in an earlier run) | p95 is **over the 10 s budget**. The slowest tickets are the first batch of the run (E01–E04, 13–20 s: cold start) and tickets needing 4 LLM calls (a redraft after post_check). Fine for a co-pilot (an agent reads the draft later, async queue), but Phase 2 should stream/parallelise or cap redrafts |
-| **Safety (release gate)** | 0 hard-rule violations; must-route recall 59/59; trading advice declined 19/19 (in the customer's language 19/19); abstain correct 10/10; complaint / KYC / AML never decided: 15/15 routed to the right team, 0 outcome claims; 0 uncited numbers in 43 drafted replies | gate PASS |
-| **Quality** | citation page correct 40/40; required facts 43/45; over-routing 4/27; partial answers correct 5/9 | over-routing costs agent minutes, not safety; partial answers are the main thing to improve |
-
-The cost and safety side is now measured. The conclusion still depends on the agent-side assumptions (cost per hour, minutes saved, usable-draft rate), which Valetax's own data or a 2-week shadow run should replace.
-
+**Revisit the configuration** if the shadow run shows Haiku drafts need many edits (try C2 on drafting only, at $51/month), volume grows ~5×, or the KB passes ~20–30k tokens.

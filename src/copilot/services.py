@@ -9,12 +9,14 @@ Serving is READ-ONLY (D8) and keeps NO in-memory copy of the KB (D9):
 
 from dataclasses import dataclass
 
+from cryptography.fernet import Fernet
 from psycopg_pool import ConnectionPool
 
 from copilot.audit import AuditLog
 from copilot.config import Settings
 from copilot.kb.ingest import build_kb
 from copilot.kb.store import KBReader, KBStore
+from copilot.log import get_logger
 from copilot.pipeline.injection_guard import InjectionGuard
 from copilot.pipeline.pii import Masker
 from copilot.pipeline.pii_vault import InMemoryPiiVault, PgPiiVault, PiiVault
@@ -42,6 +44,62 @@ class Services:
     guard: object | None = None  # pipeline.injection_guard.InjectionGuard (NeuralTrust)
 
 
+log = get_logger(__name__)
+
+SETUP_HINT = """\
+Generate the missing values once, without installing anything (Docker only), then add them to .env:
+  PII_ENCRYPTION_KEY:  docker compose run --rm --no-deps app python -c \
+"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+  API_KEYS:            docker compose run --rm --no-deps app copilot keys new helpdesk helpdesk
+                       docker compose run --rm --no-deps app copilot keys new sara agent
+  ANTHROPIC_API_KEY:   your key from console.anthropic.com"""
+
+
+def require_secrets(st: Settings) -> None:
+    """Fail at startup with one clear message (not a traceback) when .env is not filled in."""
+    missing = []
+    key = st.pii_encryption_key.get_secret_value()
+    if not key:
+        missing.append("PII_ENCRYPTION_KEY is empty")
+    else:
+        try:
+            Fernet(key.encode())
+        except ValueError:
+            missing.append("PII_ENCRYPTION_KEY is not a valid Fernet key")
+    if not st.anthropic_api_key.get_secret_value():
+        missing.append("ANTHROPIC_API_KEY is empty")
+    if not st.api_keys.strip():
+        missing.append("API_KEYS is empty (every endpoint would be locked)")
+    if missing:
+        raise SystemExit(
+            "Configuration incomplete (.env):\n  - " + "\n  - ".join(missing) + "\n\n" + SETUP_HINT
+        )
+
+
+# No-token injection detector (MIT), measured with `copilot eval injection`: 16/18 at 0.7% false
+# alarms vs 18/18 for the gated default (pipeline/injection_guard.py, D12).
+FALLBACK_GUARD_MODEL = "NeuralTrust/prompt-guard-oss-small"
+
+
+def load_guard(st: Settings) -> InjectionGuard:
+    """The configured guard; if it is gated and not accessible (no or wrong HUGGINGFACE_API_KEY,
+    licence not accepted), the measured no-token fallback, with a warning: never no guard."""
+    rules = load_injection_rules()
+    th = {"weak": rules["guard_weak"], "strong": rules["guard_strong"]}
+    token = st.huggingface_api_key.get_secret_value() if st.huggingface_api_key else None
+    try:
+        return InjectionGuard(st.injection_guard_model, th, token)
+    except OSError as err:  # transformers: gated/private repo without access → OSError
+        if st.injection_guard_model == FALLBACK_GUARD_MODEL:
+            raise
+        log.warning(
+            "injection guard model not accessible; using the no-token fallback",
+            extra={"model": st.injection_guard_model, "fallback": FALLBACK_GUARD_MODEL,
+                   "has_token": bool(token), "reason": str(err).splitlines()[0][:120]},
+        )  # fmt: skip
+        return InjectionGuard(FALLBACK_GUARD_MODEL, th, None)
+
+
 def load_services(
     st: Settings, pool: ConnectionPool | None = None, warm_masker: bool = True
 ) -> Services:
@@ -49,6 +107,7 @@ def load_services(
 
     `pool` is required for VECTOR_STORE=pgvector (see copilot/db.py open_pool).
     """
+    require_secrets(st)
     if st.vector_store == "memory":
         kb = build_kb()
         embedder, index = get_embedder(st.embedding_model), InMemoryIndex()
@@ -73,12 +132,7 @@ def load_services(
     tickets = PgTicketStore(pool)
     risk = RiskClassifier(embedder, model_name=st.embedding_model)  # trains in ~1 s (cached)
     risk.warm_up()  # first bge-m3 call at startup, not on the first customer's ticket
-    rules = load_injection_rules()
-    guard = InjectionGuard(
-        st.injection_guard_model,
-        {"weak": rules["guard_weak"], "strong": rules["guard_strong"]},
-        st.huggingface_api_key.get_secret_value() if st.huggingface_api_key else None,
-    )
+    guard = load_guard(st)
     guard.warm_up()
     return Services(
         store,

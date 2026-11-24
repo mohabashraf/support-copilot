@@ -26,12 +26,15 @@ It never talks to customers directly: an agent reviews and sends every reply.
 
 ```bash
 cp .env.example .env            # .env is the single source of truth (keys: see comments inside)
-#   vault key: uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-uv run copilot keys new helpdesk helpdesk   # API keys: the key is shown once, add the printed
-uv run copilot keys new sara agent          #   name:role:hash line to API_KEYS in .env
-docker compose up --build       # db → indexer (KB + vectors) → app + worker, plus lgtm (monitoring)
+docker compose build            # Docker only: nothing else to install
+# fill in .env: ANTHROPIC_API_KEY (yours), PII_ENCRYPTION_KEY and API_KEYS (generated):
+docker compose run --rm --no-deps app python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+docker compose run --rm --no-deps app copilot keys new helpdesk helpdesk   # key shown once; add the
+docker compose run --rm --no-deps app copilot keys new sara agent          #   name:role:hash line to API_KEYS
+docker compose up               # db → indexer (KB + vectors) → app + worker, plus lgtm (monitoring)
 docker compose up --scale worker=3   # more workers: they never take the same ticket
 ```
+A missing or invalid key stops the app at startup with one message that says which value is missing and how to generate it. **First start** downloads the models (bge-m3 embeddings, GLiNER PII, ≈ 2.5 GB) into a Docker volume: 3.5 min end to end on a fresh cloud VM; much longer on a slow connection. Later starts reuse the volume, and the indexer embeds only changed chunks (`unchanged=26, embedded=0`).
 
 | What | Where |
 |---|---|
@@ -150,6 +153,8 @@ Details and trade-offs: [docs/BENCHMARK.md](docs/BENCHMARK.md). Test strategy: [
 |---|---|
 | [PRD.md](PRD.md) | What we build: requirements, routing triggers, compliance |
 | [docs/EVIDENCE_TRADING_ADVICE.md](docs/EVIDENCE_TRADING_ADVICE.md) | Evidence for "never give trading advice": layers, the decline in 11 languages, per-ticket eval results, limits |
+| [docs/EVIDENCE_SCALE.md](docs/EVIDENCE_SCALE.md) | Clean `docker compose up` on a fresh VM, retrieval + answers through Docker, Phase 2 volume (workers, crash) and KB-growth tests |
+| [docs/BUSINESS_CASE.md](docs/BUSINESS_CASE.md) | One page: worth running at 10,000 tickets/month, and with which configuration (C1/C2/C3 measured) |
 | [docs/EVIDENCE_GROUNDING.md](docs/EVIDENCE_GROUNDING.md) | Evidence for "never invent policy, fees or timelines; cite the KB or say it is unknown": the uncited-number check, traps, unknowns, conflicts, Postman folder 6, limits |
 | [docs/EVIDENCE_COMPLAINT_KYC_AML.md](docs/EVIDENCE_COMPLAINT_KYC_AML.md) | Evidence for "never decide a complaint, KYC or AML outcome": layers, the fixed acknowledgements, per-ticket eval results (15/15), Postman folder 5, limits |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it fits together, Phase 1 and Phase 2 |
