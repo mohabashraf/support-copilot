@@ -14,7 +14,7 @@ from copilot.config import get_settings
 from copilot.db import open_pool
 from copilot.server.auth import Principal, parse_keys
 from copilot.server.middleware import log_requests
-from copilot.server.routes import health, tickets
+from copilot.server.routes import health, tickets, ui
 from copilot.services import Services, load_services
 from copilot.telemetry import instrument_app, setup_telemetry
 from copilot.tracing import configure_tracing
@@ -56,4 +56,5 @@ def create_app(
     app.include_router(health.router)
     if services.masker is not None:
         app.include_router(tickets.router)
+        app.include_router(ui.router)  # GET /ui: the agent page (same API, caller's own keys)
     return app

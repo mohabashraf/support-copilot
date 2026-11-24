@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support Co-pilot</title>
+<style>
+  :root { --bg:#f6f7f9; --panel:#fff; --ink:#1d2330; --muted:#667085; --line:#e4e7ec; --accent:#2457d6;
+          --ok:#127a43; --okbg:#e7f6ee; --warn:#9a5b00; --warnbg:#fff4e0; --bad:#b42318; --badbg:#fdecea; --chip:#eef1f6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1a1e26; --ink:#e6e8ec; --muted:#98a2b3; --line:#2a303b;
+          --accent:#7aa2ff; --ok:#4fd18b; --okbg:#173326; --warn:#f2b555; --warnbg:#3a2c12; --bad:#ff8a80; --badbg:#3b1b19; --chip:#252b36; } }
+  * { box-sizing:border-box } body { margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink) }
+  header { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--line) }
+  header h1 { font-size:16px; margin:0 12px 0 0 } header label { color:var(--muted); font-size:12px }
+  input, textarea, select, button { font:inherit; color:inherit } input, textarea, select { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:6px 8px }
+  button { border:1px solid var(--line); background:var(--panel); border-radius:6px; padding:6px 12px; cursor:pointer } button.primary { background:var(--accent); border-color:var(--accent); color:#fff }
+  button:disabled { opacity:.5; cursor:default }
+  main { display:grid; grid-template-columns: 330px 1fr; gap:12px; padding:12px; min-height:calc(100vh - 56px) }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; min-width:0 }
+  .panel h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:0 0 8px }
+  .stack > * + * { margin-top:8px } .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+  .inbox { max-height:calc(100vh - 380px); overflow:auto; margin:0 -12px } .item { padding:8px 12px; border-top:1px solid var(--line); cursor:pointer }
+  .item:hover, .item.sel { background:var(--chip) } .item .top { display:flex; justify-content:space-between; gap:8px } .muted { color:var(--muted) } .small { font-size:12px }
+  .chip { display:inline-block; background:var(--chip); border-radius:999px; padding:1px 8px; font-size:12px; margin:2px 4px 2px 0 }
+  .ok { background:var(--okbg); color:var(--ok) } .warn { background:var(--warnbg); color:var(--warn) } .bad { background:var(--badbg); color:var(--bad) }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap:8px } .kv { background:var(--bg); border-radius:8px; padding:8px } .kv b { display:block; font-size:12px; color:var(--muted); font-weight:500 }
+  .msg { white-space:pre-wrap; background:var(--bg); border-radius:8px; padding:10px } textarea { width:100%; min-height:150px; resize:vertical }
+  .steps span { font-size:12px } .note { border-left:3px solid var(--warn); background:var(--warnbg); padding:6px 10px; border-radius:4px; font-size:13px }
+  a { color:var(--accent) } .err { color:var(--bad) } .empty { color:var(--muted); padding:40px; text-align:center }
+</style>
+</head>
+<body>
+<header>
+  <h1>Support Co-pilot</h1>
+  <label>Helpdesk key <input id="hk" type="password" size="22" placeholder="creates tickets"></label>
+  <label>Agent key <input id="ak" type="password" size="22" placeholder="reads + decides"></label>
+  <button id="saveKeys">Save keys</button>
+  <span class="small muted">Keys: <code>.support-copilot-keys</code> (from <code>copilot setup</code>). Kept in this browser only.</span>
+</header>
+<main>
+  <section class="stack">
+    <div class="panel stack">
+      <h2>New ticket (as the helpdesk)</h2>
+      <input id="subj" placeholder="Subject" style="width:100%">
+      <textarea id="body" placeholder="Customer message, e.g. What is the minimum deposit?" style="min-height:90px"></textarea>
+      <div class="row"><button class="primary" id="create">Create ticket</button><span id="createMsg" class="small"></span></div>
+    </div>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Inbox</h2><span id="counts" class="small muted"></span></div>
+      <div class="row" style="margin:8px 0">
+        <select id="fStatus"><option value="">all statuses</option><option>queued</option><option>processing</option><option>done</option><option>failed</option></select>
+        <select id="fQueue"><option value="">all queues</option><option>support_agent</option><option>senior_support</option><option>compliance</option></select>
+      </div>
+      <div class="inbox" id="inbox"><div class="empty">Save your keys to load the inbox.</div></div>
+    </div>
+  </section>
+  <section class="panel" id="detail"><div class="empty">Select a ticket, or create one.</div></section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const store = { get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let selected = null, timer = null;
+$("hk").value = store.get("helpdeskKey"); $("ak").value = store.get("agentKey");
+$("saveKeys").onclick = () => { store.set("helpdeskKey", $("hk").value.trim()); store.set("agentKey", $("ak").value.trim()); loadInbox(); };
+
+async function api(path, { key = "agentKey", method = "GET", body } = {}) {
+  const res = await fetch(path, { method, headers: { Authorization: `Bearer ${store.get(key)}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined });
+  const text = await res.text(); let data; try { data = JSON.parse(text); } catch { data = text; }
+  if (!res.ok) throw new Error(`${res.status}: ${typeof data === "object" ? (data.detail ? JSON.stringify(data.detail) : text) : text}`);
+  return data;
+}
+const decisionChip = (d) => d === "auto_draft_ok" ? `<span class="chip ok">draft ready</span>` : d === "human_required" ? `<span class="chip warn">needs a person</span>` : `<span class="chip">${esc(d || "…")}</span>`;
+const statusChip = (s) => `<span class="chip ${s === "done" ? "ok" : s === "failed" ? "bad" : ""}">${esc(s)}</span>`;
+
+async function loadInbox() {
+  const q = new URLSearchParams(); if ($("fStatus").value) q.set("status", $("fStatus").value); if ($("fQueue").value) q.set("queue", $("fQueue").value);
+  try {
+    const d = await api(`/tickets?${q}`);
+    $("counts").textContent = Object.entries(d.counts).map(([k, v]) => `${k} ${v}`).join(" · ");
+    $("inbox").innerHTML = d.items.length ? d.items.map((t) => `
+      <div class="item ${t.ticket_number === selected ? "sel" : ""}" data-n="${t.ticket_number}">
+        <div class="top"><b>#${t.ticket_number}</b><span>${statusChip(t.status)}${t.status === "done" ? decisionChip(t.decision) : ""}${t.handled_by_agent ? '<span class="chip ok">handled</span>' : ""}</span></div>
+        <div class="small muted">${esc(t.category || "")}${t.urgency ? " · " + esc(t.urgency) : ""}${t.queue ? " · → " + esc(t.queue) : ""}</div>
+        ${t.reasons.length ? `<div>${t.reasons.map((r) => `<span class="chip">${esc(r)}</span>`).join("")}</div>` : ""}
+      </div>`).join("") : `<div class="empty">No tickets yet.</div>`;
+    document.querySelectorAll(".item").forEach((el) => el.onclick = () => openTicket(+el.dataset.n));
+  } catch (e) { $("inbox").innerHTML = `<div class="empty err">${esc(e.message)}</div>`; }
+}
+$("fStatus").onchange = loadInbox; $("fQueue").onchange = loadInbox;
+
+$("create").onclick = async () => {
+  $("createMsg").textContent = "sending…";
+  try {
+    const d = await api("/tickets", { key: "helpdeskKey", method: "POST", body: { id: `UI-${Date.now()}`, subject: $("subj").value, body: $("body").value } });
+    $("createMsg").textContent = `ticket #${d.ticket_number} queued`; $("body").value = ""; $("subj").value = "";
+    loadInbox(); openTicket(d.ticket_number);
+  } catch (e) { $("createMsg").innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+};
+
+async function openTicket(n) {
+  selected = n; clearTimeout(timer);
+  let t; try { t = await api(`/tickets/${n}`); } catch (e) { $("detail").innerHTML = `<div class="empty err">${esc(e.message)}</div>`; return; }
+  const r = t.result || {}, rt = r.routing || {}, c = r.classification || {}, running = t.status === "queued" || t.status === "processing";
+  const steps = t.steps.map((s) => `<span class="chip ${s.status === "completed" ? "ok" : ""}">${esc(s.node)}${s.ms != null ? ` ${Math.round(s.ms)} ms` : ""}</span>`).join("→ ");
+  const cites = (r.citations || []).map((x) => `<li><a href="${esc(x.page_url)}" target="_blank" rel="noopener">${esc(x.page_title)}</a> · ${esc(x.section)} <span class="muted small">(${esc(x.chunk_id)})</span></li>`).join("");
+  const notes = (r.notes_for_agent || []).map((x) => `<div class="note">${esc(x)}</div>`).join("");
+  const decided = t.agent_action;
+  $("detail").innerHTML = `
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Ticket #${t.ticket_number} <span class="muted small">${esc(t.ticket_id)}</span></h2>
+      <span>${statusChip(t.status)}${t.status === "done" ? decisionChip(rt.decision) : ""}</span></div>
+    <div class="steps" style="margin:8px 0">${steps || '<span class="muted small">waiting for the worker…</span>'}
+      <span class="muted small"> · ${esc(t.steps_completed)} steps${t.seconds_processing != null ? ` · ${t.seconds_processing.toFixed(1)} s` : ""}${t.attempts > 1 ? ` · attempt ${t.attempts}` : ""}</span></div>
+    ${t.error ? `<div class="note err">${esc(t.error)}</div>` : ""}
+    <h2>Customer message (masked)</h2>
+    <div class="msg">${t.message.subject ? `<b>${esc(t.message.subject)}</b>\n` : ""}${esc(t.message.body)}</div>
+    ${t.pii_types.length ? `<div class="row small" style="margin-top:6px"><span class="muted">PII hidden: ${t.pii_types.map(esc).join(", ")}</span><button id="reveal">Reveal customer details (audited)</button><span id="pii"></span></div>` : ""}
+    ${running ? `<div class="empty">The co-pilot is working on this ticket… (refreshes automatically)</div>` : `
+    <h2 style="margin-top:14px">Why</h2>
+    <div class="grid">
+      <div class="kv"><b>Category</b>${esc(c.category || "–")}</div><div class="kv"><b>Urgency</b>${esc(c.urgency || "–")}</div>
+      <div class="kv"><b>Language</b>${esc(c.language || "–")} → reply ${esc(c.reply_language || "–")}</div><div class="kv"><b>Sentiment</b>${esc(c.sentiment || "–")}</div>
+      <div class="kv"><b>Route</b>${esc(rt.destination || "agent reviews the draft")}${rt.priority === "low" ? " · low priority" : ""}</div>
+      <div class="kv"><b>Reasons</b>${(rt.reasons || []).map((x) => `<span class="chip">${esc(x)}</span>`).join("") || "none"}</div>
+    </div>
+    ${notes ? `<h2 style="margin-top:14px">Notes for the agent</h2><div class="stack">${notes}</div>` : ""}
+    <h2 style="margin-top:14px">Draft reply ${rt.decision === "human_required" ? '<span class="chip warn">check before sending</span>' : ""}</h2>
+    ${decided ? `<div class="note" style="border-color:var(--ok);background:var(--okbg)">${esc(decided.decision)} by ${esc(decided.agent)} at ${esc(new Date(decided.decided_at).toLocaleString())}</div>
+      ${decided.final_text_masked ? `<div class="msg" style="margin-top:8px">${esc(decided.final_text_masked)}</div>` : ""}` : `
+    <textarea id="draft" placeholder="No draft: write the reply, or hand it off.">${esc(r.reply || "")}</textarea>
+    <div class="row" style="margin-top:8px"><button class="primary" id="send">Send reply</button><button id="manual">Handle manually</button><span id="decMsg" class="small"></span></div>
+    <div class="small muted">Placeholders like [NAME_1] are filled in at send time; cards are only ever shown as **** + last 4.</div>`}
+    ${cites ? `<h2 style="margin-top:14px">Sources (help pages)</h2><ul>${cites}</ul>` : ""}`}`;
+  if ($("reveal")) $("reveal").onclick = async () => { try { const v = await api(`/tickets/${n}/customer-details`); $("pii").textContent = Object.entries(v).map(([k, x]) => `${k} = ${x}`).join(" · "); } catch (e) { $("pii").innerHTML = `<span class="err">${esc(e.message)}</span>`; } };
+  const decide = async (action) => { try { await api(`/tickets/${n}/decision`, { method: "POST", body: { action, final_text: action === "send" ? $("draft").value : "" } }); openTicket(n); loadInbox(); } catch (e) { $("decMsg").innerHTML = `<span class="err">${esc(e.message)}</span>`; } };
+  if ($("send")) $("send").onclick = () => decide("send");
+  if ($("manual")) $("manual").onclick = () => decide("manual");
+  if (running) timer = setTimeout(() => { openTicket(n); loadInbox(); }, 2000);
+}
+if (store.get("agentKey")) loadInbox();
+setInterval(() => { if (store.get("agentKey")) loadInbox(); }, 10000);
+</script>
+</body>
+</html>

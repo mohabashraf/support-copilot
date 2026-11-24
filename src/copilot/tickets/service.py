@@ -220,6 +220,8 @@ def process(
                 "classification": classification.model_dump() if classification else None,
                 "reply": state.get("reply"),
                 "citations": state.get("citations"),
+                # for the agent: uncovered parts, page conflicts, translation/review notes
+                "notes_for_agent": state.get("notes_for_agent", []),
                 "routing": routing.model_dump() if routing else None,
                 # Signals from the implemented checks (no customer text: names, probabilities,
                 # and the nearest TRAINING example as evidence).

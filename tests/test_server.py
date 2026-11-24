@@ -56,6 +56,9 @@ def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
     routing = done["result"]["routing"]
     assert routing["decision"] == "human_required" and routing["reasons"] == ["weak_retrieval"]
     assert done["complete"] is False and done["result"]["reply"] is None
+    assert isinstance(
+        done["result"]["notes_for_agent"], list
+    )  # the agent sees the co-pilot's notes
     # Weak retrieval skips draft + post_check: 11 of the 12 steps on this path are implemented
     # (audit is still a placeholder).
     assert done["steps_completed"] == "11/12"
@@ -116,3 +119,10 @@ def test_possible_unmasked_pii_is_logged_as_a_warning(caplog):
     )
     warnings = [r for r in caplog.records if r.getMessage() == "possible unmasked pii"]
     assert warnings and warnings[0].kinds == ["long_number"]
+
+
+def test_agent_page_is_served_and_uses_only_the_json_api():
+    r = client.get("/ui")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
+    assert "Support Co-pilot" in r.text and "/tickets" in r.text
+    assert "4111" not in r.text and "sk_" not in r.text  # no data, no keys baked into the page
