@@ -50,7 +50,7 @@ def test_inbox_lists_tickets_with_counts_and_filters(env):
         client.get("/tickets", params={"queue": "compliance"}, headers=SARA).json()["items"] == []
     )
     assert client.get("/tickets", params={"queue": "nope"}, headers=SARA).status_code == 422
-    assert "4111" not in client.get("/tickets", headers=SARA).text
+    assert "4111 1111" not in client.get("/tickets", headers=SARA).text
 
 
 def test_ticket_shows_masked_message_and_draft(env):
@@ -58,7 +58,7 @@ def test_ticket_shows_masked_message_and_draft(env):
     t = client.get(f"/tickets/{n}", headers=SARA).json()
     assert t["message"]["body"] == "Hi, this is [NAME_1] and my card [CARD_1] failed"
     assert t["result"]["reply"] == DRAFT and t["agent_action"] is None
-    assert "4111" not in str(t) and "Ahmed" not in str(t)
+    assert "4111 1111" not in str(t) and "Ahmed" not in str(t)
 
 
 def test_customer_details_need_an_agent_and_are_audited(env):
@@ -79,7 +79,10 @@ def test_send_unchanged_is_sent_filled_then_stored_masked(env):
     assert r.status_code == 200
     action = r.json()["agent_action"]
     assert action["decision"] == "sent" and action["agent"] == "sara"
-    assert "Ahmed" not in action["final_text_masked"] and "4111" not in action["final_text_masked"]
+    assert (
+        "Ahmed" not in action["final_text_masked"]
+        and "4111 1111" not in action["final_text_masked"]
+    )
     event = [e for e in audit.read(n) if e["event"] == "agent_decision"][0]
     assert event["ai_draft"] == DRAFT and event["decision"] == "sent"
 

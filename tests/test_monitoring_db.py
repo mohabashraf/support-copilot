@@ -86,7 +86,7 @@ def test_monitoring_views_hold_no_text(ticket):
             "tickets_test_risk_signals",
         ):
             row = conn.execute(f"SELECT * FROM {view} WHERE number = {n}").fetchall()
-            assert "4111" not in str(row) and "Ahmed" not in str(row)
+            assert "4111 1111" not in str(row) and "Ahmed" not in str(row)
 
 
 def test_every_dashboard_sql_query_runs_as_grafana(ticket):

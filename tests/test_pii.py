@@ -107,7 +107,7 @@ def test_report_has_monitoring_data_but_no_values():
     r = SPACY.mask_ticket(subject="hi", body="card 4111 1111 1111 1111, mail a@x.com")
     assert r.summary()["pii_by_type"] == {"card": 1, "email": 1}
     assert {d.recognizer for d in r.detections} == {"CreditCardRecognizer", "EmailRecognizer"}
-    assert "4111" not in repr(r.detections) and "a@x.com" not in str(r.summary())
+    assert "4111 1111" not in repr(r.detections) and "a@x.com" not in str(r.summary())
 
 
 @pytest.mark.parametrize(

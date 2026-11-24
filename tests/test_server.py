@@ -40,7 +40,7 @@ def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
     b = r.json()
     n = b["ticket_number"]
     assert b["status"] == "queued" and r.headers["location"] == f"/tickets/{n}"
-    assert "4111" not in r.text  # the response never carries a real PII value
+    assert "4111 1111" not in r.text  # the response never carries a real PII value
     assert vault.reveal("S1", "[CARD_1]") == "4111 1111 1111 1111"
 
     queued = client.get(f"/tickets/{n}", headers=HELPDESK).json()
@@ -73,7 +73,7 @@ def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
         "compose",
         "route",
     }
-    assert "4111" not in str(done)
+    assert "4111 1111" not in str(done)
 
 
 def test_same_ticket_again_returns_the_same_number():

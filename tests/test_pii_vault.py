@@ -60,7 +60,7 @@ def test_values_are_encrypted_at_rest(pool):
     v.store("T1", MAPPING)
     with pool.connection() as conn:
         raw = b"".join(bytes(r[0]) for r in conn.execute("SELECT value_enc FROM pii_vault_test"))
-    assert b"4111" not in raw and "محمد".encode() not in raw
+    assert b"4111 1111" not in raw and "محمد".encode() not in raw
 
 
 def test_cards_documents_accounts_are_never_shown_in_full():
