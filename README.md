@@ -7,7 +7,7 @@ A co-pilot for support agents at a retail forex/CFD broker. For every incoming t
 
 It never talks to customers directly: an agent reviews and sends every reply.
 
-## Status (2026-11-23)
+## Status (2026-11-24)
 
 | Part | State |
 |---|---|
@@ -15,11 +15,12 @@ It never talks to customers directly: an agent reviews and sends every reply.
 | Retrieval: multilingual embeddings (bge-m3) + pgvector, evaluated (R@3 0.90, MRR 0.88, Arabic Hit@3 1.00) | ✅ done |
 | PII masking before anything else sees the ticket: Presidio + GLiNER, encrypted vault, residual-PII monitor, evaluated | ✅ done |
 | Tickets as background jobs: `POST /tickets` → ticket number, Postgres queue, worker(s), `GET /tickets/{number}` for status/progress/result, retries, crash recovery (D11) | ✅ done |
-| Workflow: LangGraph graph (D3): pattern_check → injection_check → risk_classifier → classify_safety ∥ classify_triage → validate_classification → confidence_gate → policy_gate → … | ✅ **pattern_check** (exact phrases, spam), **injection_check** (its own gate before any LLM: Llama Prompt Guard 2 + our bge-m3 head; 18/18 injections caught at 0.7% false alarms), **risk_classifier** (bge-m3 + logistic regression, D12), **classify_safety** + **classify_triage** (two parallel Claude Haiku calls, D13), **validate_classification** (merge, stricter value wins, corrections recorded), **confidence_gate** (self-report AND rule signals, measured threshold, D14), **policy_gate** (hard rules in code, per intent; strictest of LLM, triage, classifier and patterns; KYC/AML → compliance, D15), **template_reply** (fixed EN/AR texts), **compose**, **route**. Retrieve, draft and post_check are placeholders (reported as such), so answerable tickets go to a person with reason `no_draft` |
+| Workflow: LangGraph graph (D3): pattern_check → injection_check → risk_classifier → classify_safety ∥ classify_triage → validate_classification → confidence_gate → policy_gate → … | ✅ **pattern_check** (exact phrases, spam), **injection_check** (its own gate before any LLM: Llama Prompt Guard 2 + our bge-m3 head; 18/18 injections caught at 0.7% false alarms), **risk_classifier** (bge-m3 + logistic regression, D12), **classify_safety** + **classify_triage** (two parallel Claude Haiku calls, D13), **validate_classification** (merge, stricter value wins, corrections recorded), **confidence_gate** (self-report AND rule signals, measured threshold, D14), **policy_gate** (hard rules in code, per intent; strictest of LLM, triage, classifier and patterns; KYC/AML → compliance, D15), **template_reply** (fixed EN/AR texts), **compose**, **route**. **retrieve** + **draft** (grounded reply with citations, or abstain / partial), **post_check** (numbers only from cited chunks, no advice or promises, one redraft with feedback) |
 | Agent API: inbox, ticket with draft/citations/why, audited customer details, send / edit / handle manually | ✅ done (local, no login; Phase 2: SSO) |
 | Audit log (legal record): processing, PII reveals, agent decisions with AI draft AND final text, masked | ✅ done |
 | Monitoring end to end: OpenTelemetry → Grafana (metrics, traces, logs), LangSmith for LLM calls | ✅ done |
-| Grounded draft with citations or abstain, post_check, end-to-end eval + model benchmark, business case with measured numbers | ⏳ next |
+| End-to-end eval (`copilot eval e2e`, 86 tickets): release gate **PASS**: 0 hard-rule violations, must-route 59/59, advice declined 19/19, citations 40/40, $0.0007 per ticket, p95 7.6 s | ✅ done (`eval/results/e2e_run6.json`) |
+| Business case with measured LLM cost (`docs/BUSINESS_CASE.md`) | ✅ done (agent-side figures assumed, to be replaced with Valetax data) |
 
 ## Quick start
 
@@ -130,7 +131,7 @@ Instrumented with **OpenTelemetry**, so production only changes the endpoint: Gr
 | Retrieval (85 queries, 68 answerable, + 28 tickets) | `uv run copilot eval retrieval` | R@3 0.90 · MRR 0.88 · Hit@3 en 0.94 / ar 1.00 / other 1.00 |
 | PII masking (20 new cases + 76 labelled tickets) | `uv run copilot eval pii` | value recall 1.00 · keep precision 0.96 · ticket type match 1.00 |
 | Risk signals: patterns + classifier (62 held-out cases, 12 languages) | `uv run copilot eval risks` | recall 1.00 every risk and language · precision 0.84 · 0 strong false alarms · category 0.89 |
-| End to end (classification, abstention, routing recall, hard-rule violations, cost) | `copilot eval tickets` | ⏳ needs the LLM nodes |
+| End to end (classification, abstention, routing recall, hard-rule violations, cost) | `copilot eval e2e` | ✅ gate PASS (run 6: 0 violations, must-route 59/59, $0.0007/ticket) |
 
 Details and trade-offs: [docs/BENCHMARK.md](docs/BENCHMARK.md). Test strategy: [eval/README.md](eval/README.md).
 
