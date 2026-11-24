@@ -150,6 +150,7 @@ Details and trade-offs: [docs/BENCHMARK.md](docs/BENCHMARK.md). Test strategy: [
 |---|---|
 | [PRD.md](PRD.md) | What we build: requirements, routing triggers, compliance |
 | [docs/EVIDENCE_TRADING_ADVICE.md](docs/EVIDENCE_TRADING_ADVICE.md) | Evidence for "never give trading advice": layers, the decline in 11 languages, per-ticket eval results, limits |
+| [docs/EVIDENCE_COMPLAINT_KYC_AML.md](docs/EVIDENCE_COMPLAINT_KYC_AML.md) | Evidence for "never decide a complaint, KYC or AML outcome": layers, the fixed acknowledgements, per-ticket eval results (15/15), Postman folder 5, limits |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it fits together, Phase 1 and Phase 2 |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Why: every decision with options and trade-offs (D1–D11) |
 | [docs/BENCHMARK.md](docs/BENCHMARK.md) | Measured results |
