@@ -3,14 +3,15 @@
 // collection uses. Usage:
 //   node postman/run_collection.mjs [folder-name-prefix ...]
 // Keys and baseUrl come from postman/local.postman_environment.json (written by `copilot setup`)
-// or from the env vars BASE_URL, HELPDESK_KEY, AGENT_KEY. Exit code 1 if any test fails.
+// or from the env vars BASE_URL, HELPDESK_KEY, AGENT_KEY (or keys built into the collection).
+// COLLECTION=path runs another copy (e.g. the reviewer's keyed one). Exit code 1 if any test fails.
 import fs from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { randomUUID } from "node:crypto";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
-const collection = JSON.parse(fs.readFileSync(path.join(here, "support-copilot.postman_collection.json"), "utf8"));
+const collection = JSON.parse(fs.readFileSync(process.env.COLLECTION || path.join(here, "support-copilot.postman_collection.json"), "utf8"));
 const env = {};
 const envFile = path.join(here, "local.postman_environment.json");
 if (fs.existsSync(envFile)) for (const v of JSON.parse(fs.readFileSync(envFile, "utf8")).values) env[v.key] = v.value;

@@ -7,42 +7,44 @@ A co-pilot for support agents at a retail forex/CFD broker. For every incoming t
 
 It never talks to customers directly: an agent reviews and sends every reply.
 
-## Status (2026-11-24)
+## Review in 10 minutes
+1. **Run it** (Quick start below: copy `.env.example`, add your Claude key, `docker compose up`).
+2. **Open the agent UI** at http://localhost:8000/ui (the sign-in link in the reviewer email opens it signed in). Create a ticket such as *"What is the minimum deposit?"*, then *"Should I buy gold now?"*, and see the draft, its cited help pages, the reasons and the routing.
+3. **Run Postman** folder 7 (questions the help pages answer), then 4 to 6 (the hard rules), then 3 (every routing path). See [Postman](#postman).
+4. **Read** [docs/BUSINESS_CASE.md](docs/BUSINESS_CASE.md) (one page: worth running, which configuration), then the evidence for each hard rule and for scale (the [document map](#document-map)).
 
+## Status (2026-11-24): Phase 1 complete
 | Part | State |
 |---|---|
-| Knowledge base: 4 pages → 26 citable chunks, flags for gaps/conflicts/defects, incremental ingestion | ✅ done |
-| Retrieval: multilingual embeddings (bge-m3) + pgvector, evaluated (R@3 0.90, MRR 0.88, Arabic Hit@3 1.00) | ✅ done |
-| PII masking before anything else sees the ticket: Presidio + GLiNER, encrypted vault, residual-PII monitor, evaluated | ✅ done |
-| Tickets as background jobs: `POST /tickets` → ticket number, Postgres queue, worker(s), `GET /tickets/{number}` for status/progress/result, retries, crash recovery (D11) | ✅ done |
-| Workflow: LangGraph graph (D3): pattern_check → injection_check → risk_classifier → classify_safety ∥ classify_triage → validate_classification → confidence_gate → policy_gate → … | ✅ **pattern_check** (exact phrases, spam), **injection_check** (its own gate before any LLM: Llama Prompt Guard 2 + our bge-m3 head; 18/18 injections caught at 0.7% false alarms), **risk_classifier** (bge-m3 + logistic regression, D12), **classify_safety** + **classify_triage** (two parallel Claude Haiku calls, D13), **validate_classification** (merge, stricter value wins, corrections recorded), **confidence_gate** (self-report AND rule signals, measured threshold, D14), **policy_gate** (hard rules in code, per intent; strictest of LLM, triage, classifier and patterns; KYC/AML → compliance, D15), **template_reply** (fixed EN/AR texts), **compose**, **route**. **retrieve** + **draft** (grounded reply with citations, or abstain / partial), **post_check** (numbers only from cited chunks, no advice or promises, one redraft with feedback) |
-| Agent API: inbox, ticket with draft/citations/why, audited customer details, send / edit / handle manually | ✅ done (local, no login; Phase 2: SSO) |
-| Audit log (legal record): processing, PII reveals, agent decisions with AI draft AND final text, masked | ✅ done |
-| Monitoring end to end: OpenTelemetry → Grafana (metrics, traces, logs), LangSmith for LLM calls | ✅ done |
-| End-to-end eval (`copilot eval e2e`, 86 tickets): release gate **PASS**: 0 hard-rule violations, must-route 59/59, advice declined 19/19, complaint/KYC/AML 15/15 to the right team, **0 uncited numbers in 43 drafted replies**, citations 40/40, $0.0007 per ticket, p50 3.8 s / p95 11.6 s | ✅ done (`eval/results/e2e_run9.json`) |
-| Business case with measured LLM cost (`docs/BUSINESS_CASE.md`) | ✅ done (agent-side figures assumed, to be replaced with Valetax data) |
+| Knowledge base: the 4 help pages used **as they are** → 26 citable chunks; gaps, overlaps and inconsistencies flagged ([KB_FINDINGS](knowledge_base/KB_FINDINGS.md)); incremental ingestion | ✅ |
+| Retrieval: bge-m3 + pgvector (HNSW): Recall@3 0.90, MRR 0.88, Arabic Hit@3 1.00; same numbers on a clean `docker compose up` | ✅ |
+| PII masked before anything else sees the ticket (Presidio + GLiNER), encrypted vault, audited reveal | ✅ |
+| Tickets as background jobs: Postgres queue, workers, retries, crash recovery (lease), live progress | ✅ |
+| Workflow: all **14 LangGraph steps** do real work (patterns → injection gate → risk classifier → 2 parallel Claude calls → validation → confidence → **hard rules in code** → retrieve → draft → post_check → compose → route → **audit**) | ✅ |
+| Agent UI (`/ui`) and agent API: inbox, draft + citations + notes, fill in customer details, send / edit / manual | ✅ |
+| Audit log (legal record): processing with the full decision record, PII reveals, agent decisions with AI draft and final text, all masked | ✅ |
+| Monitoring: OpenTelemetry → Grafana (metrics, traces, logs), LangSmith for LLM calls | ✅ |
+| End-to-end eval (86 tickets): release gate **PASS**, 0 hard-rule violations, must-route 59/59, advice declined 19/19, complaint/KYC/AML 15/15, **0 uncited numbers**, $0.0007/ticket | ✅ |
+| Postman: 124 requests in 8 folders, all passing against a fresh stack | ✅ |
+| Business case with measured configurations (C1/C2/C3) and Phase 2 scale tests on AWS | ✅ |
 
 ## Quick start
-
 ```bash
-cp .env.example .env            # .env is the single source of truth
-docker compose build            # Docker only: nothing else to install
-# one command fills the empty secrets in .env (encryption key + API keys) and writes the Postman environment:
-docker compose run --rm --no-deps -v "$PWD:/work" -w /work app copilot setup
-#   then put YOUR Claude key in .env:  ANTHROPIC_API_KEY=sk-ant-...
-docker compose up               # db → indexer (KB + vectors) → app + worker, plus lgtm (monitoring)
-docker compose up --scale worker=3   # more workers: they never take the same ticket
+git clone https://github.com/mohabashraf/support-copilot.git && cd support-copilot
+cp .env.example .env            # then put YOUR Claude key in .env:  ANTHROPIC_API_KEY=sk-ant-...
+docker compose up --build       # db → indexer (KB + vectors) → app + worker, plus lgtm (monitoring)
+docker compose up --scale worker=3   # optional: more workers; they never take the same ticket
 ```
-`copilot setup` never overwrites a value that is already set. It writes the plain API keys to `.support-copilot-keys` and to `postman/local.postman_environment.json` (both gitignored; `.env` holds only their hashes). **Postman:** import the collection *and* that environment, then select the environment in the top-right picker: every request then has `baseUrl`, `helpdeskKey` and `agentKey`. Postman must be able to reach `localhost`: use the desktop app, or the Desktop Agent on postman.com (otherwise Postman shows "Could not send request"). A missing or invalid key stops the app at startup with one message that says which value is missing and how to fix it. **First start** downloads the models (bge-m3 embeddings, GLiNER PII, ≈ 2.5 GB) into a Docker volume: 3.5 min end to end on a fresh cloud VM; much longer on a slow connection. Later starts reuse the volume, and the indexer embeds only changed chunks (`unchanged=26, embedded=0`).
+That is all that is required. **API keys:** `.env.example` holds only the *hashes* of two demo keys (a helpdesk key that creates tickets, an agent key "reviewer" that reads and decides). The plain keys come separately with the review (by email), together with a Postman collection that has them built in and a link that opens the agent UI signed in. A hash cannot be used to log in; the app logs a warning while the demo keys are in use. **Your own keys** (anything beyond a local review): `docker compose run --rm --no-deps -v "$PWD:/work" -w /work app copilot setup --replace-demo` writes new keys to `.support-copilot-keys` and `postman/local.postman_environment.json` (both gitignored; `.env` keeps only hashes). **Encryption key:** `PII_ENCRYPTION_KEY` may stay empty; the app then creates one on first start and keeps it in the `app-data` volume. A missing Claude key stops the app with one message saying what to set. Without a Hugging Face token the injection gate uses its measured no-token fallback model. **First start** downloads the models (≈ 2.5 GB) into a Docker volume: 3.5 min on a fresh cloud VM, longer on a slow connection; later starts reuse it.
 
 | What | Where |
 |---|---|
-| **Agent UI**: create a ticket, inbox, draft + citations + reasons, send / handle manually | http://localhost:8000/ui (paste the keys from `.support-copilot-keys`) |
-| API (helpdesk + agent endpoints, `GET /health`) | http://localhost:8000/docs |
+| **Agent UI**: create a ticket, inbox, draft + citations + reasons + notes, fill in customer details, send / handle manually | http://localhost:8000/ui |
+| API docs (Swagger: every endpoint, try it out) | http://localhost:8000/docs |
 | Monitoring dashboard | http://localhost:3000 (admin/admin) → **Support Co-pilot** |
-| LLM traces | smith.langchain.com → agent `support-copilot` → environment `local` |
+| Postman (8 folders, 124 requests) | `postman/support-copilot.postman_collection.json`, or the keyed copy from the reviewer email |
+| LLM traces | smith.langchain.com → agent `support-copilot` (only with `LANGSMITH_API_KEY`) |
 | Graph (LangGraph Studio) | `uv run langgraph dev` → link printed in the terminal |
-| Postman collection (8 folders, 124 requests) | `postman/support-copilot.postman_collection.json` + `postman/local.postman_environment.json` |
 
 **Local development** (code on your machine, services in Docker):
 ```bash
@@ -50,10 +52,32 @@ uv sync
 docker compose up -d db lgtm
 uv run copilot kb index               # ingestion: the only writer of the KB (D8)
 uv run python -m copilot.main         # API on http://127.0.0.1:8000
-uv run copilot worker                 # background worker (run in a second terminal; start more to scale)
-COPILOT_HELPDESK_KEY=sk_... uv run copilot replay   # send the 76 eval tickets → watch the dashboard fill
-uv run pytest -q                      # tests (Postgres tests skip if the db is down)
+uv run copilot worker                 # background worker (second terminal; start more to scale)
+uv run pytest -q                      # 290+ tests (Postgres tests skip if the db is down)
+uv run copilot eval e2e               # the end-to-end eval with real models (~$0.06)
 ```
+
+## Document map
+| Read this | When you want to know |
+|---|---|
+| [PRD.md](PRD.md) | What we build: requirements, hard rules, routing triggers, compliance |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it fits together, Phase 1 and Phase 2 |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Why: every decision with the options and trade-offs (D1–D17) |
+| [docs/BUSINESS_CASE.md](docs/BUSINESS_CASE.md) | **One page:** worth running at 10,000 tickets/month, and with which configuration |
+| [docs/BUSINESS_CASE_DETAILS.md](docs/BUSINESS_CASE_DETAILS.md) | The assumptions and the calculation behind it |
+| [docs/BENCHMARK.md](docs/BENCHMARK.md) | Measured results: C1/C2/C3 configurations, retrieval models, latency, cost |
+| [docs/EVIDENCE_TRADING_ADVICE.md](docs/EVIDENCE_TRADING_ADVICE.md) | Proof for "never give trading advice" (19/19, 11 languages) |
+| [docs/EVIDENCE_COMPLAINT_KYC_AML.md](docs/EVIDENCE_COMPLAINT_KYC_AML.md) | Proof for "never decide a complaint, KYC or AML outcome" (15/15) |
+| [docs/EVIDENCE_GROUNDING.md](docs/EVIDENCE_GROUNDING.md) | Proof for "never invent policy, fees or timelines; cite or say unknown" (0 uncited numbers) |
+| [docs/EVIDENCE_SCALE.md](docs/EVIDENCE_SCALE.md) | Clean install, retrieval and answers through Docker, Phase 2 volume and KB-growth tests (AWS) |
+| [docs/HOW_TO_TRACE.md](docs/HOW_TO_TRACE.md) | Follow one ticket through every tool: API, Grafana, traces, logs, LangSmith, audit log |
+| [knowledge_base/KB_FINDINGS.md](knowledge_base/KB_FINDINGS.md) | Gaps, overlaps and inconsistencies in the four help pages, and how each is handled |
+| [knowledge_base/CHUNKS.md](knowledge_base/CHUNKS.md) | The 26 chunks: what each says, its flags, which questions it should answer |
+| [eval/README.md](eval/README.md) | Test strategy: the eval sets, how they are scored, the release gate |
+| `eval/results/` | Raw results of every eval run (`e2e_run9.json` = the reported run) |
+| `eval/scale/` | The scripts behind EVIDENCE_SCALE (API answer test, KB growth, HNSW speed) |
+| `postman/` | The collection and `run_collection.mjs` (runs it with Node, no Postman needed) |
+| [.claude/CLAUDE.md](.claude/CLAUDE.md) | The instructions the coding agent worked under (see How I built this) |
 
 ## API: only what the business uses (D5)
 - `POST /tickets` `{id, subject, body, ...}` → **202** `{ticket_number, status: "queued", status_url}` in ~200 ms (PII masked, mapping stored encrypted, ticket queued). The same `id` again → **200** with the same number (webhooks are redelivered; nothing is queued twice).
@@ -73,15 +97,15 @@ What a support agent's frontend, or the helpdesk, calls, with an **agent API key
 | `POST /tickets/{number}/decision` | `{"action": "send", "final_text": "..."}` (recorded as `sent`, or `edited` if the draft changed) or `{"action": "manual"}`. Placeholders like `[NAME_1]` are filled in at send time; the final text is stored and audited **re-masked**, next to the AI draft (PRD §6b; the difference is the edit-rate metric). 409 if the co-pilot isn't done or the ticket was already handled. |
 
 ## Agent UI (`/ui`)
-One page served by the API itself (no build step, no extra service): paste a helpdesk key and an agent key (from `.support-copilot-keys`), then
-- **create a ticket** as the helpdesk would, and watch it move through the steps;
+One page served by the API itself (no build step, no extra service). Open the sign-in link from the review email (`/ui#helpdesk=…&agent=…`: the part after `#` stays in the browser, is never sent to the server, and is removed from the address bar), or paste the keys. Then:
+- **create a ticket** as the helpdesk would, and watch it move through the 14 steps;
 - **inbox** with status and queue filters (support agent / senior support / compliance), refreshed automatically;
-- **one ticket**: the masked message, an audited "reveal customer details", category / urgency / language / sentiment, the routing reasons, the co-pilot's **notes for the agent** (uncovered parts, page conflicts), the **editable draft** with its **cited help pages**, and **Send** or **Handle manually** (recorded in the audit log as sent / edited / manual).
+- **one ticket**: the masked message, category / urgency / language / sentiment, the routing reasons, the co-pilot's **notes for the agent** (uncovered parts, page conflicts), the **editable draft** with its **cited help pages**, **Fill in customer details** (replaces `[NAME_1]`… with the real values so the agent reads exactly what the customer gets; cards stay `**** 1111`; logged in the audit log), and **Send** or **Handle manually** (recorded as sent / edited / manual, the stored copy masked again).
 
 It uses the same JSON API as Postman with the caller's own keys, so it adds no new permissions. Monitoring (volumes, latency, routing, PII, cost) is the Grafana dashboard at http://localhost:3000.
 
 ## Postman
-Import `postman/support-copilot.postman_collection.json` and `postman/local.postman_environment.json` (written by `copilot setup`), select the environment, run a folder with the Collection Runner. Every request that creates a ticket waits for the worker and checks the result; details per ticket in the Postman Console. Without Postman: `node postman/run_collection.mjs [folder prefix ...]` runs the same requests and test scripts with Node only.
+**Reviewer:** import the keyed collection from the review email (keys built in, nothing else to set) and run any folder with the Collection Runner. **Otherwise:** import `postman/support-copilot.postman_collection.json` and `postman/local.postman_environment.json` (written by `copilot setup --replace-demo`) and select that environment. Every request that creates a ticket waits for the worker and checks the result; details per ticket are in the Postman Console. Postman must reach `localhost`: use the desktop app, or the Desktop Agent on postman.com (otherwise it shows "Could not send request"). **Without Postman:** `node postman/run_collection.mjs [folder prefix ...]` runs the same requests and test scripts with Node only (keys from the environment file, the env vars `HELPDESK_KEY`/`AGENT_KEY`, or a keyed collection via `COLLECTION=path`). Last full run against a fresh stack: 124 requests, all passing.
 
 | Folder | What it proves |
 |---|---|
@@ -195,20 +219,6 @@ Details and trade-offs: [docs/BENCHMARK.md](docs/BENCHMARK.md). Test strategy: [
 - **Customer account lookup** (withdrawal status, balances): stubbed; tickets that need it route with `account_action_required`.
 - **Human review queue:** the routing decision + destination in `GET /tickets/{number}`; Phase 2: helpdesk assignment.
 - **Pushing the result to the helpdesk:** the helpdesk polls `GET /tickets/{number}`; Phase 2: the worker posts the draft as a private note (or a callback URL).
-
-## What's where
-| Document | What it answers |
-|---|---|
-| [PRD.md](PRD.md) | What we build: requirements, routing triggers, compliance |
-| [docs/EVIDENCE_TRADING_ADVICE.md](docs/EVIDENCE_TRADING_ADVICE.md) | Evidence for "never give trading advice": layers, the decline in 11 languages, per-ticket eval results, limits |
-| [docs/EVIDENCE_SCALE.md](docs/EVIDENCE_SCALE.md) | Clean `docker compose up` on a fresh VM, retrieval + answers through Docker, Phase 2 volume (workers, crash) and KB-growth tests |
-| [docs/BUSINESS_CASE.md](docs/BUSINESS_CASE.md) | One page: worth running at 10,000 tickets/month, and with which configuration (C1/C2/C3 measured) |
-| [docs/EVIDENCE_GROUNDING.md](docs/EVIDENCE_GROUNDING.md) | Evidence for "never invent policy, fees or timelines; cite the KB or say it is unknown": the uncited-number check, traps, unknowns, conflicts, Postman folder 6, limits |
-| [docs/EVIDENCE_COMPLAINT_KYC_AML.md](docs/EVIDENCE_COMPLAINT_KYC_AML.md) | Evidence for "never decide a complaint, KYC or AML outcome": layers, the fixed acknowledgements, per-ticket eval results (15/15), Postman folder 5, limits |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it fits together, Phase 1 and Phase 2 |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Why: every decision with options and trade-offs (D1–D17) |
-| [docs/BENCHMARK.md](docs/BENCHMARK.md) | Measured results |
-| [knowledge_base/KB_FINDINGS.md](knowledge_base/KB_FINDINGS.md) | Gaps, overlaps and inconsistencies in the four help pages |
 
 ## How I built this
 Built with **Claude Code** as the agentic coding tool:

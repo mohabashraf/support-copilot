@@ -36,7 +36,7 @@
   <label>Helpdesk key <input id="hk" type="password" size="22" placeholder="creates tickets"></label>
   <label>Agent key <input id="ak" type="password" size="22" placeholder="reads + decides"></label>
   <button id="saveKeys">Save keys</button>
-  <span class="small muted">Keys: <code>.support-copilot-keys</code> (from <code>copilot setup</code>). Kept in this browser only.</span>
+  <span class="small muted">Keys: open the sign-in link from the reviewer email, or paste them from <code>.support-copilot-keys</code>. Kept in this browser only.</span>
 </header>
 <main>
   <section class="stack">
@@ -62,6 +62,14 @@ const $ = (id) => document.getElementById(id);
 const store = { get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 let selected = null, timer = null;
+// A link like /ui#helpdesk=sk_...&agent=sk_... signs in directly. The part after # never leaves
+// the browser (not sent to the server, not in its logs); it is removed from the address bar.
+(() => {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get("helpdesk")) store.set("helpdeskKey", h.get("helpdesk"));
+  if (h.get("agent")) store.set("agentKey", h.get("agent"));
+  if (h.get("helpdesk") || h.get("agent")) history.replaceState(null, "", location.pathname);
+})();
 $("hk").value = store.get("helpdeskKey"); $("ak").value = store.get("agentKey");
 $("saveKeys").onclick = () => { store.set("helpdeskKey", $("hk").value.trim()); store.set("agentKey", $("ak").value.trim()); loadInbox(); };
 

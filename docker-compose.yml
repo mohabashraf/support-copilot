@@ -19,6 +19,7 @@ x-copilot: &copilot
   volumes:
     - hf-cache:/cache/huggingface  # embedding model downloaded once, shared by both services
     - ./logs:/app/logs  # log files land in ./logs on the host, as with `uv run`
+    - app-data:/app/data  # the PII vault key when PII_ENCRYPTION_KEY is empty (created on first start)
 
 services:
   db:
@@ -84,6 +85,7 @@ services:
       - lgtm-data:/data
 
 volumes:
+  app-data:
   pgdata:
   lgtm-data:
   hf-cache:

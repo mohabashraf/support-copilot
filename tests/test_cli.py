@@ -56,8 +56,12 @@ def test_setup_fills_empty_secrets_once_and_the_keys_work(tmp_path):
     (tmp_path / ".env.example").write_text(
         (ROOT / ".env.example").read_text(encoding="utf-8"), encoding="utf-8"
     )
-    res = runner.invoke(cli.app, ["setup", "--dir", str(tmp_path)])
+    kept = runner.invoke(cli.app, ["setup", "--dir", str(tmp_path)])
+    assert kept.exit_code == 0 and "demo keys from .env.example are kept" in kept.output
+    assert not (tmp_path / ".support-copilot-keys").exists()  # demo keys: nothing new to hand out
+    res = runner.invoke(cli.app, ["setup", "--dir", str(tmp_path), "--replace-demo"])
     assert res.exit_code == 0, res.output
+    assert "demo-" not in (tmp_path / ".env").read_text()  # the demo keys are gone
     env = dict(
         ln.split("=", 1)
         for ln in (tmp_path / ".env").read_text().splitlines()
@@ -80,3 +84,22 @@ def test_setup_fills_empty_secrets_once_and_the_keys_work(tmp_path):
     again = runner.invoke(cli.app, ["setup", "--dir", str(tmp_path)])
     assert again.exit_code == 0 and "nothing to do" in again.output
     assert (tmp_path / ".env").read_text() == before  # never overwrites
+
+
+def test_vault_key_is_generated_once_and_reused(tmp_path, monkeypatch):
+    from cryptography.fernet import Fernet  # noqa: PLC0415
+    from pydantic import SecretStr  # noqa: PLC0415
+
+    from copilot import services  # noqa: PLC0415
+
+    monkeypatch.setattr(services, "PII_KEY_FILE", tmp_path / "data" / "pii.key")
+    st = _settings(tmp_path).model_copy(update={"pii_encryption_key": SecretStr("")})
+    first = services.pii_key(st)
+    Fernet(first.encode())  # valid
+    assert services.pii_key(st) == first  # the second process reads the same key
+    assert oct((tmp_path / "data" / "pii.key").stat().st_mode)[-3:] == "600"
+    set_key = Fernet.generate_key().decode()
+    assert (
+        services.pii_key(st.model_copy(update={"pii_encryption_key": SecretStr(set_key)}))
+        == set_key
+    )

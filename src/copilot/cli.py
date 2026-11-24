@@ -504,6 +504,9 @@ def keys_new(name: str, role: str = typer.Argument(..., help="helpdesk | agent")
 @app.command("setup")
 def setup(
     directory: Path = typer.Option(Path("."), "--dir", help="Folder with .env (the repo root)"),
+    replace_demo: bool = typer.Option(
+        False, "--replace-demo", help="Replace the demo API keys from .env.example with new ones"
+    ),
 ) -> None:
     """One-time local setup: fill the EMPTY secrets in .env and write the Postman environment.
 
@@ -540,7 +543,12 @@ def setup(
         done.append("PII_ENCRYPTION_KEY generated")
     keys_file = directory / ".support-copilot-keys"
     keys: dict[str, str] = {}
-    if not value("API_KEYS").strip():
+    demo = any(e.split(":")[0].startswith("demo-") for e in value("API_KEYS").split(",") if e)
+    if demo and not replace_demo:
+        done.append(
+            "API_KEYS: the demo keys from .env.example are kept (--replace-demo for new ones)"
+        )
+    if not value("API_KEYS").strip() or (demo and replace_demo):
         keys = {"HELPDESK_KEY": new_key(), "AGENT_KEY": new_key()}
         put("API_KEYS", f"helpdesk:helpdesk:{hash_key(keys['HELPDESK_KEY'])},"
                         f"sara:agent:{hash_key(keys['AGENT_KEY'])}")  # fmt: skip

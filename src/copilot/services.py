@@ -7,7 +7,9 @@ Serving is READ-ONLY (D8) and keeps NO in-memory copy of the KB (D9):
 - VECTOR_STORE=memory: demo/test mode, everything is built in memory from knowledge_base/raw.
 """
 
+import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from cryptography.fernet import Fernet
 from psycopg_pool import ConnectionPool
@@ -47,27 +49,55 @@ class Services:
 log = get_logger(__name__)
 
 SETUP_HINT = """\
-Fix (Docker only, nothing to install): run once in the repo folder, then restart:
-  docker compose run --rm --no-deps -v "$PWD:/work" -w /work app copilot setup
-It fills PII_ENCRYPTION_KEY and API_KEYS in .env (never overwrites a set value) and writes the
-Postman environment. ANTHROPIC_API_KEY: put your own key from console.anthropic.com in .env."""
+Fix: put your Claude key in .env (ANTHROPIC_API_KEY=...) and restart. API keys: the reviewer demo
+keys in .env.example, or your own:
+  docker compose run --rm --no-deps -v "$PWD:/work" -w /work app copilot setup --replace-demo
+(writes the plain keys to .support-copilot-keys and postman/local.postman_environment.json)."""
+
+
+# Where the vault key lives when PII_ENCRYPTION_KEY is empty: a file in a Docker volume
+# (docker-compose.yml: app-data:/app/data), created on first start, reused after.
+PII_KEY_FILE = Path(os.environ.get("PII_KEY_FILE", "data/pii.key"))
+
+
+def pii_key(st: Settings) -> str:
+    """The vault key: PII_ENCRYPTION_KEY if set, else the key file (created once, atomically, so
+    the app and the worker starting together can never end up with two different keys)."""
+    key = st.pii_encryption_key.get_secret_value()
+    if key:
+        return key
+    if not PII_KEY_FILE.exists():
+        PII_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = PII_KEY_FILE.with_suffix(f".{os.getpid()}.tmp")
+        tmp.write_text(Fernet.generate_key().decode(), encoding="utf-8")
+        tmp.chmod(0o600)
+        try:
+            os.link(tmp, PII_KEY_FILE)  # atomic: fails if another process created it first
+            log.warning(
+                "PII_ENCRYPTION_KEY empty: generated a vault key",
+                extra={"file": str(PII_KEY_FILE)},
+            )
+        except FileExistsError:
+            pass
+        finally:
+            tmp.unlink(missing_ok=True)
+    return PII_KEY_FILE.read_text(encoding="utf-8").strip()
 
 
 def require_secrets(st: Settings) -> None:
     """Fail at startup with one clear message (not a traceback) when .env is not filled in."""
     missing = []
-    key = st.pii_encryption_key.get_secret_value()
-    if not key:
-        missing.append("PII_ENCRYPTION_KEY is empty")
-    else:
-        try:
-            Fernet(key.encode())
-        except ValueError:
-            missing.append("PII_ENCRYPTION_KEY is not a valid Fernet key")
+    try:
+        Fernet(pii_key(st).encode())
+    except ValueError:
+        missing.append("PII_ENCRYPTION_KEY is not a valid Fernet key")
     if not st.anthropic_api_key.get_secret_value():
         missing.append("ANTHROPIC_API_KEY is empty")
     if not st.api_keys.strip():
         missing.append("API_KEYS is empty (every endpoint would be locked)")
+    if any(e.split(":")[0].startswith("demo-") for e in st.api_keys.split(",") if e):
+        log.warning("DEMO API keys in use (from .env.example): fine for a local review only; "
+                    "replace them with `copilot setup --replace-demo`")  # fmt: skip
     if missing:
         raise SystemExit(
             "Configuration incomplete (.env):\n  - " + "\n  - ".join(missing) + "\n\n" + SETUP_HINT
@@ -110,7 +140,7 @@ def load_services(
         kb = build_kb()
         embedder, index = get_embedder(st.embedding_model), InMemoryIndex()
         index_kb(kb, embedder, index)
-        vault = InMemoryPiiVault(st.pii_encryption_key.get_secret_value(), st.pii_retention_days)
+        vault = InMemoryPiiVault(pii_key(st), st.pii_retention_days)
         masker = Masker.from_settings(st)
         tickets = InMemoryTicketStore()
         return Services(
@@ -123,7 +153,7 @@ def load_services(
     embedder = get_embedder(st.embedding_model)
     index = PgVectorIndex(pool, st.embedding_model, embedder.dim)
     require_indexed(store, index, st.embedding_model)
-    vault = PgPiiVault(pool, st.pii_encryption_key.get_secret_value(), st.pii_retention_days)
+    vault = PgPiiVault(pool, pii_key(st), st.pii_retention_days)
     masker = Masker.from_settings(st)
     if warm_masker:  # the API masks; the worker doesn't, so it skips the ~10 s GLiNER load
         masker.warm_up()  # load GLiNER at startup, not on the first customer's ticket
