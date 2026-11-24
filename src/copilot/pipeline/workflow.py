@@ -236,22 +236,36 @@ def risk_classifier(state: State, runtime: Runtime[Deps]) -> dict:
 
 
 def injection_reply(state: State) -> dict:
-    """Injection path (no LLM ever reads this ticket). If the LOCAL classifier is strongly sure
-    the ticket also asks for trading advice, add the fixed decline (the brief: detect advice
-    requests and decline politely), in the ticket's script (Arabic script → ar, else en).
-    Everything else in the ticket is left to the person (senior support)."""
+    """Injection path (no LLM ever reads this ticket): only fixed texts, chosen by code.
+    - the LOCAL classifier is strongly sure it asks for trading advice → the decline (X42);
+    - an exact decision-request phrase ("approve my KYC", "unfreeze my account", "refund me")
+      → the neutral acknowledgement, and KYC/AML → compliance (eval E20, X08).
+    Language from the ticket's script (Arabic script → ar, else en). The rest: a person."""
     risk = state.get("risk") or {}
     strong = {s["kind"] for s in risk.get("signals", []) if s["strength"] == "strong"}
-    if "trading_advice" not in strong:
+    hits = [h["pattern"] for h in (state.get("patterns") or {}).get("hits", [])
+            if h["kind"] == "decision_request"]  # fmt: skip
+    keys: list[str] = ["decline_advice"] if "trading_advice" in strong else []
+    decisions: list[str] = []
+    for name in hits:
+        d = pattern_rules.decision_of(name)
+        if d not in decisions:
+            decisions.append(d)
+    keys += [f"ack_{d}" for d in decisions]
+    if not keys:
         return {"steps": ["injection_reply"]}
     lang = "ar" if script_of(_text(state)) == "arabic" else "en"
-    text, _ = templates.render("decline_advice", lang)
+    reply = "\n\n".join(templates.render(k, lang)[0] for k in keys)
     return {
         "steps": ["injection_reply"],
-        "reply": text,
+        "reply": reply,
         "reasons": ["hard_rule_topic"],
-        "notes_for_agent": ["Prompt injection: no AI read this ticket. Only the fixed "
-                            "trading-advice decline was added; answer the rest yourself."],
+        "policy": {"intents": [], "ticket_rule": None,
+                   "compliance": any(d in ("kyc", "aml") for d in decisions),
+                   "evidence": [f"pattern:{n}" for n in hits]},  # fmt: skip
+        "notes_for_agent": ["Prompt injection: no AI read this ticket. Only fixed texts were "
+                            f"added ({', '.join(keys)}); nothing was decided. Answer the rest "
+                            "yourself."],
     }  # fmt: skip
 
 

@@ -3,6 +3,10 @@
 - Prompt injection: literal instruction-override strings. They feed the injection gate
   (injection_check, pipeline/injection.py): no LLM call, no AI draft, a person replies.
 - Account security: literal requests to change contact details or switch off 2FA.
+- Decision requests (KYC / AML / complaint outcome): "approve my KYC", "unfreeze my account",
+  "refund me". Used ONLY on the injection path (injection_reply), where no LLM reads the ticket:
+  a match adds the fixed neutral acknowledgement and sends the ticket to the right team
+  (eval E20, X08). On clean tickets the LLM + policy_gate decide; these hits change nothing.
 - Spam / empty: no letters (only emojis or symbols), one character repeated, mass links or
   promotional phrases. These skip every model and LLM call and go to a person at low priority
   (reason spam_or_empty). Nothing is ever dropped: a real customer can look like spam.
@@ -27,12 +31,25 @@ SECURITY = {
     "disable_2fa": r"\b(disable|turn off|remove|deactivate)\b.{0,15}\b(2fa|two[- ]factor|otp)\b",
     "change_contact_details": r"\b(change|update|replace)\b.{0,20}\b(registered |account )?(email|e-mail|phone( number)?|mobile)\b",  # noqa: E501
 }
+DECISION = {
+    # KYC: approve/accept my verification or documents; or a claim that it IS approved
+    "kyc_approve": r"\b(approve|accept|verify|validate|confirm)\b.{0,25}\b(kyc|verification|documents?|identity)\b",  # noqa: E501
+    "kyc_claimed_approved": r"\b(kyc|verification|documents?)\b.{0,20}\b(is|are|was|were|been)\s+(approved|accepted|verified)\b",  # noqa: E501
+    "ar_kyc_approve": r"(وافق|وافقوا|اقبل|اقبلوا|اعتمد|اعتمدوا|وثق|وثّق|فعل|فعّل)\S*\s+(على\s+)?(توثيق|التوثيق|مستنداتي|المستندات|وثائقي|الوثائق|حسابي)",  # noqa: E501
+    # AML: release a frozen/blocked account, funds or transfer
+    "aml_unfreeze": r"\b(unfreeze|unblock|unlock|release)\b.{0,20}\b(account|funds|money|withdrawal|transfer)\b",  # noqa: E501
+    "ar_aml_unfreeze": r"(فك|الغ|ألغ|ارفع)\S*\s+(ال)?(تجميد|حظر|الحظر)",
+    # Complaint outcome: refund / compensation decided by us
+    "complaint_refund": r"\b(refund|compensate|reimburse)\b.{0,15}\b(me|my|us)\b|\bcompensation\b",
+    "ar_complaint_refund": r"(عوضوني|عوّضوني|تعويض|رجعوا فلوسي|ارجعوا فلوسي|استرداد أموالي)",
+}
 PROMO = r"\b(click here|earn \$?\d+|guaranteed profit|free money|casino|bet now|buy followers|crypto signals group|whatsapp me)\b"  # noqa: E501
 _URL = re.compile(r"https?://|www\.", re.I)
 
 _COMPILED = {
     "prompt_injection": {n: re.compile(p, re.I) for n, p in INJECTION.items()},
     "security_sensitive": {n: re.compile(p, re.I) for n, p in SECURITY.items()},
+    "decision_request": {n: re.compile(p, re.I) for n, p in DECISION.items()},
 }
 _PROMO = re.compile(PROMO, re.I)
 _PLACEHOLDER = re.compile(r"\[[A-Z]+_\d+\]")
@@ -40,7 +57,7 @@ _PLACEHOLDER = re.compile(r"\[[A-Z]+_\d+\]")
 
 @dataclass(frozen=True)
 class PatternHit:
-    kind: str  # prompt_injection | security_sensitive
+    kind: str  # prompt_injection | security_sensitive | decision_request
     pattern: str  # the pattern's name (evidence), never the customer's text
 
 
@@ -84,3 +101,8 @@ def check(text: str) -> PatternResult:
         if rx.search(text)
     ]
     return PatternResult(tuple(hits), spam_reason(text))
+
+
+def decision_of(pattern_name: str) -> str:
+    """kyc | aml | complaint for a decision_request pattern name."""
+    return next(k for k in ("kyc", "aml", "complaint") if k in pattern_name.split("_"))

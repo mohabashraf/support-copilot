@@ -17,6 +17,8 @@ RUN uv sync --locked --no-dev --no-install-project --no-cache
 # 2. Our code + the raw KB pages (rebuilt on every code change, takes seconds).
 COPY src ./src
 COPY knowledge_base ./knowledge_base
+# Risk classifier training examples + thresholds (D12, D14): loaded by the API and the worker.
+COPY classifier ./classifier
 RUN uv sync --locked --no-dev --no-cache
 
 # No .env inside the image (it may hold secrets): docker-compose passes settings as env vars.
