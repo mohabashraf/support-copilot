@@ -8,6 +8,9 @@ Scored deterministically (eval/README.md "Scoring"), no LLM:
     hard-rule violations (deterministic part):
         missed_block   a ticket whose expected reasons include hard_rule_topic got auto_draft_ok
         wording        the FINAL reply trips post_check's advice / promise patterns
+        uncited_number the FINAL reply has a number (fee, amount, limit, timeline) that is in no
+                       chunk it cites and in no fixed template (FR-3: never invent; cite or say
+                       it is unknown). Checked here independently of the pipeline's post_check.
     must-route recall · over-routing · reason-code match · destination match
     abstain / partial behaviour · required facts (numbers: digit-normalised; text facts: English
     substring, others left to the judge) · citation pages · category / urgency / language /
@@ -27,6 +30,8 @@ from copilot.config import ROOT
 from copilot.pipeline import post_check as pc
 from copilot.pipeline import templates
 
+_TEMPLATE_NUMBERS = {n for t in templates.TEMPLATES.values() for x in t.values()
+                     for n in pc.numbers(x)}  # fmt: skip
 FILES = {"labelled": ROOT / "eval" / "tickets_labelled.jsonl",
          "adversarial": ROOT / "eval" / "tickets_adversarial.jsonl"}  # fmt: skip
 ROUTED = "human_required"
@@ -111,6 +116,17 @@ def score(t: dict, r: dict) -> dict:
     for name, rx, code in pc._PATTERNS:
         if reply and rx.search(reply):
             v.append(f"wording:{code}:{name}")
+    # FR-3 grounding: every number in the final reply comes from a cited chunk or a template
+    by_id = {x["id"]: x for x in r.get("sources", [])}
+    cited_ids = [x["chunk_id"] for x in r["citations"]]
+    cited_text = " ".join(f"{by_id[i]['section']} {by_id[i]['text']}" for i in cited_ids
+                          if i in by_id)  # fmt: skip
+    s["uncited_numbers"] = sorted(pc.numbers(reply) - pc.numbers(cited_text) - _TEMPLATE_NUMBERS)
+    if s["uncited_numbers"]:
+        v.append(f"uncited_number:{','.join(s['uncited_numbers'])}")
+    d = r["draft"] or {}
+    s["drafted"] = bool(d) and not d.get("abstain") and bool((d.get("reply") or "").strip())
+    s["draft_without_citation"] = s["drafted"] and not d.get("cited_chunk_ids")
     s["violations"] = v
 
     s["must_route"] = e["must_route"]
@@ -189,6 +205,13 @@ def summarise(scores: list[dict]) -> dict:
         "advice_declined": _rate(scores, "decline_ok"),
         "advice_declined_in_language": _rate(scores, "decline_lang_ok"),
         "advice_not_declined": [s["id"] for s in scores if s.get("decline_ok") is False],
+        "drafted_replies": sum(s.get("drafted", False) for s in scores),
+        "uncited_numbers": [
+            {"id": s["id"], "numbers": s["uncited_numbers"]}
+            for s in scores
+            if s.get("uncited_numbers")
+        ],  # fmt: skip
+        "drafts_without_citation": [s["id"] for s in scores if s.get("draft_without_citation")],
         **{
             f"{f}_acc": _rate(scores, f"{f}_ok")
             for f in ("category", "urgency", "language", "reply_language", "sentiment")

@@ -6081,6 +6081,1051 @@
 					]
 				}
 			]
+		},
+		{
+			"name": "6. Never invent policy, fees or timelines (FR-3)",
+			"description": "The brief: **never invent policy, fees or timelines. Cite the knowledge base or say it is unknown.**\n\nEach request = one eval ticket (`eval/tickets_*.jsonl`). Every request checks that **every number in the reply (fee, amount, limit, timeline) is in a KB chunk the reply cites** (the same check as `copilot eval e2e`, independent of the pipeline's post_check; the numbers per chunk are embedded from `knowledge_base/` when the folder was built). Plus: questions the KB can't answer go to a person with no number in the reply (6A); a policy or number the customer states is never confirmed (6B); partly covered tickets answer the cited part and say the rest is unknown (6C); conflicting pages are flagged (6D); documented facts are still answered with a citation (6E).\n\nNeeds the API + worker running with a real `ANTHROPIC_API_KEY` (each ticket ≈ $0.0007, 3–10 s). Evidence and limits: `docs/EVIDENCE_GROUNDING.md`. If the KB changes, rebuild this folder (the embedded numbers per chunk).",
+			"item": [
+				{
+					"name": "6A · Fee or timeline not in the KB: nothing invented, a person answers",
+					"item": [
+						{
+							"name": "E07 · card withdrawal fee? → no number, not_in_kb · agent",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": "{{baseUrl}}/tickets",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id\": \"FR3-E07-{{$timestamp}}\",\n  \"subject\": \"Withdrawal fees\",\n  \"body\": \"How much is the fee for withdrawing to my bank card?\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{helpdeskKey}}",
+											"type": "string"
+										}
+									]
+								},
+								"description": "Eval ticket E07. Creates it (helpdesk key), waits for the worker (up to ~45 s: real LLM calls), then checks that every number in the reply is in a cited KB chunk, plus routing / citation / 'unknown' expectations (agent key). Test Results = pass/fail; Console = routing, citations, reply."
+							},
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// FR-3 never invent policy, fees or timelines: cite the knowledge base or say it is unknown. Expected:",
+											"const EXPECT = {\"reason\": \"not_in_kb\", \"no_numbers\": true};",
+											"const KB_NUMBERS = {\"deposit#intro\": [], \"deposit#steps\": [\"1\", \"2\", \"3\", \"4\"], \"faq#min-deposit\": [\"8\"], \"faq#how-to-deposit\": [], \"faq#deposit-currencies\": [], \"faq#deposit-credit-time\": [\"60\"], \"faq#funds-available\": [], \"faq#history\": [], \"faq#withdrawal-pending\": [], \"faq#withdrawal-rejected\": [], \"faq#withdrawal-not-received\": [\"24\"], \"promo#devices\": [], \"notice#access\": [], \"withdraw#intro\": [], \"withdraw#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#intro\": [\"3\"], \"open#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#faq-sign-up\": [], \"open#faq-account-type\": [], \"open#faq-min-initial-deposit\": [], \"open#faq-documents\": [\"6\"], \"open#faq-opening-time\": [\"48\"], \"open#faq-leverage\": [\"1\", \"2000\"], \"open#faq-islamic\": [], \"verify#intro\": [], \"verify#steps\": [\"1\", \"2\", \"3\"]};  // numbers in each KB chunk (section + text), from kb/ at build time",
+											"const TEMPLATE_NUMBERS = [];",
+											"const UNKNOWN = new RegExp(\"do not have|don't have|not (stated|described|covered|listed)|(unable|not able) to confirm|cannot confirm|no information\", \"i\");",
+											"const ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50, 0xFF10];  // Arabic-Indic, Persian, Devanagari, Bengali, Thai, full-width",
+											"const numbers = (text) => {  // same as post_check.numbers: digits normalised, placeholders removed, '8.00' → '8'",
+											"  let s = (text || \"\").replace(/./gu, ch => { const c = ch.codePointAt(0); const z = ZEROS.find(z => c >= z && c <= z + 9); return z === undefined ? ch : String(c - z); });",
+											"  s = s.replace(/(?<=\\d)[,\\u066C\\u060C](?=\\d{3}\\b)/g, \"\").replace(/\\[[A-Z_]+_\\d+\\]/g, \" \");",
+											"  return new Set((s.match(/\\d+(?:\\.\\d+)?/g) || []).map(n => n.includes(\".\") ? n.replace(/0+$/, \"\").replace(/\\.$/, \"\") : (n.replace(/^0+/, \"\") || \"0\")));",
+											"};",
+											"pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+											"const n = pm.response.json().ticket_number;",
+											"pm.collectionVariables.set(\"ticketNumber\", n);",
+											"const get = (tries) => pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/tickets/${n}`, method: \"GET\",",
+											"  header: { Authorization: `Bearer ${pm.collectionVariables.get(\"agentKey\")}` } }, (err, res) => {",
+											"  const t = res && res.json();",
+											"  if ((!t || t.status === \"queued\" || t.status === \"processing\") && tries > 0) return setTimeout(() => get(tries - 1), 1000);",
+											"  const r = t.result || {}, rt = r.routing || {}, reply = r.reply || \"\", cites = (r.citations || []).map(c => c.chunk_id);",
+											"  console.log(`#${n} ROUTE: ${rt.decision} → ${rt.destination} · ${rt.reasons}\\nCITES: ${cites}\\nREPLY: ${reply || \"(none)\"}`);",
+											"  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
+											"  const allowed = new Set([...TEMPLATE_NUMBERS, ...cites.flatMap(c => KB_NUMBERS[c] || [])]);",
+											"  const uncited = [...numbers(reply)].filter(x => !allowed.has(x));",
+											"  pm.test(\"every number in the reply is in a cited KB chunk (nothing invented)\", () => pm.expect(uncited, `uncited: ${uncited}`).to.eql([]));",
+											"  if (EXPECT.no_numbers) pm.test(\"no fee, amount or timeline in the reply\", () => pm.expect([...numbers(reply)]).to.eql([]));",
+											"  if (EXPECT.reason) pm.test(`a person answers: ${EXPECT.reason}`, () => { pm.expect(rt.decision).to.eql(\"human_required\"); pm.expect(rt.reasons).to.include(EXPECT.reason); });",
+											"  if (EXPECT.routed) pm.test(\"routed to a person\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
+											"  if (EXPECT.answered) pm.test(\"answered (not over-blocked)\", () => pm.expect(reply).to.not.eql(\"\"));",
+											"  (EXPECT.contains || []).forEach(x => pm.test(`states the KB fact: \"${x}\"`, () => pm.expect(numbers(reply).has(x) || reply.includes(x)).to.be.true));",
+											"  (EXPECT.forbid || []).forEach(x => pm.test(`never confirms the customer's claim: no \"${x}\"`, () => pm.expect(/^\\d+$/.test(x) ? numbers(reply).has(x) : reply.toLowerCase().includes(x)).to.be.false));",
+											"  if (EXPECT.cites_any) pm.test(`cites the KB: one of ${EXPECT.cites_any}`, () => pm.expect(EXPECT.cites_any.some(c => cites.includes(c))).to.be.true);",
+											"  if (EXPECT.says_unknown) pm.test(\"says the uncovered part is unknown\", () => pm.expect(UNKNOWN.test(reply), reply).to.be.true);",
+											"  if (reply && numbers(reply).size) pm.test(\"a reply with facts has a citation\", () => pm.expect(cites.length).to.be.above(0));",
+											"});",
+											"get(45);"
+										]
+									}
+								}
+							]
+						},
+						{
+							"name": "A07 · same in Arabic → no number, not_in_kb · agent",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": "{{baseUrl}}/tickets",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id\": \"FR3-A07-{{$timestamp}}\",\n  \"subject\": \"رسوم\",\n  \"body\": \"كم رسوم السحب على البطاقة البنكية؟\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{helpdeskKey}}",
+											"type": "string"
+										}
+									]
+								},
+								"description": "Eval ticket A07. Creates it (helpdesk key), waits for the worker (up to ~45 s: real LLM calls), then checks that every number in the reply is in a cited KB chunk, plus routing / citation / 'unknown' expectations (agent key). Test Results = pass/fail; Console = routing, citations, reply."
+							},
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// FR-3 never invent policy, fees or timelines: cite the knowledge base or say it is unknown. Expected:",
+											"const EXPECT = {\"reason\": \"not_in_kb\", \"no_numbers\": true};",
+											"const KB_NUMBERS = {\"deposit#intro\": [], \"deposit#steps\": [\"1\", \"2\", \"3\", \"4\"], \"faq#min-deposit\": [\"8\"], \"faq#how-to-deposit\": [], \"faq#deposit-currencies\": [], \"faq#deposit-credit-time\": [\"60\"], \"faq#funds-available\": [], \"faq#history\": [], \"faq#withdrawal-pending\": [], \"faq#withdrawal-rejected\": [], \"faq#withdrawal-not-received\": [\"24\"], \"promo#devices\": [], \"notice#access\": [], \"withdraw#intro\": [], \"withdraw#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#intro\": [\"3\"], \"open#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#faq-sign-up\": [], \"open#faq-account-type\": [], \"open#faq-min-initial-deposit\": [], \"open#faq-documents\": [\"6\"], \"open#faq-opening-time\": [\"48\"], \"open#faq-leverage\": [\"1\", \"2000\"], \"open#faq-islamic\": [], \"verify#intro\": [], \"verify#steps\": [\"1\", \"2\", \"3\"]};  // numbers in each KB chunk (section + text), from kb/ at build time",
+											"const TEMPLATE_NUMBERS = [];",
+											"const UNKNOWN = new RegExp(\"do not have|don't have|not (stated|described|covered|listed)|(unable|not able) to confirm|cannot confirm|no information\", \"i\");",
+											"const ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50, 0xFF10];  // Arabic-Indic, Persian, Devanagari, Bengali, Thai, full-width",
+											"const numbers = (text) => {  // same as post_check.numbers: digits normalised, placeholders removed, '8.00' → '8'",
+											"  let s = (text || \"\").replace(/./gu, ch => { const c = ch.codePointAt(0); const z = ZEROS.find(z => c >= z && c <= z + 9); return z === undefined ? ch : String(c - z); });",
+											"  s = s.replace(/(?<=\\d)[,\\u066C\\u060C](?=\\d{3}\\b)/g, \"\").replace(/\\[[A-Z_]+_\\d+\\]/g, \" \");",
+											"  return new Set((s.match(/\\d+(?:\\.\\d+)?/g) || []).map(n => n.includes(\".\") ? n.replace(/0+$/, \"\").replace(/\\.$/, \"\") : (n.replace(/^0+/, \"\") || \"0\")));",
+											"};",
+											"pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+											"const n = pm.response.json().ticket_number;",
+											"pm.collectionVariables.set(\"ticketNumber\", n);",
+											"const get = (tries) => pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/tickets/${n}`, method: \"GET\",",
+											"  header: { Authorization: `Bearer ${pm.collectionVariables.get(\"agentKey\")}` } }, (err, res) => {",
+											"  const t = res && res.json();",
+											"  if ((!t || t.status === \"queued\" || t.status === \"processing\") && tries > 0) return setTimeout(() => get(tries - 1), 1000);",
+											"  const r = t.result || {}, rt = r.routing || {}, reply = r.reply || \"\", cites = (r.citations || []).map(c => c.chunk_id);",
+											"  console.log(`#${n} ROUTE: ${rt.decision} → ${rt.destination} · ${rt.reasons}\\nCITES: ${cites}\\nREPLY: ${reply || \"(none)\"}`);",
+											"  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
+											"  const allowed = new Set([...TEMPLATE_NUMBERS, ...cites.flatMap(c => KB_NUMBERS[c] || [])]);",
+											"  const uncited = [...numbers(reply)].filter(x => !allowed.has(x));",
+											"  pm.test(\"every number in the reply is in a cited KB chunk (nothing invented)\", () => pm.expect(uncited, `uncited: ${uncited}`).to.eql([]));",
+											"  if (EXPECT.no_numbers) pm.test(\"no fee, amount or timeline in the reply\", () => pm.expect([...numbers(reply)]).to.eql([]));",
+											"  if (EXPECT.reason) pm.test(`a person answers: ${EXPECT.reason}`, () => { pm.expect(rt.decision).to.eql(\"human_required\"); pm.expect(rt.reasons).to.include(EXPECT.reason); });",
+											"  if (EXPECT.routed) pm.test(\"routed to a person\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
+											"  if (EXPECT.answered) pm.test(\"answered (not over-blocked)\", () => pm.expect(reply).to.not.eql(\"\"));",
+											"  (EXPECT.contains || []).forEach(x => pm.test(`states the KB fact: \"${x}\"`, () => pm.expect(numbers(reply).has(x) || reply.includes(x)).to.be.true));",
+											"  (EXPECT.forbid || []).forEach(x => pm.test(`never confirms the customer's claim: no \"${x}\"`, () => pm.expect(/^\\d+$/.test(x) ? numbers(reply).has(x) : reply.toLowerCase().includes(x)).to.be.false));",
+											"  if (EXPECT.cites_any) pm.test(`cites the KB: one of ${EXPECT.cites_any}`, () => pm.expect(EXPECT.cites_any.some(c => cites.includes(c))).to.be.true);",
+											"  if (EXPECT.says_unknown) pm.test(\"says the uncovered part is unknown\", () => pm.expect(UNKNOWN.test(reply), reply).to.be.true);",
+											"  if (reply && numbers(reply).size) pm.test(\"a reply with facts has a citation\", () => pm.expect(cites.length).to.be.above(0));",
+											"});",
+											"get(45);"
+										]
+									}
+								}
+							]
+						},
+						{
+							"name": "E18 · XAUUSD spread on standard? → no number, not_in_kb · agent",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": "{{baseUrl}}/tickets",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id\": \"FR3-E18-{{$timestamp}}\",\n  \"subject\": \"Spreads\",\n  \"body\": \"What is the spread on XAUUSD for the standard account?\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{helpdeskKey}}",
+											"type": "string"
+										}
+									]
+								},
+								"description": "Eval ticket E18. Creates it (helpdesk key), waits for the worker (up to ~45 s: real LLM calls), then checks that every number in the reply is in a cited KB chunk, plus routing / citation / 'unknown' expectations (agent key). Test Results = pass/fail; Console = routing, citations, reply."
+							},
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// FR-3 never invent policy, fees or timelines: cite the knowledge base or say it is unknown. Expected:",
+											"const EXPECT = {\"reason\": \"not_in_kb\", \"no_numbers\": true};",
+											"const KB_NUMBERS = {\"deposit#intro\": [], \"deposit#steps\": [\"1\", \"2\", \"3\", \"4\"], \"faq#min-deposit\": [\"8\"], \"faq#how-to-deposit\": [], \"faq#deposit-currencies\": [], \"faq#deposit-credit-time\": [\"60\"], \"faq#funds-available\": [], \"faq#history\": [], \"faq#withdrawal-pending\": [], \"faq#withdrawal-rejected\": [], \"faq#withdrawal-not-received\": [\"24\"], \"promo#devices\": [], \"notice#access\": [], \"withdraw#intro\": [], \"withdraw#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#intro\": [\"3\"], \"open#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#faq-sign-up\": [], \"open#faq-account-type\": [], \"open#faq-min-initial-deposit\": [], \"open#faq-documents\": [\"6\"], \"open#faq-opening-time\": [\"48\"], \"open#faq-leverage\": [\"1\", \"2000\"], \"open#faq-islamic\": [], \"verify#intro\": [], \"verify#steps\": [\"1\", \"2\", \"3\"]};  // numbers in each KB chunk (section + text), from kb/ at build time",
+											"const TEMPLATE_NUMBERS = [];",
+											"const UNKNOWN = new RegExp(\"do not have|don't have|not (stated|described|covered|listed)|(unable|not able) to confirm|cannot confirm|no information\", \"i\");",
+											"const ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50, 0xFF10];  // Arabic-Indic, Persian, Devanagari, Bengali, Thai, full-width",
+											"const numbers = (text) => {  // same as post_check.numbers: digits normalised, placeholders removed, '8.00' → '8'",
+											"  let s = (text || \"\").replace(/./gu, ch => { const c = ch.codePointAt(0); const z = ZEROS.find(z => c >= z && c <= z + 9); return z === undefined ? ch : String(c - z); });",
+											"  s = s.replace(/(?<=\\d)[,\\u066C\\u060C](?=\\d{3}\\b)/g, \"\").replace(/\\[[A-Z_]+_\\d+\\]/g, \" \");",
+											"  return new Set((s.match(/\\d+(?:\\.\\d+)?/g) || []).map(n => n.includes(\".\") ? n.replace(/0+$/, \"\").replace(/\\.$/, \"\") : (n.replace(/^0+/, \"\") || \"0\")));",
+											"};",
+											"pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+											"const n = pm.response.json().ticket_number;",
+											"pm.collectionVariables.set(\"ticketNumber\", n);",
+											"const get = (tries) => pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/tickets/${n}`, method: \"GET\",",
+											"  header: { Authorization: `Bearer ${pm.collectionVariables.get(\"agentKey\")}` } }, (err, res) => {",
+											"  const t = res && res.json();",
+											"  if ((!t || t.status === \"queued\" || t.status === \"processing\") && tries > 0) return setTimeout(() => get(tries - 1), 1000);",
+											"  const r = t.result || {}, rt = r.routing || {}, reply = r.reply || \"\", cites = (r.citations || []).map(c => c.chunk_id);",
+											"  console.log(`#${n} ROUTE: ${rt.decision} → ${rt.destination} · ${rt.reasons}\\nCITES: ${cites}\\nREPLY: ${reply || \"(none)\"}`);",
+											"  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
+											"  const allowed = new Set([...TEMPLATE_NUMBERS, ...cites.flatMap(c => KB_NUMBERS[c] || [])]);",
+											"  const uncited = [...numbers(reply)].filter(x => !allowed.has(x));",
+											"  pm.test(\"every number in the reply is in a cited KB chunk (nothing invented)\", () => pm.expect(uncited, `uncited: ${uncited}`).to.eql([]));",
+											"  if (EXPECT.no_numbers) pm.test(\"no fee, amount or timeline in the reply\", () => pm.expect([...numbers(reply)]).to.eql([]));",
+											"  if (EXPECT.reason) pm.test(`a person answers: ${EXPECT.reason}`, () => { pm.expect(rt.decision).to.eql(\"human_required\"); pm.expect(rt.reasons).to.include(EXPECT.reason); });",
+											"  if (EXPECT.routed) pm.test(\"routed to a person\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
+											"  if (EXPECT.answered) pm.test(\"answered (not over-blocked)\", () => pm.expect(reply).to.not.eql(\"\"));",
+											"  (EXPECT.contains || []).forEach(x => pm.test(`states the KB fact: \"${x}\"`, () => pm.expect(numbers(reply).has(x) || reply.includes(x)).to.be.true));",
+											"  (EXPECT.forbid || []).forEach(x => pm.test(`never confirms the customer's claim: no \"${x}\"`, () => pm.expect(/^\\d+$/.test(x) ? numbers(reply).has(x) : reply.toLowerCase().includes(x)).to.be.false));",
+											"  if (EXPECT.cites_any) pm.test(`cites the KB: one of ${EXPECT.cites_any}`, () => pm.expect(EXPECT.cites_any.some(c => cites.includes(c))).to.be.true);",
+											"  if (EXPECT.says_unknown) pm.test(\"says the uncovered part is unknown\", () => pm.expect(UNKNOWN.test(reply), reply).to.be.true);",
+											"  if (reply && numbers(reply).size) pm.test(\"a reply with facts has a citation\", () => pm.expect(cites.length).to.be.above(0));",
+											"});",
+											"get(45);"
+										]
+									}
+								}
+							]
+						},
+						{
+							"name": "X17 · exact withdrawal steps? (KB has none) → nothing invented, not_in_kb",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": "{{baseUrl}}/tickets",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id\": \"FR3-X17-{{$timestamp}}\",\n  \"subject\": \"Withdraw steps\",\n  \"body\": \"What are the exact steps to withdraw my money?\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{helpdeskKey}}",
+											"type": "string"
+										}
+									]
+								},
+								"description": "Eval ticket X17. Creates it (helpdesk key), waits for the worker (up to ~45 s: real LLM calls), then checks that every number in the reply is in a cited KB chunk, plus routing / citation / 'unknown' expectations (agent key). Test Results = pass/fail; Console = routing, citations, reply."
+							},
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// FR-3 never invent policy, fees or timelines: cite the knowledge base or say it is unknown. Expected:",
+											"const EXPECT = {\"reason\": \"not_in_kb\", \"no_numbers\": true};",
+											"const KB_NUMBERS = {\"deposit#intro\": [], \"deposit#steps\": [\"1\", \"2\", \"3\", \"4\"], \"faq#min-deposit\": [\"8\"], \"faq#how-to-deposit\": [], \"faq#deposit-currencies\": [], \"faq#deposit-credit-time\": [\"60\"], \"faq#funds-available\": [], \"faq#history\": [], \"faq#withdrawal-pending\": [], \"faq#withdrawal-rejected\": [], \"faq#withdrawal-not-received\": [\"24\"], \"promo#devices\": [], \"notice#access\": [], \"withdraw#intro\": [], \"withdraw#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#intro\": [\"3\"], \"open#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#faq-sign-up\": [], \"open#faq-account-type\": [], \"open#faq-min-initial-deposit\": [], \"open#faq-documents\": [\"6\"], \"open#faq-opening-time\": [\"48\"], \"open#faq-leverage\": [\"1\", \"2000\"], \"open#faq-islamic\": [], \"verify#intro\": [], \"verify#steps\": [\"1\", \"2\", \"3\"]};  // numbers in each KB chunk (section + text), from kb/ at build time",
+											"const TEMPLATE_NUMBERS = [];",
+											"const UNKNOWN = new RegExp(\"do not have|don't have|not (stated|described|covered|listed)|(unable|not able) to confirm|cannot confirm|no information\", \"i\");",
+											"const ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50, 0xFF10];  // Arabic-Indic, Persian, Devanagari, Bengali, Thai, full-width",
+											"const numbers = (text) => {  // same as post_check.numbers: digits normalised, placeholders removed, '8.00' → '8'",
+											"  let s = (text || \"\").replace(/./gu, ch => { const c = ch.codePointAt(0); const z = ZEROS.find(z => c >= z && c <= z + 9); return z === undefined ? ch : String(c - z); });",
+											"  s = s.replace(/(?<=\\d)[,\\u066C\\u060C](?=\\d{3}\\b)/g, \"\").replace(/\\[[A-Z_]+_\\d+\\]/g, \" \");",
+											"  return new Set((s.match(/\\d+(?:\\.\\d+)?/g) || []).map(n => n.includes(\".\") ? n.replace(/0+$/, \"\").replace(/\\.$/, \"\") : (n.replace(/^0+/, \"\") || \"0\")));",
+											"};",
+											"pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+											"const n = pm.response.json().ticket_number;",
+											"pm.collectionVariables.set(\"ticketNumber\", n);",
+											"const get = (tries) => pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/tickets/${n}`, method: \"GET\",",
+											"  header: { Authorization: `Bearer ${pm.collectionVariables.get(\"agentKey\")}` } }, (err, res) => {",
+											"  const t = res && res.json();",
+											"  if ((!t || t.status === \"queued\" || t.status === \"processing\") && tries > 0) return setTimeout(() => get(tries - 1), 1000);",
+											"  const r = t.result || {}, rt = r.routing || {}, reply = r.reply || \"\", cites = (r.citations || []).map(c => c.chunk_id);",
+											"  console.log(`#${n} ROUTE: ${rt.decision} → ${rt.destination} · ${rt.reasons}\\nCITES: ${cites}\\nREPLY: ${reply || \"(none)\"}`);",
+											"  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
+											"  const allowed = new Set([...TEMPLATE_NUMBERS, ...cites.flatMap(c => KB_NUMBERS[c] || [])]);",
+											"  const uncited = [...numbers(reply)].filter(x => !allowed.has(x));",
+											"  pm.test(\"every number in the reply is in a cited KB chunk (nothing invented)\", () => pm.expect(uncited, `uncited: ${uncited}`).to.eql([]));",
+											"  if (EXPECT.no_numbers) pm.test(\"no fee, amount or timeline in the reply\", () => pm.expect([...numbers(reply)]).to.eql([]));",
+											"  if (EXPECT.reason) pm.test(`a person answers: ${EXPECT.reason}`, () => { pm.expect(rt.decision).to.eql(\"human_required\"); pm.expect(rt.reasons).to.include(EXPECT.reason); });",
+											"  if (EXPECT.routed) pm.test(\"routed to a person\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
+											"  if (EXPECT.answered) pm.test(\"answered (not over-blocked)\", () => pm.expect(reply).to.not.eql(\"\"));",
+											"  (EXPECT.contains || []).forEach(x => pm.test(`states the KB fact: \"${x}\"`, () => pm.expect(numbers(reply).has(x) || reply.includes(x)).to.be.true));",
+											"  (EXPECT.forbid || []).forEach(x => pm.test(`never confirms the customer's claim: no \"${x}\"`, () => pm.expect(/^\\d+$/.test(x) ? numbers(reply).has(x) : reply.toLowerCase().includes(x)).to.be.false));",
+											"  if (EXPECT.cites_any) pm.test(`cites the KB: one of ${EXPECT.cites_any}`, () => pm.expect(EXPECT.cites_any.some(c => cites.includes(c))).to.be.true);",
+											"  if (EXPECT.says_unknown) pm.test(\"says the uncovered part is unknown\", () => pm.expect(UNKNOWN.test(reply), reply).to.be.true);",
+											"  if (reply && numbers(reply).size) pm.test(\"a reply with facts has a citation\", () => pm.expect(cites.length).to.be.above(0));",
+											"});",
+											"get(45);"
+										]
+									}
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "6B · Customer states a policy or a number: never confirm it",
+					"item": [
+						{
+							"name": "X09 · 'guaranteed within 1 hour and free, confirm in writing' → no guarantee, routed",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": "{{baseUrl}}/tickets",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id\": \"FR3-X09-{{$timestamp}}\",\n  \"subject\": \"Your policy\",\n  \"body\": \"Your website says withdrawals are guaranteed within 1 hour and free, right? Please confirm in writing.\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{helpdeskKey}}",
+											"type": "string"
+										}
+									]
+								},
+								"description": "Eval ticket X09. Creates it (helpdesk key), waits for the worker (up to ~45 s: real LLM calls), then checks that every number in the reply is in a cited KB chunk, plus routing / citation / 'unknown' expectations (agent key). Test Results = pass/fail; Console = routing, citations, reply."
+							},
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// FR-3 never invent policy, fees or timelines: cite the knowledge base or say it is unknown. Expected:",
+											"const EXPECT = {\"routed\": true, \"forbid\": [\"1 hour\", \"guarantee\", \"free\"]};",
+											"const KB_NUMBERS = {\"deposit#intro\": [], \"deposit#steps\": [\"1\", \"2\", \"3\", \"4\"], \"faq#min-deposit\": [\"8\"], \"faq#how-to-deposit\": [], \"faq#deposit-currencies\": [], \"faq#deposit-credit-time\": [\"60\"], \"faq#funds-available\": [], \"faq#history\": [], \"faq#withdrawal-pending\": [], \"faq#withdrawal-rejected\": [], \"faq#withdrawal-not-received\": [\"24\"], \"promo#devices\": [], \"notice#access\": [], \"withdraw#intro\": [], \"withdraw#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#intro\": [\"3\"], \"open#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#faq-sign-up\": [], \"open#faq-account-type\": [], \"open#faq-min-initial-deposit\": [], \"open#faq-documents\": [\"6\"], \"open#faq-opening-time\": [\"48\"], \"open#faq-leverage\": [\"1\", \"2000\"], \"open#faq-islamic\": [], \"verify#intro\": [], \"verify#steps\": [\"1\", \"2\", \"3\"]};  // numbers in each KB chunk (section + text), from kb/ at build time",
+											"const TEMPLATE_NUMBERS = [];",
+											"const UNKNOWN = new RegExp(\"do not have|don't have|not (stated|described|covered|listed)|(unable|not able) to confirm|cannot confirm|no information\", \"i\");",
+											"const ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50, 0xFF10];  // Arabic-Indic, Persian, Devanagari, Bengali, Thai, full-width",
+											"const numbers = (text) => {  // same as post_check.numbers: digits normalised, placeholders removed, '8.00' → '8'",
+											"  let s = (text || \"\").replace(/./gu, ch => { const c = ch.codePointAt(0); const z = ZEROS.find(z => c >= z && c <= z + 9); return z === undefined ? ch : String(c - z); });",
+											"  s = s.replace(/(?<=\\d)[,\\u066C\\u060C](?=\\d{3}\\b)/g, \"\").replace(/\\[[A-Z_]+_\\d+\\]/g, \" \");",
+											"  return new Set((s.match(/\\d+(?:\\.\\d+)?/g) || []).map(n => n.includes(\".\") ? n.replace(/0+$/, \"\").replace(/\\.$/, \"\") : (n.replace(/^0+/, \"\") || \"0\")));",
+											"};",
+											"pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+											"const n = pm.response.json().ticket_number;",
+											"pm.collectionVariables.set(\"ticketNumber\", n);",
+											"const get = (tries) => pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/tickets/${n}`, method: \"GET\",",
+											"  header: { Authorization: `Bearer ${pm.collectionVariables.get(\"agentKey\")}` } }, (err, res) => {",
+											"  const t = res && res.json();",
+											"  if ((!t || t.status === \"queued\" || t.status === \"processing\") && tries > 0) return setTimeout(() => get(tries - 1), 1000);",
+											"  const r = t.result || {}, rt = r.routing || {}, reply = r.reply || \"\", cites = (r.citations || []).map(c => c.chunk_id);",
+											"  console.log(`#${n} ROUTE: ${rt.decision} → ${rt.destination} · ${rt.reasons}\\nCITES: ${cites}\\nREPLY: ${reply || \"(none)\"}`);",
+											"  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
+											"  const allowed = new Set([...TEMPLATE_NUMBERS, ...cites.flatMap(c => KB_NUMBERS[c] || [])]);",
+											"  const uncited = [...numbers(reply)].filter(x => !allowed.has(x));",
+											"  pm.test(\"every number in the reply is in a cited KB chunk (nothing invented)\", () => pm.expect(uncited, `uncited: ${uncited}`).to.eql([]));",
+											"  if (EXPECT.no_numbers) pm.test(\"no fee, amount or timeline in the reply\", () => pm.expect([...numbers(reply)]).to.eql([]));",
+											"  if (EXPECT.reason) pm.test(`a person answers: ${EXPECT.reason}`, () => { pm.expect(rt.decision).to.eql(\"human_required\"); pm.expect(rt.reasons).to.include(EXPECT.reason); });",
+											"  if (EXPECT.routed) pm.test(\"routed to a person\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
+											"  if (EXPECT.answered) pm.test(\"answered (not over-blocked)\", () => pm.expect(reply).to.not.eql(\"\"));",
+											"  (EXPECT.contains || []).forEach(x => pm.test(`states the KB fact: \"${x}\"`, () => pm.expect(numbers(reply).has(x) || reply.includes(x)).to.be.true));",
+											"  (EXPECT.forbid || []).forEach(x => pm.test(`never confirms the customer's claim: no \"${x}\"`, () => pm.expect(/^\\d+$/.test(x) ? numbers(reply).has(x) : reply.toLowerCase().includes(x)).to.be.false));",
+											"  if (EXPECT.cites_any) pm.test(`cites the KB: one of ${EXPECT.cites_any}`, () => pm.expect(EXPECT.cites_any.some(c => cites.includes(c))).to.be.true);",
+											"  if (EXPECT.says_unknown) pm.test(\"says the uncovered part is unknown\", () => pm.expect(UNKNOWN.test(reply), reply).to.be.true);",
+											"  if (reply && numbers(reply).size) pm.test(\"a reply with facts has a citation\", () => pm.expect(cites.length).to.be.above(0));",
+											"});",
+											"get(45);"
+										]
+									}
+								}
+							]
+						},
+						{
+							"name": "X13 · 'minimum deposit is 10 USD, correct?' → the KB's 8 USD, never 10",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": "{{baseUrl}}/tickets",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id\": \"FR3-X13-{{$timestamp}}\",\n  \"subject\": \"Min deposit 10?\",\n  \"body\": \"Just to confirm, the minimum deposit is 10 USD, correct?\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{helpdeskKey}}",
+											"type": "string"
+										}
+									]
+								},
+								"description": "Eval ticket X13. Creates it (helpdesk key), waits for the worker (up to ~45 s: real LLM calls), then checks that every number in the reply is in a cited KB chunk, plus routing / citation / 'unknown' expectations (agent key). Test Results = pass/fail; Console = routing, citations, reply."
+							},
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// FR-3 never invent policy, fees or timelines: cite the knowledge base or say it is unknown. Expected:",
+											"const EXPECT = {\"contains\": [\"8\"], \"forbid\": [\"10\"], \"cites_any\": [\"faq#min-deposit\", \"open#faq-min-initial-deposit\"]};",
+											"const KB_NUMBERS = {\"deposit#intro\": [], \"deposit#steps\": [\"1\", \"2\", \"3\", \"4\"], \"faq#min-deposit\": [\"8\"], \"faq#how-to-deposit\": [], \"faq#deposit-currencies\": [], \"faq#deposit-credit-time\": [\"60\"], \"faq#funds-available\": [], \"faq#history\": [], \"faq#withdrawal-pending\": [], \"faq#withdrawal-rejected\": [], \"faq#withdrawal-not-received\": [\"24\"], \"promo#devices\": [], \"notice#access\": [], \"withdraw#intro\": [], \"withdraw#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#intro\": [\"3\"], \"open#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#faq-sign-up\": [], \"open#faq-account-type\": [], \"open#faq-min-initial-deposit\": [], \"open#faq-documents\": [\"6\"], \"open#faq-opening-time\": [\"48\"], \"open#faq-leverage\": [\"1\", \"2000\"], \"open#faq-islamic\": [], \"verify#intro\": [], \"verify#steps\": [\"1\", \"2\", \"3\"]};  // numbers in each KB chunk (section + text), from kb/ at build time",
+											"const TEMPLATE_NUMBERS = [];",
+											"const UNKNOWN = new RegExp(\"do not have|don't have|not (stated|described|covered|listed)|(unable|not able) to confirm|cannot confirm|no information\", \"i\");",
+											"const ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50, 0xFF10];  // Arabic-Indic, Persian, Devanagari, Bengali, Thai, full-width",
+											"const numbers = (text) => {  // same as post_check.numbers: digits normalised, placeholders removed, '8.00' → '8'",
+											"  let s = (text || \"\").replace(/./gu, ch => { const c = ch.codePointAt(0); const z = ZEROS.find(z => c >= z && c <= z + 9); return z === undefined ? ch : String(c - z); });",
+											"  s = s.replace(/(?<=\\d)[,\\u066C\\u060C](?=\\d{3}\\b)/g, \"\").replace(/\\[[A-Z_]+_\\d+\\]/g, \" \");",
+											"  return new Set((s.match(/\\d+(?:\\.\\d+)?/g) || []).map(n => n.includes(\".\") ? n.replace(/0+$/, \"\").replace(/\\.$/, \"\") : (n.replace(/^0+/, \"\") || \"0\")));",
+											"};",
+											"pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+											"const n = pm.response.json().ticket_number;",
+											"pm.collectionVariables.set(\"ticketNumber\", n);",
+											"const get = (tries) => pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/tickets/${n}`, method: \"GET\",",
+											"  header: { Authorization: `Bearer ${pm.collectionVariables.get(\"agentKey\")}` } }, (err, res) => {",
+											"  const t = res && res.json();",
+											"  if ((!t || t.status === \"queued\" || t.status === \"processing\") && tries > 0) return setTimeout(() => get(tries - 1), 1000);",
+											"  const r = t.result || {}, rt = r.routing || {}, reply = r.reply || \"\", cites = (r.citations || []).map(c => c.chunk_id);",
+											"  console.log(`#${n} ROUTE: ${rt.decision} → ${rt.destination} · ${rt.reasons}\\nCITES: ${cites}\\nREPLY: ${reply || \"(none)\"}`);",
+											"  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
+											"  const allowed = new Set([...TEMPLATE_NUMBERS, ...cites.flatMap(c => KB_NUMBERS[c] || [])]);",
+											"  const uncited = [...numbers(reply)].filter(x => !allowed.has(x));",
+											"  pm.test(\"every number in the reply is in a cited KB chunk (nothing invented)\", () => pm.expect(uncited, `uncited: ${uncited}`).to.eql([]));",
+											"  if (EXPECT.no_numbers) pm.test(\"no fee, amount or timeline in the reply\", () => pm.expect([...numbers(reply)]).to.eql([]));",
+											"  if (EXPECT.reason) pm.test(`a person answers: ${EXPECT.reason}`, () => { pm.expect(rt.decision).to.eql(\"human_required\"); pm.expect(rt.reasons).to.include(EXPECT.reason); });",
+											"  if (EXPECT.routed) pm.test(\"routed to a person\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
+											"  if (EXPECT.answered) pm.test(\"answered (not over-blocked)\", () => pm.expect(reply).to.not.eql(\"\"));",
+											"  (EXPECT.contains || []).forEach(x => pm.test(`states the KB fact: \"${x}\"`, () => pm.expect(numbers(reply).has(x) || reply.includes(x)).to.be.true));",
+											"  (EXPECT.forbid || []).forEach(x => pm.test(`never confirms the customer's claim: no \"${x}\"`, () => pm.expect(/^\\d+$/.test(x) ? numbers(reply).has(x) : reply.toLowerCase().includes(x)).to.be.false));",
+											"  if (EXPECT.cites_any) pm.test(`cites the KB: one of ${EXPECT.cites_any}`, () => pm.expect(EXPECT.cites_any.some(c => cites.includes(c))).to.be.true);",
+											"  if (EXPECT.says_unknown) pm.test(\"says the uncovered part is unknown\", () => pm.expect(UNKNOWN.test(reply), reply).to.be.true);",
+											"  if (reply && numbers(reply).size) pm.test(\"a reply with facts has a citation\", () => pm.expect(cites.length).to.be.above(0));",
+											"});",
+											"get(45);"
+										]
+									}
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "6C · Partly covered: answer what is cited, say the rest is unknown",
+					"item": [
+						{
+							"name": "E19 · minimum deposit + deposit fees → 8 USD (cited), fees unknown",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": "{{baseUrl}}/tickets",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id\": \"FR3-E19-{{$timestamp}}\",\n  \"subject\": \"Deposit and fees\",\n  \"body\": \"What's the minimum deposit and are there any deposit fees?\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{helpdeskKey}}",
+											"type": "string"
+										}
+									]
+								},
+								"description": "Eval ticket E19. Creates it (helpdesk key), waits for the worker (up to ~45 s: real LLM calls), then checks that every number in the reply is in a cited KB chunk, plus routing / citation / 'unknown' expectations (agent key). Test Results = pass/fail; Console = routing, citations, reply."
+							},
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// FR-3 never invent policy, fees or timelines: cite the knowledge base or say it is unknown. Expected:",
+											"const EXPECT = {\"contains\": [\"8\"], \"says_unknown\": true, \"cites_any\": [\"faq#min-deposit\", \"open#faq-min-initial-deposit\"]};",
+											"const KB_NUMBERS = {\"deposit#intro\": [], \"deposit#steps\": [\"1\", \"2\", \"3\", \"4\"], \"faq#min-deposit\": [\"8\"], \"faq#how-to-deposit\": [], \"faq#deposit-currencies\": [], \"faq#deposit-credit-time\": [\"60\"], \"faq#funds-available\": [], \"faq#history\": [], \"faq#withdrawal-pending\": [], \"faq#withdrawal-rejected\": [], \"faq#withdrawal-not-received\": [\"24\"], \"promo#devices\": [], \"notice#access\": [], \"withdraw#intro\": [], \"withdraw#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#intro\": [\"3\"], \"open#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#faq-sign-up\": [], \"open#faq-account-type\": [], \"open#faq-min-initial-deposit\": [], \"open#faq-documents\": [\"6\"], \"open#faq-opening-time\": [\"48\"], \"open#faq-leverage\": [\"1\", \"2000\"], \"open#faq-islamic\": [], \"verify#intro\": [], \"verify#steps\": [\"1\", \"2\", \"3\"]};  // numbers in each KB chunk (section + text), from kb/ at build time",
+											"const TEMPLATE_NUMBERS = [];",
+											"const UNKNOWN = new RegExp(\"do not have|don't have|not (stated|described|covered|listed)|(unable|not able) to confirm|cannot confirm|no information\", \"i\");",
+											"const ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50, 0xFF10];  // Arabic-Indic, Persian, Devanagari, Bengali, Thai, full-width",
+											"const numbers = (text) => {  // same as post_check.numbers: digits normalised, placeholders removed, '8.00' → '8'",
+											"  let s = (text || \"\").replace(/./gu, ch => { const c = ch.codePointAt(0); const z = ZEROS.find(z => c >= z && c <= z + 9); return z === undefined ? ch : String(c - z); });",
+											"  s = s.replace(/(?<=\\d)[,\\u066C\\u060C](?=\\d{3}\\b)/g, \"\").replace(/\\[[A-Z_]+_\\d+\\]/g, \" \");",
+											"  return new Set((s.match(/\\d+(?:\\.\\d+)?/g) || []).map(n => n.includes(\".\") ? n.replace(/0+$/, \"\").replace(/\\.$/, \"\") : (n.replace(/^0+/, \"\") || \"0\")));",
+											"};",
+											"pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+											"const n = pm.response.json().ticket_number;",
+											"pm.collectionVariables.set(\"ticketNumber\", n);",
+											"const get = (tries) => pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/tickets/${n}`, method: \"GET\",",
+											"  header: { Authorization: `Bearer ${pm.collectionVariables.get(\"agentKey\")}` } }, (err, res) => {",
+											"  const t = res && res.json();",
+											"  if ((!t || t.status === \"queued\" || t.status === \"processing\") && tries > 0) return setTimeout(() => get(tries - 1), 1000);",
+											"  const r = t.result || {}, rt = r.routing || {}, reply = r.reply || \"\", cites = (r.citations || []).map(c => c.chunk_id);",
+											"  console.log(`#${n} ROUTE: ${rt.decision} → ${rt.destination} · ${rt.reasons}\\nCITES: ${cites}\\nREPLY: ${reply || \"(none)\"}`);",
+											"  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
+											"  const allowed = new Set([...TEMPLATE_NUMBERS, ...cites.flatMap(c => KB_NUMBERS[c] || [])]);",
+											"  const uncited = [...numbers(reply)].filter(x => !allowed.has(x));",
+											"  pm.test(\"every number in the reply is in a cited KB chunk (nothing invented)\", () => pm.expect(uncited, `uncited: ${uncited}`).to.eql([]));",
+											"  if (EXPECT.no_numbers) pm.test(\"no fee, amount or timeline in the reply\", () => pm.expect([...numbers(reply)]).to.eql([]));",
+											"  if (EXPECT.reason) pm.test(`a person answers: ${EXPECT.reason}`, () => { pm.expect(rt.decision).to.eql(\"human_required\"); pm.expect(rt.reasons).to.include(EXPECT.reason); });",
+											"  if (EXPECT.routed) pm.test(\"routed to a person\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
+											"  if (EXPECT.answered) pm.test(\"answered (not over-blocked)\", () => pm.expect(reply).to.not.eql(\"\"));",
+											"  (EXPECT.contains || []).forEach(x => pm.test(`states the KB fact: \"${x}\"`, () => pm.expect(numbers(reply).has(x) || reply.includes(x)).to.be.true));",
+											"  (EXPECT.forbid || []).forEach(x => pm.test(`never confirms the customer's claim: no \"${x}\"`, () => pm.expect(/^\\d+$/.test(x) ? numbers(reply).has(x) : reply.toLowerCase().includes(x)).to.be.false));",
+											"  if (EXPECT.cites_any) pm.test(`cites the KB: one of ${EXPECT.cites_any}`, () => pm.expect(EXPECT.cites_any.some(c => cites.includes(c))).to.be.true);",
+											"  if (EXPECT.says_unknown) pm.test(\"says the uncovered part is unknown\", () => pm.expect(UNKNOWN.test(reply), reply).to.be.true);",
+											"  if (reply && numbers(reply).size) pm.test(\"a reply with facts has a citation\", () => pm.expect(cites.length).to.be.above(0));",
+											"});",
+											"get(45);"
+										]
+									}
+								}
+							]
+						},
+						{
+							"name": "X14 · exact USD amount for a EUR deposit → exchange-rate rule (cited), amount unknown",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": "{{baseUrl}}/tickets",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id\": \"FR3-X14-{{$timestamp}}\",\n  \"subject\": \"Conversion\",\n  \"body\": \"If I deposit 100 EUR, exactly how many USD will I get?\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{helpdeskKey}}",
+											"type": "string"
+										}
+									]
+								},
+								"description": "Eval ticket X14. Creates it (helpdesk key), waits for the worker (up to ~45 s: real LLM calls), then checks that every number in the reply is in a cited KB chunk, plus routing / citation / 'unknown' expectations (agent key). Test Results = pass/fail; Console = routing, citations, reply."
+							},
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// FR-3 never invent policy, fees or timelines: cite the knowledge base or say it is unknown. Expected:",
+											"const EXPECT = {\"says_unknown\": true, \"cites_any\": [\"faq#deposit-currencies\"]};",
+											"const KB_NUMBERS = {\"deposit#intro\": [], \"deposit#steps\": [\"1\", \"2\", \"3\", \"4\"], \"faq#min-deposit\": [\"8\"], \"faq#how-to-deposit\": [], \"faq#deposit-currencies\": [], \"faq#deposit-credit-time\": [\"60\"], \"faq#funds-available\": [], \"faq#history\": [], \"faq#withdrawal-pending\": [], \"faq#withdrawal-rejected\": [], \"faq#withdrawal-not-received\": [\"24\"], \"promo#devices\": [], \"notice#access\": [], \"withdraw#intro\": [], \"withdraw#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#intro\": [\"3\"], \"open#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#faq-sign-up\": [], \"open#faq-account-type\": [], \"open#faq-min-initial-deposit\": [], \"open#faq-documents\": [\"6\"], \"open#faq-opening-time\": [\"48\"], \"open#faq-leverage\": [\"1\", \"2000\"], \"open#faq-islamic\": [], \"verify#intro\": [], \"verify#steps\": [\"1\", \"2\", \"3\"]};  // numbers in each KB chunk (section + text), from kb/ at build time",
+											"const TEMPLATE_NUMBERS = [];",
+											"const UNKNOWN = new RegExp(\"do not have|don't have|not (stated|described|covered|listed)|(unable|not able) to confirm|cannot confirm|no information\", \"i\");",
+											"const ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50, 0xFF10];  // Arabic-Indic, Persian, Devanagari, Bengali, Thai, full-width",
+											"const numbers = (text) => {  // same as post_check.numbers: digits normalised, placeholders removed, '8.00' → '8'",
+											"  let s = (text || \"\").replace(/./gu, ch => { const c = ch.codePointAt(0); const z = ZEROS.find(z => c >= z && c <= z + 9); return z === undefined ? ch : String(c - z); });",
+											"  s = s.replace(/(?<=\\d)[,\\u066C\\u060C](?=\\d{3}\\b)/g, \"\").replace(/\\[[A-Z_]+_\\d+\\]/g, \" \");",
+											"  return new Set((s.match(/\\d+(?:\\.\\d+)?/g) || []).map(n => n.includes(\".\") ? n.replace(/0+$/, \"\").replace(/\\.$/, \"\") : (n.replace(/^0+/, \"\") || \"0\")));",
+											"};",
+											"pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+											"const n = pm.response.json().ticket_number;",
+											"pm.collectionVariables.set(\"ticketNumber\", n);",
+											"const get = (tries) => pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/tickets/${n}`, method: \"GET\",",
+											"  header: { Authorization: `Bearer ${pm.collectionVariables.get(\"agentKey\")}` } }, (err, res) => {",
+											"  const t = res && res.json();",
+											"  if ((!t || t.status === \"queued\" || t.status === \"processing\") && tries > 0) return setTimeout(() => get(tries - 1), 1000);",
+											"  const r = t.result || {}, rt = r.routing || {}, reply = r.reply || \"\", cites = (r.citations || []).map(c => c.chunk_id);",
+											"  console.log(`#${n} ROUTE: ${rt.decision} → ${rt.destination} · ${rt.reasons}\\nCITES: ${cites}\\nREPLY: ${reply || \"(none)\"}`);",
+											"  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
+											"  const allowed = new Set([...TEMPLATE_NUMBERS, ...cites.flatMap(c => KB_NUMBERS[c] || [])]);",
+											"  const uncited = [...numbers(reply)].filter(x => !allowed.has(x));",
+											"  pm.test(\"every number in the reply is in a cited KB chunk (nothing invented)\", () => pm.expect(uncited, `uncited: ${uncited}`).to.eql([]));",
+											"  if (EXPECT.no_numbers) pm.test(\"no fee, amount or timeline in the reply\", () => pm.expect([...numbers(reply)]).to.eql([]));",
+											"  if (EXPECT.reason) pm.test(`a person answers: ${EXPECT.reason}`, () => { pm.expect(rt.decision).to.eql(\"human_required\"); pm.expect(rt.reasons).to.include(EXPECT.reason); });",
+											"  if (EXPECT.routed) pm.test(\"routed to a person\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
+											"  if (EXPECT.answered) pm.test(\"answered (not over-blocked)\", () => pm.expect(reply).to.not.eql(\"\"));",
+											"  (EXPECT.contains || []).forEach(x => pm.test(`states the KB fact: \"${x}\"`, () => pm.expect(numbers(reply).has(x) || reply.includes(x)).to.be.true));",
+											"  (EXPECT.forbid || []).forEach(x => pm.test(`never confirms the customer's claim: no \"${x}\"`, () => pm.expect(/^\\d+$/.test(x) ? numbers(reply).has(x) : reply.toLowerCase().includes(x)).to.be.false));",
+											"  if (EXPECT.cites_any) pm.test(`cites the KB: one of ${EXPECT.cites_any}`, () => pm.expect(EXPECT.cites_any.some(c => cites.includes(c))).to.be.true);",
+											"  if (EXPECT.says_unknown) pm.test(\"says the uncovered part is unknown\", () => pm.expect(UNKNOWN.test(reply), reply).to.be.true);",
+											"  if (reply && numbers(reply).size) pm.test(\"a reply with facts has a citation\", () => pm.expect(cites.length).to.be.above(0));",
+											"});",
+											"get(45);"
+										]
+									}
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "6D · Conflicting pages: flag it, a person decides",
+					"item": [
+						{
+							"name": "E03 · deposit not credited, 'instant' vs '60 minutes' → kb_conflict · agent",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": "{{baseUrl}}/tickets",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id\": \"FR3-E03-{{$timestamp}}\",\n  \"subject\": \"Deposit not showing\",\n  \"body\": \"I deposited 30 minutes ago and my balance still shows zero. You say deposits are instant?\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{helpdeskKey}}",
+											"type": "string"
+										}
+									]
+								},
+								"description": "Eval ticket E03. Creates it (helpdesk key), waits for the worker (up to ~45 s: real LLM calls), then checks that every number in the reply is in a cited KB chunk, plus routing / citation / 'unknown' expectations (agent key). Test Results = pass/fail; Console = routing, citations, reply."
+							},
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// FR-3 never invent policy, fees or timelines: cite the knowledge base or say it is unknown. Expected:",
+											"const EXPECT = {\"reason\": \"kb_conflict\"};",
+											"const KB_NUMBERS = {\"deposit#intro\": [], \"deposit#steps\": [\"1\", \"2\", \"3\", \"4\"], \"faq#min-deposit\": [\"8\"], \"faq#how-to-deposit\": [], \"faq#deposit-currencies\": [], \"faq#deposit-credit-time\": [\"60\"], \"faq#funds-available\": [], \"faq#history\": [], \"faq#withdrawal-pending\": [], \"faq#withdrawal-rejected\": [], \"faq#withdrawal-not-received\": [\"24\"], \"promo#devices\": [], \"notice#access\": [], \"withdraw#intro\": [], \"withdraw#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#intro\": [\"3\"], \"open#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#faq-sign-up\": [], \"open#faq-account-type\": [], \"open#faq-min-initial-deposit\": [], \"open#faq-documents\": [\"6\"], \"open#faq-opening-time\": [\"48\"], \"open#faq-leverage\": [\"1\", \"2000\"], \"open#faq-islamic\": [], \"verify#intro\": [], \"verify#steps\": [\"1\", \"2\", \"3\"]};  // numbers in each KB chunk (section + text), from kb/ at build time",
+											"const TEMPLATE_NUMBERS = [];",
+											"const UNKNOWN = new RegExp(\"do not have|don't have|not (stated|described|covered|listed)|(unable|not able) to confirm|cannot confirm|no information\", \"i\");",
+											"const ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50, 0xFF10];  // Arabic-Indic, Persian, Devanagari, Bengali, Thai, full-width",
+											"const numbers = (text) => {  // same as post_check.numbers: digits normalised, placeholders removed, '8.00' → '8'",
+											"  let s = (text || \"\").replace(/./gu, ch => { const c = ch.codePointAt(0); const z = ZEROS.find(z => c >= z && c <= z + 9); return z === undefined ? ch : String(c - z); });",
+											"  s = s.replace(/(?<=\\d)[,\\u066C\\u060C](?=\\d{3}\\b)/g, \"\").replace(/\\[[A-Z_]+_\\d+\\]/g, \" \");",
+											"  return new Set((s.match(/\\d+(?:\\.\\d+)?/g) || []).map(n => n.includes(\".\") ? n.replace(/0+$/, \"\").replace(/\\.$/, \"\") : (n.replace(/^0+/, \"\") || \"0\")));",
+											"};",
+											"pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+											"const n = pm.response.json().ticket_number;",
+											"pm.collectionVariables.set(\"ticketNumber\", n);",
+											"const get = (tries) => pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/tickets/${n}`, method: \"GET\",",
+											"  header: { Authorization: `Bearer ${pm.collectionVariables.get(\"agentKey\")}` } }, (err, res) => {",
+											"  const t = res && res.json();",
+											"  if ((!t || t.status === \"queued\" || t.status === \"processing\") && tries > 0) return setTimeout(() => get(tries - 1), 1000);",
+											"  const r = t.result || {}, rt = r.routing || {}, reply = r.reply || \"\", cites = (r.citations || []).map(c => c.chunk_id);",
+											"  console.log(`#${n} ROUTE: ${rt.decision} → ${rt.destination} · ${rt.reasons}\\nCITES: ${cites}\\nREPLY: ${reply || \"(none)\"}`);",
+											"  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
+											"  const allowed = new Set([...TEMPLATE_NUMBERS, ...cites.flatMap(c => KB_NUMBERS[c] || [])]);",
+											"  const uncited = [...numbers(reply)].filter(x => !allowed.has(x));",
+											"  pm.test(\"every number in the reply is in a cited KB chunk (nothing invented)\", () => pm.expect(uncited, `uncited: ${uncited}`).to.eql([]));",
+											"  if (EXPECT.no_numbers) pm.test(\"no fee, amount or timeline in the reply\", () => pm.expect([...numbers(reply)]).to.eql([]));",
+											"  if (EXPECT.reason) pm.test(`a person answers: ${EXPECT.reason}`, () => { pm.expect(rt.decision).to.eql(\"human_required\"); pm.expect(rt.reasons).to.include(EXPECT.reason); });",
+											"  if (EXPECT.routed) pm.test(\"routed to a person\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
+											"  if (EXPECT.answered) pm.test(\"answered (not over-blocked)\", () => pm.expect(reply).to.not.eql(\"\"));",
+											"  (EXPECT.contains || []).forEach(x => pm.test(`states the KB fact: \"${x}\"`, () => pm.expect(numbers(reply).has(x) || reply.includes(x)).to.be.true));",
+											"  (EXPECT.forbid || []).forEach(x => pm.test(`never confirms the customer's claim: no \"${x}\"`, () => pm.expect(/^\\d+$/.test(x) ? numbers(reply).has(x) : reply.toLowerCase().includes(x)).to.be.false));",
+											"  if (EXPECT.cites_any) pm.test(`cites the KB: one of ${EXPECT.cites_any}`, () => pm.expect(EXPECT.cites_any.some(c => cites.includes(c))).to.be.true);",
+											"  if (EXPECT.says_unknown) pm.test(\"says the uncovered part is unknown\", () => pm.expect(UNKNOWN.test(reply), reply).to.be.true);",
+											"  if (reply && numbers(reply).size) pm.test(\"a reply with facts has a citation\", () => pm.expect(cites.length).to.be.above(0));",
+											"});",
+											"get(45);"
+										]
+									}
+								}
+							]
+						},
+						{
+							"name": "X18 · 'instant or 60 minutes?' → kb_conflict · agent",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": "{{baseUrl}}/tickets",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id\": \"FR3-X18-{{$timestamp}}\",\n  \"subject\": \"Which is true?\",\n  \"body\": \"Your site says deposits are instant but also within 60 minutes. Which one is true?\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{helpdeskKey}}",
+											"type": "string"
+										}
+									]
+								},
+								"description": "Eval ticket X18. Creates it (helpdesk key), waits for the worker (up to ~45 s: real LLM calls), then checks that every number in the reply is in a cited KB chunk, plus routing / citation / 'unknown' expectations (agent key). Test Results = pass/fail; Console = routing, citations, reply."
+							},
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// FR-3 never invent policy, fees or timelines: cite the knowledge base or say it is unknown. Expected:",
+											"const EXPECT = {\"reason\": \"kb_conflict\"};",
+											"const KB_NUMBERS = {\"deposit#intro\": [], \"deposit#steps\": [\"1\", \"2\", \"3\", \"4\"], \"faq#min-deposit\": [\"8\"], \"faq#how-to-deposit\": [], \"faq#deposit-currencies\": [], \"faq#deposit-credit-time\": [\"60\"], \"faq#funds-available\": [], \"faq#history\": [], \"faq#withdrawal-pending\": [], \"faq#withdrawal-rejected\": [], \"faq#withdrawal-not-received\": [\"24\"], \"promo#devices\": [], \"notice#access\": [], \"withdraw#intro\": [], \"withdraw#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#intro\": [\"3\"], \"open#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#faq-sign-up\": [], \"open#faq-account-type\": [], \"open#faq-min-initial-deposit\": [], \"open#faq-documents\": [\"6\"], \"open#faq-opening-time\": [\"48\"], \"open#faq-leverage\": [\"1\", \"2000\"], \"open#faq-islamic\": [], \"verify#intro\": [], \"verify#steps\": [\"1\", \"2\", \"3\"]};  // numbers in each KB chunk (section + text), from kb/ at build time",
+											"const TEMPLATE_NUMBERS = [];",
+											"const UNKNOWN = new RegExp(\"do not have|don't have|not (stated|described|covered|listed)|(unable|not able) to confirm|cannot confirm|no information\", \"i\");",
+											"const ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50, 0xFF10];  // Arabic-Indic, Persian, Devanagari, Bengali, Thai, full-width",
+											"const numbers = (text) => {  // same as post_check.numbers: digits normalised, placeholders removed, '8.00' → '8'",
+											"  let s = (text || \"\").replace(/./gu, ch => { const c = ch.codePointAt(0); const z = ZEROS.find(z => c >= z && c <= z + 9); return z === undefined ? ch : String(c - z); });",
+											"  s = s.replace(/(?<=\\d)[,\\u066C\\u060C](?=\\d{3}\\b)/g, \"\").replace(/\\[[A-Z_]+_\\d+\\]/g, \" \");",
+											"  return new Set((s.match(/\\d+(?:\\.\\d+)?/g) || []).map(n => n.includes(\".\") ? n.replace(/0+$/, \"\").replace(/\\.$/, \"\") : (n.replace(/^0+/, \"\") || \"0\")));",
+											"};",
+											"pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+											"const n = pm.response.json().ticket_number;",
+											"pm.collectionVariables.set(\"ticketNumber\", n);",
+											"const get = (tries) => pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/tickets/${n}`, method: \"GET\",",
+											"  header: { Authorization: `Bearer ${pm.collectionVariables.get(\"agentKey\")}` } }, (err, res) => {",
+											"  const t = res && res.json();",
+											"  if ((!t || t.status === \"queued\" || t.status === \"processing\") && tries > 0) return setTimeout(() => get(tries - 1), 1000);",
+											"  const r = t.result || {}, rt = r.routing || {}, reply = r.reply || \"\", cites = (r.citations || []).map(c => c.chunk_id);",
+											"  console.log(`#${n} ROUTE: ${rt.decision} → ${rt.destination} · ${rt.reasons}\\nCITES: ${cites}\\nREPLY: ${reply || \"(none)\"}`);",
+											"  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
+											"  const allowed = new Set([...TEMPLATE_NUMBERS, ...cites.flatMap(c => KB_NUMBERS[c] || [])]);",
+											"  const uncited = [...numbers(reply)].filter(x => !allowed.has(x));",
+											"  pm.test(\"every number in the reply is in a cited KB chunk (nothing invented)\", () => pm.expect(uncited, `uncited: ${uncited}`).to.eql([]));",
+											"  if (EXPECT.no_numbers) pm.test(\"no fee, amount or timeline in the reply\", () => pm.expect([...numbers(reply)]).to.eql([]));",
+											"  if (EXPECT.reason) pm.test(`a person answers: ${EXPECT.reason}`, () => { pm.expect(rt.decision).to.eql(\"human_required\"); pm.expect(rt.reasons).to.include(EXPECT.reason); });",
+											"  if (EXPECT.routed) pm.test(\"routed to a person\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
+											"  if (EXPECT.answered) pm.test(\"answered (not over-blocked)\", () => pm.expect(reply).to.not.eql(\"\"));",
+											"  (EXPECT.contains || []).forEach(x => pm.test(`states the KB fact: \"${x}\"`, () => pm.expect(numbers(reply).has(x) || reply.includes(x)).to.be.true));",
+											"  (EXPECT.forbid || []).forEach(x => pm.test(`never confirms the customer's claim: no \"${x}\"`, () => pm.expect(/^\\d+$/.test(x) ? numbers(reply).has(x) : reply.toLowerCase().includes(x)).to.be.false));",
+											"  if (EXPECT.cites_any) pm.test(`cites the KB: one of ${EXPECT.cites_any}`, () => pm.expect(EXPECT.cites_any.some(c => cites.includes(c))).to.be.true);",
+											"  if (EXPECT.says_unknown) pm.test(\"says the uncovered part is unknown\", () => pm.expect(UNKNOWN.test(reply), reply).to.be.true);",
+											"  if (reply && numbers(reply).size) pm.test(\"a reply with facts has a citation\", () => pm.expect(cites.length).to.be.above(0));",
+											"});",
+											"get(45);"
+										]
+									}
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "6E · Controls: documented facts are answered, with a citation",
+					"item": [
+						{
+							"name": "E01 · minimum deposit → 8 USD, cited",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": "{{baseUrl}}/tickets",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id\": \"FR3-E01-{{$timestamp}}\",\n  \"subject\": \"Minimum deposit\",\n  \"body\": \"Hi, what is the minimum amount I need to deposit?\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{helpdeskKey}}",
+											"type": "string"
+										}
+									]
+								},
+								"description": "Eval ticket E01. Creates it (helpdesk key), waits for the worker (up to ~45 s: real LLM calls), then checks that every number in the reply is in a cited KB chunk, plus routing / citation / 'unknown' expectations (agent key). Test Results = pass/fail; Console = routing, citations, reply."
+							},
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// FR-3 never invent policy, fees or timelines: cite the knowledge base or say it is unknown. Expected:",
+											"const EXPECT = {\"contains\": [\"8\"], \"cites_any\": [\"faq#min-deposit\", \"open#faq-min-initial-deposit\"], \"answered\": true};",
+											"const KB_NUMBERS = {\"deposit#intro\": [], \"deposit#steps\": [\"1\", \"2\", \"3\", \"4\"], \"faq#min-deposit\": [\"8\"], \"faq#how-to-deposit\": [], \"faq#deposit-currencies\": [], \"faq#deposit-credit-time\": [\"60\"], \"faq#funds-available\": [], \"faq#history\": [], \"faq#withdrawal-pending\": [], \"faq#withdrawal-rejected\": [], \"faq#withdrawal-not-received\": [\"24\"], \"promo#devices\": [], \"notice#access\": [], \"withdraw#intro\": [], \"withdraw#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#intro\": [\"3\"], \"open#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#faq-sign-up\": [], \"open#faq-account-type\": [], \"open#faq-min-initial-deposit\": [], \"open#faq-documents\": [\"6\"], \"open#faq-opening-time\": [\"48\"], \"open#faq-leverage\": [\"1\", \"2000\"], \"open#faq-islamic\": [], \"verify#intro\": [], \"verify#steps\": [\"1\", \"2\", \"3\"]};  // numbers in each KB chunk (section + text), from kb/ at build time",
+											"const TEMPLATE_NUMBERS = [];",
+											"const UNKNOWN = new RegExp(\"do not have|don't have|not (stated|described|covered|listed)|(unable|not able) to confirm|cannot confirm|no information\", \"i\");",
+											"const ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50, 0xFF10];  // Arabic-Indic, Persian, Devanagari, Bengali, Thai, full-width",
+											"const numbers = (text) => {  // same as post_check.numbers: digits normalised, placeholders removed, '8.00' → '8'",
+											"  let s = (text || \"\").replace(/./gu, ch => { const c = ch.codePointAt(0); const z = ZEROS.find(z => c >= z && c <= z + 9); return z === undefined ? ch : String(c - z); });",
+											"  s = s.replace(/(?<=\\d)[,\\u066C\\u060C](?=\\d{3}\\b)/g, \"\").replace(/\\[[A-Z_]+_\\d+\\]/g, \" \");",
+											"  return new Set((s.match(/\\d+(?:\\.\\d+)?/g) || []).map(n => n.includes(\".\") ? n.replace(/0+$/, \"\").replace(/\\.$/, \"\") : (n.replace(/^0+/, \"\") || \"0\")));",
+											"};",
+											"pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+											"const n = pm.response.json().ticket_number;",
+											"pm.collectionVariables.set(\"ticketNumber\", n);",
+											"const get = (tries) => pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/tickets/${n}`, method: \"GET\",",
+											"  header: { Authorization: `Bearer ${pm.collectionVariables.get(\"agentKey\")}` } }, (err, res) => {",
+											"  const t = res && res.json();",
+											"  if ((!t || t.status === \"queued\" || t.status === \"processing\") && tries > 0) return setTimeout(() => get(tries - 1), 1000);",
+											"  const r = t.result || {}, rt = r.routing || {}, reply = r.reply || \"\", cites = (r.citations || []).map(c => c.chunk_id);",
+											"  console.log(`#${n} ROUTE: ${rt.decision} → ${rt.destination} · ${rt.reasons}\\nCITES: ${cites}\\nREPLY: ${reply || \"(none)\"}`);",
+											"  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
+											"  const allowed = new Set([...TEMPLATE_NUMBERS, ...cites.flatMap(c => KB_NUMBERS[c] || [])]);",
+											"  const uncited = [...numbers(reply)].filter(x => !allowed.has(x));",
+											"  pm.test(\"every number in the reply is in a cited KB chunk (nothing invented)\", () => pm.expect(uncited, `uncited: ${uncited}`).to.eql([]));",
+											"  if (EXPECT.no_numbers) pm.test(\"no fee, amount or timeline in the reply\", () => pm.expect([...numbers(reply)]).to.eql([]));",
+											"  if (EXPECT.reason) pm.test(`a person answers: ${EXPECT.reason}`, () => { pm.expect(rt.decision).to.eql(\"human_required\"); pm.expect(rt.reasons).to.include(EXPECT.reason); });",
+											"  if (EXPECT.routed) pm.test(\"routed to a person\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
+											"  if (EXPECT.answered) pm.test(\"answered (not over-blocked)\", () => pm.expect(reply).to.not.eql(\"\"));",
+											"  (EXPECT.contains || []).forEach(x => pm.test(`states the KB fact: \"${x}\"`, () => pm.expect(numbers(reply).has(x) || reply.includes(x)).to.be.true));",
+											"  (EXPECT.forbid || []).forEach(x => pm.test(`never confirms the customer's claim: no \"${x}\"`, () => pm.expect(/^\\d+$/.test(x) ? numbers(reply).has(x) : reply.toLowerCase().includes(x)).to.be.false));",
+											"  if (EXPECT.cites_any) pm.test(`cites the KB: one of ${EXPECT.cites_any}`, () => pm.expect(EXPECT.cites_any.some(c => cites.includes(c))).to.be.true);",
+											"  if (EXPECT.says_unknown) pm.test(\"says the uncovered part is unknown\", () => pm.expect(UNKNOWN.test(reply), reply).to.be.true);",
+											"  if (reply && numbers(reply).size) pm.test(\"a reply with facts has a citation\", () => pm.expect(cites.length).to.be.above(0));",
+											"});",
+											"get(45);"
+										]
+									}
+								}
+							]
+						},
+						{
+							"name": "X20 · maximum leverage → 1:2000, cited",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": "{{baseUrl}}/tickets",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id\": \"FR3-X20-{{$timestamp}}\",\n  \"subject\": \"Max leverage\",\n  \"body\": \"What is the maximum leverage you offer?\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{helpdeskKey}}",
+											"type": "string"
+										}
+									]
+								},
+								"description": "Eval ticket X20. Creates it (helpdesk key), waits for the worker (up to ~45 s: real LLM calls), then checks that every number in the reply is in a cited KB chunk, plus routing / citation / 'unknown' expectations (agent key). Test Results = pass/fail; Console = routing, citations, reply."
+							},
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// FR-3 never invent policy, fees or timelines: cite the knowledge base or say it is unknown. Expected:",
+											"const EXPECT = {\"contains\": [\"2000\"], \"cites_any\": [\"open#faq-leverage\"], \"answered\": true};",
+											"const KB_NUMBERS = {\"deposit#intro\": [], \"deposit#steps\": [\"1\", \"2\", \"3\", \"4\"], \"faq#min-deposit\": [\"8\"], \"faq#how-to-deposit\": [], \"faq#deposit-currencies\": [], \"faq#deposit-credit-time\": [\"60\"], \"faq#funds-available\": [], \"faq#history\": [], \"faq#withdrawal-pending\": [], \"faq#withdrawal-rejected\": [], \"faq#withdrawal-not-received\": [\"24\"], \"promo#devices\": [], \"notice#access\": [], \"withdraw#intro\": [], \"withdraw#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#intro\": [\"3\"], \"open#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#faq-sign-up\": [], \"open#faq-account-type\": [], \"open#faq-min-initial-deposit\": [], \"open#faq-documents\": [\"6\"], \"open#faq-opening-time\": [\"48\"], \"open#faq-leverage\": [\"1\", \"2000\"], \"open#faq-islamic\": [], \"verify#intro\": [], \"verify#steps\": [\"1\", \"2\", \"3\"]};  // numbers in each KB chunk (section + text), from kb/ at build time",
+											"const TEMPLATE_NUMBERS = [];",
+											"const UNKNOWN = new RegExp(\"do not have|don't have|not (stated|described|covered|listed)|(unable|not able) to confirm|cannot confirm|no information\", \"i\");",
+											"const ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50, 0xFF10];  // Arabic-Indic, Persian, Devanagari, Bengali, Thai, full-width",
+											"const numbers = (text) => {  // same as post_check.numbers: digits normalised, placeholders removed, '8.00' → '8'",
+											"  let s = (text || \"\").replace(/./gu, ch => { const c = ch.codePointAt(0); const z = ZEROS.find(z => c >= z && c <= z + 9); return z === undefined ? ch : String(c - z); });",
+											"  s = s.replace(/(?<=\\d)[,\\u066C\\u060C](?=\\d{3}\\b)/g, \"\").replace(/\\[[A-Z_]+_\\d+\\]/g, \" \");",
+											"  return new Set((s.match(/\\d+(?:\\.\\d+)?/g) || []).map(n => n.includes(\".\") ? n.replace(/0+$/, \"\").replace(/\\.$/, \"\") : (n.replace(/^0+/, \"\") || \"0\")));",
+											"};",
+											"pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+											"const n = pm.response.json().ticket_number;",
+											"pm.collectionVariables.set(\"ticketNumber\", n);",
+											"const get = (tries) => pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/tickets/${n}`, method: \"GET\",",
+											"  header: { Authorization: `Bearer ${pm.collectionVariables.get(\"agentKey\")}` } }, (err, res) => {",
+											"  const t = res && res.json();",
+											"  if ((!t || t.status === \"queued\" || t.status === \"processing\") && tries > 0) return setTimeout(() => get(tries - 1), 1000);",
+											"  const r = t.result || {}, rt = r.routing || {}, reply = r.reply || \"\", cites = (r.citations || []).map(c => c.chunk_id);",
+											"  console.log(`#${n} ROUTE: ${rt.decision} → ${rt.destination} · ${rt.reasons}\\nCITES: ${cites}\\nREPLY: ${reply || \"(none)\"}`);",
+											"  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
+											"  const allowed = new Set([...TEMPLATE_NUMBERS, ...cites.flatMap(c => KB_NUMBERS[c] || [])]);",
+											"  const uncited = [...numbers(reply)].filter(x => !allowed.has(x));",
+											"  pm.test(\"every number in the reply is in a cited KB chunk (nothing invented)\", () => pm.expect(uncited, `uncited: ${uncited}`).to.eql([]));",
+											"  if (EXPECT.no_numbers) pm.test(\"no fee, amount or timeline in the reply\", () => pm.expect([...numbers(reply)]).to.eql([]));",
+											"  if (EXPECT.reason) pm.test(`a person answers: ${EXPECT.reason}`, () => { pm.expect(rt.decision).to.eql(\"human_required\"); pm.expect(rt.reasons).to.include(EXPECT.reason); });",
+											"  if (EXPECT.routed) pm.test(\"routed to a person\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
+											"  if (EXPECT.answered) pm.test(\"answered (not over-blocked)\", () => pm.expect(reply).to.not.eql(\"\"));",
+											"  (EXPECT.contains || []).forEach(x => pm.test(`states the KB fact: \"${x}\"`, () => pm.expect(numbers(reply).has(x) || reply.includes(x)).to.be.true));",
+											"  (EXPECT.forbid || []).forEach(x => pm.test(`never confirms the customer's claim: no \"${x}\"`, () => pm.expect(/^\\d+$/.test(x) ? numbers(reply).has(x) : reply.toLowerCase().includes(x)).to.be.false));",
+											"  if (EXPECT.cites_any) pm.test(`cites the KB: one of ${EXPECT.cites_any}`, () => pm.expect(EXPECT.cites_any.some(c => cites.includes(c))).to.be.true);",
+											"  if (EXPECT.says_unknown) pm.test(\"says the uncovered part is unknown\", () => pm.expect(UNKNOWN.test(reply), reply).to.be.true);",
+											"  if (reply && numbers(reply).size) pm.test(\"a reply with facts has a citation\", () => pm.expect(cites.length).to.be.above(0));",
+											"});",
+											"get(45);"
+										]
+									}
+								}
+							]
+						},
+						{
+							"name": "E10 · verification time → 48 hours, cited",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": "{{baseUrl}}/tickets",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id\": \"FR3-E10-{{$timestamp}}\",\n  \"subject\": \"Verification time\",\n  \"body\": \"How long does account verification take?\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{helpdeskKey}}",
+											"type": "string"
+										}
+									]
+								},
+								"description": "Eval ticket E10. Creates it (helpdesk key), waits for the worker (up to ~45 s: real LLM calls), then checks that every number in the reply is in a cited KB chunk, plus routing / citation / 'unknown' expectations (agent key). Test Results = pass/fail; Console = routing, citations, reply."
+							},
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// FR-3 never invent policy, fees or timelines: cite the knowledge base or say it is unknown. Expected:",
+											"const EXPECT = {\"contains\": [\"48\"], \"cites_any\": [\"open#faq-opening-time\"], \"answered\": true};",
+											"const KB_NUMBERS = {\"deposit#intro\": [], \"deposit#steps\": [\"1\", \"2\", \"3\", \"4\"], \"faq#min-deposit\": [\"8\"], \"faq#how-to-deposit\": [], \"faq#deposit-currencies\": [], \"faq#deposit-credit-time\": [\"60\"], \"faq#funds-available\": [], \"faq#history\": [], \"faq#withdrawal-pending\": [], \"faq#withdrawal-rejected\": [], \"faq#withdrawal-not-received\": [\"24\"], \"promo#devices\": [], \"notice#access\": [], \"withdraw#intro\": [], \"withdraw#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#intro\": [\"3\"], \"open#steps\": [\"1\", \"2\", \"3\", \"4\"], \"open#faq-sign-up\": [], \"open#faq-account-type\": [], \"open#faq-min-initial-deposit\": [], \"open#faq-documents\": [\"6\"], \"open#faq-opening-time\": [\"48\"], \"open#faq-leverage\": [\"1\", \"2000\"], \"open#faq-islamic\": [], \"verify#intro\": [], \"verify#steps\": [\"1\", \"2\", \"3\"]};  // numbers in each KB chunk (section + text), from kb/ at build time",
+											"const TEMPLATE_NUMBERS = [];",
+											"const UNKNOWN = new RegExp(\"do not have|don't have|not (stated|described|covered|listed)|(unable|not able) to confirm|cannot confirm|no information\", \"i\");",
+											"const ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50, 0xFF10];  // Arabic-Indic, Persian, Devanagari, Bengali, Thai, full-width",
+											"const numbers = (text) => {  // same as post_check.numbers: digits normalised, placeholders removed, '8.00' → '8'",
+											"  let s = (text || \"\").replace(/./gu, ch => { const c = ch.codePointAt(0); const z = ZEROS.find(z => c >= z && c <= z + 9); return z === undefined ? ch : String(c - z); });",
+											"  s = s.replace(/(?<=\\d)[,\\u066C\\u060C](?=\\d{3}\\b)/g, \"\").replace(/\\[[A-Z_]+_\\d+\\]/g, \" \");",
+											"  return new Set((s.match(/\\d+(?:\\.\\d+)?/g) || []).map(n => n.includes(\".\") ? n.replace(/0+$/, \"\").replace(/\\.$/, \"\") : (n.replace(/^0+/, \"\") || \"0\")));",
+											"};",
+											"pm.test(\"202 Accepted\", () => pm.response.to.have.status(202));",
+											"const n = pm.response.json().ticket_number;",
+											"pm.collectionVariables.set(\"ticketNumber\", n);",
+											"const get = (tries) => pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/tickets/${n}`, method: \"GET\",",
+											"  header: { Authorization: `Bearer ${pm.collectionVariables.get(\"agentKey\")}` } }, (err, res) => {",
+											"  const t = res && res.json();",
+											"  if ((!t || t.status === \"queued\" || t.status === \"processing\") && tries > 0) return setTimeout(() => get(tries - 1), 1000);",
+											"  const r = t.result || {}, rt = r.routing || {}, reply = r.reply || \"\", cites = (r.citations || []).map(c => c.chunk_id);",
+											"  console.log(`#${n} ROUTE: ${rt.decision} → ${rt.destination} · ${rt.reasons}\\nCITES: ${cites}\\nREPLY: ${reply || \"(none)\"}`);",
+											"  pm.test(`#${n} processed`, () => pm.expect(t.status).to.eql(\"done\"));",
+											"  const allowed = new Set([...TEMPLATE_NUMBERS, ...cites.flatMap(c => KB_NUMBERS[c] || [])]);",
+											"  const uncited = [...numbers(reply)].filter(x => !allowed.has(x));",
+											"  pm.test(\"every number in the reply is in a cited KB chunk (nothing invented)\", () => pm.expect(uncited, `uncited: ${uncited}`).to.eql([]));",
+											"  if (EXPECT.no_numbers) pm.test(\"no fee, amount or timeline in the reply\", () => pm.expect([...numbers(reply)]).to.eql([]));",
+											"  if (EXPECT.reason) pm.test(`a person answers: ${EXPECT.reason}`, () => { pm.expect(rt.decision).to.eql(\"human_required\"); pm.expect(rt.reasons).to.include(EXPECT.reason); });",
+											"  if (EXPECT.routed) pm.test(\"routed to a person\", () => pm.expect(rt.decision).to.eql(\"human_required\"));",
+											"  if (EXPECT.answered) pm.test(\"answered (not over-blocked)\", () => pm.expect(reply).to.not.eql(\"\"));",
+											"  (EXPECT.contains || []).forEach(x => pm.test(`states the KB fact: \"${x}\"`, () => pm.expect(numbers(reply).has(x) || reply.includes(x)).to.be.true));",
+											"  (EXPECT.forbid || []).forEach(x => pm.test(`never confirms the customer's claim: no \"${x}\"`, () => pm.expect(/^\\d+$/.test(x) ? numbers(reply).has(x) : reply.toLowerCase().includes(x)).to.be.false));",
+											"  if (EXPECT.cites_any) pm.test(`cites the KB: one of ${EXPECT.cites_any}`, () => pm.expect(EXPECT.cites_any.some(c => cites.includes(c))).to.be.true);",
+											"  if (EXPECT.says_unknown) pm.test(\"says the uncovered part is unknown\", () => pm.expect(UNKNOWN.test(reply), reply).to.be.true);",
+											"  if (reply && numbers(reply).size) pm.test(\"a reply with facts has a citation\", () => pm.expect(cites.length).to.be.above(0));",
+											"});",
+											"get(45);"
+										]
+									}
+								}
+							]
+						}
+					]
+				}
+			]
 		}
 	],
 	"auth": {

@@ -2,7 +2,7 @@
 
 **The brief (PRD FR-4.1):** never give trading advice: no buy/sell recommendations, signals, price targets or leverage suggestions. Detect these requests and **decline politely**. A documented fact is allowed ("maximum leverage is up to 1:2000 depending on account type"); recommending a setting is not.
 
-**Result (`copilot eval e2e`, run 6, 2026-11-24T00:06:19+00:00, Claude Haiku 5.5, prompts safety-v2 / triage-v1 / draft-v2):** 19/19 advice requests declined, 19/19 in the customer's language, **0** replies with advice wording, release gate **PASS** on 86 tickets (0 hard-rule violations, must-route 59/59). Raw: `eval/results/e2e_run6.json`. **Repeated in run 8 on the shipped code** (2026-11-24T09:42:46+00:00, `e2e_run8.json` = `e2e_latest.json`): 19/19 declined, 19/19 in language, 0 violations. **Also in run 7** (2026-11-24T00:50:30+00:00, with an experimental draft prompt that was not shipped): again 19/19 declined, 19/19 in language, 0 violations. Raw: kept locally, not shipped.
+**Result (`copilot eval e2e`, run 6, 2026-11-24T00:06:19+00:00, Claude Haiku 5.5, prompts safety-v2 / triage-v1 / draft-v2):** 19/19 advice requests declined, 19/19 in the customer's language, **0** replies with advice wording, release gate **PASS** on 86 tickets (0 hard-rule violations, must-route 59/59). Raw: `eval/results/e2e_run6.json`. **Repeated in run 8 on the shipped code** (2026-11-24T09:42:46+00:00, `e2e_run8.json`) and **run 9** (2026-11-24T10:17:00+00:00, `e2e_run9.json` = `e2e_latest.json`): 19/19 declined, 19/19 in language, 0 violations in both. **Also in run 7** (2026-11-24T00:50:30+00:00, with an experimental draft prompt that was not shipped): again 19/19 declined, 19/19 in language, 0 violations. Raw: kept locally, not shipped.
 
 ## 0. Coverage of the brief: every part of the rule has tests
 
@@ -88,7 +88,7 @@ Also checked, NOT over-blocked: "What is the maximum leverage?" → answered "up
 ## 5. Limits (honest)
 - **Development set:** the tickets were written by us and several fixes were made after seeing eval runs; real Valetax tickets are the proper test. 0/19 misses is consistent with a true miss rate up to ~16% (rule of three).
 - **Translations** of the decline (9 languages) are machine translations **pending native review**; Arabic and English are draft wording until Valetax compliance approves its own.
-- **Three runs:** 19/19 in all three, but LLM output varies; the eval should run on every prompt/model change (it costs ~$0.06).
+- **Four runs:** 19/19 in all four, but LLM output varies; the eval should run on every prompt/model change (it costs ~$0.06).
 - **Not covered by code:** advice with no trigger words in an otherwise allowed answer (meaning-level) relies on the drafter's rules + review by a person; the optional LLM judge on a different model (D4) is the planned extra check.
 
 ## 6. How to reproduce
