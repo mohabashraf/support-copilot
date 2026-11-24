@@ -55,13 +55,12 @@ def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
     # Nothing relevant in the help pages (fake retriever): no draft call, a person answers.
     routing = done["result"]["routing"]
     assert routing["decision"] == "human_required" and routing["reasons"] == ["weak_retrieval"]
-    assert done["complete"] is False and done["result"]["reply"] is None
+    assert done["complete"] is True and done["result"]["reply"] is None
     assert isinstance(
         done["result"]["notes_for_agent"], list
     )  # the agent sees the co-pilot's notes
-    # Weak retrieval skips draft + post_check: 11 of the 12 steps on this path are implemented
-    # (audit is still a placeholder).
-    assert done["steps_completed"] == "11/12"
+    # Weak retrieval skips draft + post_check: all 12 steps on this path did real work.
+    assert done["steps_completed"] == "12/12"
     completed = {st["node"] for st in done["steps"] if st["status"] == "completed"}
     assert completed == {
         "pattern_check",
@@ -75,6 +74,7 @@ def test_post_returns_a_ticket_number_and_get_shows_progress_then_result():
         "retrieve",
         "compose",
         "route",
+        "audit",
     }
     assert "4111 1111" not in str(done)
 

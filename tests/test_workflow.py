@@ -117,7 +117,9 @@ def test_only_implemented_nodes_are_marked_implemented():
         "post_check",
         "compose",
         "route",
+        "audit",
     }
+    assert all(wf.NODE_IMPLEMENTED.values())  # no placeholder node left
 
 
 def _cls(n: int) -> Classification:

@@ -25,7 +25,7 @@ PII is masked BEFORE the graph runs (tickets/service.py `intake`), so the graph 
 traces and the LLM only ever see placeholders; the placeholder → value mapping never enters
 the state. The background worker runs this graph (tickets/worker.py).
 
-Implemented: every node except audit.
+Implemented: every node.
 The other nodes are marked @placeholder: they produce nothing and monitoring reports them as
 placeholders, never as work done.
 Dependencies (the risk classifier, later the LLM clients) come in through LangGraph's runtime
@@ -109,6 +109,7 @@ class State(InputState, OutputState, total=False):
     draft: DraftOut | None
     draft_attempts: int
     post_check_failures: list[str]
+    audit_record: dict  # audit: the decision record (versions, path, gates, sources); masked
     # routing reason codes collected along the way (reducer: each node appends its own)
     reasons: Annotated[list[str], operator.add]
     # `steps` uses a reducer: each node APPENDS its name, so the path through the graph is visible
@@ -563,10 +564,43 @@ def route(state: State) -> dict:
     return {"steps": ["route"], "routing": routing_rules.decide(state)}
 
 
-@placeholder
-def audit(state: State) -> dict:
-    # TODO step 7: append one masked record to the audit log (the legal record, not LangSmith)
-    return {"steps": ["audit"]}
+def audit(state: State, runtime: Runtime[Deps]) -> dict:
+    """The decision record for the audit log (PRD §6b): what ran, on what, and why it ended here.
+
+    Built here because only the graph knows it; written ONCE by the ticket service after the
+    result is saved (tickets/service.py), so a retried ticket never leaves a duplicate record.
+    Masked data only: chunk ids, scores, codes, versions; never ticket or reply text.
+    """
+    deps = runtime.context or Deps()  # no context (tests, Studio): record what is known
+    model = lambda llm: getattr(llm, "model", None)  # noqa: E731
+    draft = state.get("draft")
+    policy = state.get("policy") or {}
+    record = {
+        "versions": {
+            "prompts": {"safety": prompts.PROMPT_VERSION, "triage": prompts.TRIAGE_PROMPT_VERSION,
+                        "draft": prompts.DRAFT_PROMPT_VERSION},
+            "models": {"classify": model(deps.classify_llm), "draft": model(deps.draft_llm)},
+            "retrieval": {"top_k": deps.top_k, "weak_threshold": deps.weak_retrieval_threshold},
+        },
+        "path": list(state.get("steps", [])) + ["audit"],
+        "hard_rules": {
+            "blocked_intents": state.get("blocked_intents", []),
+            "templates": state.get("template_parts", []),
+            "policy_rule": policy.get("ticket_rule"),
+            "compliance": policy.get("compliance"),
+        },
+        "retrieved": [{"chunk_id": c, "score": round(float(sc), 4)}
+                      for c, sc in state.get("retrieved", [])],
+        "draft": None if draft is None else {
+            "abstain": draft.abstain, "partial": draft.partial,
+            "cited_chunk_ids": draft.cited_chunk_ids, "attempts": state.get("draft_attempts", 0),
+        },
+        "post_check_failures": state.get("post_check_failures", []),
+        "confidence": {k: (state.get("confidence") or {}).get(k)
+                       for k in ("self_reported", "threshold", "passed")},
+        "notes_count": len(state.get("notes_for_agent", [])),
+    }  # fmt: skip
+    return {"steps": ["audit"], "audit_record": record}
 
 
 # ---- Edges ----------------------------------------------------------------------------------

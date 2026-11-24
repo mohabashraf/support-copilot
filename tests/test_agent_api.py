@@ -41,7 +41,7 @@ def test_inbox_lists_tickets_with_counts_and_filters(env):
     assert inbox["counts"] == {"done": 1}
     row = inbox["items"][0]
     assert row["ticket_number"] == n and not row["handled_by_agent"]
-    assert row["steps_completed"] == "13/14" and row["complete"] is False
+    assert row["steps_completed"] == "14/14" and row["complete"] is True  # every step real
     # The (fake) drafter answered and nothing was flagged: an agent reviews and sends it.
     assert row["decision"] == "auto_draft_ok" and row["queue"] is None
     assert row["reasons"] == []
@@ -143,3 +143,14 @@ def test_a_failed_ticket_can_be_handled_manually(env, monkeypatch):
     assert t["status"] == "failed" and t["result"]["routing"]["reasons"] == ["technical_failure"]
     r = client.post(f"/tickets/{n}/decision", json={"action": "manual"}, headers=SARA)
     assert r.status_code == 200 and r.json()["agent_action"]["decision"] == "manual"
+
+
+def test_audit_log_gets_the_decision_record_from_the_audit_node(env):
+    import json  # noqa: PLC0415
+
+    _, _, audit, n = env
+    rec = [e for e in audit.read(n) if e["event"] == "ticket_processed"][0]
+    d = rec["decision_record"]
+    assert d["path"][-1] == "audit" and d["versions"]["prompts"]["draft"].startswith("draft-")
+    assert {"hard_rules", "retrieved", "post_check_failures", "confidence"} <= set(d)
+    assert "4111" not in json.dumps(rec) and "Ahmed" not in json.dumps(rec)  # masked only

@@ -130,12 +130,20 @@ async function openTicket(n) {
     ${decided ? `<div class="note" style="border-color:var(--ok);background:var(--okbg)">${esc(decided.decision)} by ${esc(decided.agent)} at ${esc(new Date(decided.decided_at).toLocaleString())}</div>
       ${decided.final_text_masked ? `<div class="msg" style="margin-top:8px">${esc(decided.final_text_masked)}</div>` : ""}` : `
     <textarea id="draft" placeholder="No draft: write the reply, or hand it off.">${esc(r.reply || "")}</textarea>
-    <div class="row" style="margin-top:8px"><button class="primary" id="send">Send reply</button><button id="manual">Handle manually</button><span id="decMsg" class="small"></span></div>
-    <div class="small muted">Placeholders like [NAME_1] are filled in at send time; cards are only ever shown as **** + last 4.</div>`}
+    <div class="row" style="margin-top:8px"><button class="primary" id="send">Send reply</button><button id="manual">Handle manually</button>
+      ${/\[[A-Z]+_\d+\]/.test(r.reply || "") ? '<button id="fill">Fill in customer details (audited)</button>' : ""}<span id="decMsg" class="small"></span></div>
+    <div class="small muted">The draft uses placeholders like [NAME_1] (the AI never sees real customer data). "Fill in customer details" shows the real text the customer will get (logged in the audit log); otherwise they are filled in at send time. Cards are only ever shown as **** + last 4. The stored copy is masked again.</div>`}
     ${cites ? `<h2 style="margin-top:14px">Sources (help pages)</h2><ul>${cites}</ul>` : ""}`}`;
   if ($("reveal")) $("reveal").onclick = async () => { try { const v = await api(`/tickets/${n}/customer-details`); $("pii").textContent = Object.entries(v).map(([k, x]) => `${k} = ${x}`).join(" · "); } catch (e) { $("pii").innerHTML = `<span class="err">${esc(e.message)}</span>`; } };
   const decide = async (action) => { try { await api(`/tickets/${n}/decision`, { method: "POST", body: { action, final_text: action === "send" ? $("draft").value : "" } }); openTicket(n); loadInbox(); } catch (e) { $("decMsg").innerHTML = `<span class="err">${esc(e.message)}</span>`; } };
   if ($("send")) $("send").onclick = () => decide("send");
+  if ($("fill")) $("fill").onclick = async () => {
+    try {
+      const v = await api(`/tickets/${n}/customer-details`);
+      $("draft").value = $("draft").value.replace(/\[[A-Z]+_\d+\]/g, (ph) => v[ph] ?? ph);
+      $("decMsg").textContent = "customer details filled in (reveal logged)"; $("fill").disabled = true;
+    } catch (e) { $("decMsg").innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+  };
   if ($("manual")) $("manual").onclick = () => decide("manual");
   if (running) timer = setTimeout(() => { openTicket(n); loadInbox(); }, 2000);
 }

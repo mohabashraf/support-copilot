@@ -265,6 +265,7 @@ def process(
                     resumed_from=resume_from,
                     trace_id=str(run_id),
                     intake_trace_id=record.intake_trace_id,
+                    decision_record=state.get("audit_record"),  # built by the audit node
                 )
         except Exception as err:  # every failure is recorded and retried, never dropped
             status = store.fail(record.number, f"{type(err).__name__}: {err}")
