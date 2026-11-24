@@ -45,10 +45,10 @@ def test_ticket_metrics_say_incomplete_and_give_the_real_routing_reason(reader):
     )
     run_once(store)
     tickets = _points(reader, "copilot.tickets")
-    # A grounded draft, nothing flagged → auto_draft_ok (an agent still reviews it). Not
-    # complete: post_check and audit are placeholders, and the metric says so.
+    # A grounded draft, nothing flagged → auto_draft_ok (an agent still reviews it). Every step
+    # did real work, and the metric says so.
     assert (
-        {"decision": "auto_draft_ok", "destination": "not_decided", "complete": "false"},
+        {"decision": "auto_draft_ok", "destination": "not_decided", "complete": "true"},
         1,
     ) in [(a, v) for a, v in tickets]
     assert [a for a, v in _points(reader, "copilot.routing.reasons") if v] == []
@@ -59,4 +59,4 @@ def test_ticket_metrics_say_incomplete_and_give_the_real_routing_reason(reader):
     }
     assert ("pattern_check", "true") in by_node and ("risk_classifier", "true") in by_node
     assert ("route", "true") in by_node
-    assert ("audit", "false") in by_node  # placeholders are labelled as such
+    assert ("audit", "true") in by_node  # every node is implemented (no placeholders left)

@@ -78,6 +78,7 @@ def test_setup_fills_empty_secrets_once_and_the_keys_work(tmp_path):
     assert table[hash_key(keys["AGENT_KEY"])].role == "agent"
     pm = json.loads((tmp_path / "postman" / "local.postman_environment.json").read_text())
     assert {v["key"]: v["value"] for v in pm["values"]}["agentKey"] == keys["AGENT_KEY"]
+    assert f"agent={keys['AGENT_KEY']}" in keys["UI_SIGN_IN_LINK"]  # UI link signs in
     assert "ANTHROPIC_API_KEY" in res.output  # tells the user what is still missing
 
     before = (tmp_path / ".env").read_text()

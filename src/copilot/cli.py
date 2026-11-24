@@ -576,9 +576,26 @@ def setup(
             "_postman_variable_scope": "environment",
         }
         pm.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
-        done.append(
-            f"Postman environment: {pm.relative_to(directory)} (import it, then select it)"
+        # The same collection with both keys built in: import ONE file, nothing to select.
+        src = directory / "postman" / "support-copilot.postman_collection.json"
+        if src.exists():
+            col = json.loads(src.read_text(encoding="utf-8"))
+            col["info"]["name"] = "Support Co-pilot (local, keys included)"
+            for v in col.get("variable", []):
+                if v.get("key") in ("helpdeskKey", "agentKey"):
+                    v["value"] = keys["HELPDESK_KEY" if v["key"] == "helpdeskKey" else "AGENT_KEY"]
+            local = src.with_name("local.postman_collection.json")
+            local.write_text(json.dumps(col, indent="\t", ensure_ascii=False), encoding="utf-8")
+            local.chmod(0o600)
+            done.append(f"Postman: import {local.relative_to(directory)} (keys built in)")
+        else:
+            done.append(f"Postman environment: {pm.relative_to(directory)} (import + select it)")
+        link = (
+            f"http://localhost:8000/ui#helpdesk={keys['HELPDESK_KEY']}&agent={keys['AGENT_KEY']}"
         )
+        with keys_file.open("a", encoding="utf-8") as f:
+            f.write(f"UI_SIGN_IN_LINK={link}\n")
+        done.append(f"Agent UI, signed in (after `docker compose up`): {link}")
 
     for d in done or ["nothing to do: the secrets in .env are already set (never overwritten)"]:
         typer.echo(f"  ✓ {d}")

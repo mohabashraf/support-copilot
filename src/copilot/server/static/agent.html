@@ -62,7 +62,7 @@ const $ = (id) => document.getElementById(id);
 const store = { get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 let selected = null, timer = null;
-// A link like /ui#helpdesk=sk_...&agent=sk_... signs in directly. The part after # never leaves
+// A link like /ui#helpdesk=<key>&agent=<key> signs in directly. The part after # never leaves
 // the browser (not sent to the server, not in its logs); it is removed from the address bar.
 (() => {
   const h = new URLSearchParams(location.hash.slice(1));

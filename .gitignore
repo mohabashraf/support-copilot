@@ -19,6 +19,7 @@ htmlcov/
 
 # Local Postman environment with real API keys (written by `copilot setup`)
 postman/local.postman_environment.json
+postman/local.postman_collection.json
 
 # Generated PII vault key when running with `uv run` (Docker keeps it in the app-data volume)
 data/

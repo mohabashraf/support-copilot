@@ -73,11 +73,10 @@ def test_worker_runs_the_graph_and_records_every_step(store):
         "validate_classification", "confidence_gate",
         "policy_gate", "retrieve", "draft", "post_check", "compose", "route", "audit",
     ]  # fmt: skip
-    # Grounded draft, nothing flagged: an agent reviews and sends it; post_check + audit are
-    # still placeholders, so the ticket is not complete.
+    # Grounded draft, nothing flagged: an agent reviews and sends it; every step did real work.
     assert done.result["routing"]["decision"] == "auto_draft_ok"
     assert done.result["routing"]["reasons"] == []
-    assert done.result["complete"] is False
+    assert done.result["complete"] is True
     assert done.trace_id and done.finished_at
     assert run_once(store) is False  # queue empty
 
