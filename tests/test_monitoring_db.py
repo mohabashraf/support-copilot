@@ -26,6 +26,9 @@ def ticket(pool):
     """A processed test ticket in tickets_test (+ views), with grafana_ro set up as in Docker."""
     sql = (ROOT / "observability/postgres/grafana_readonly.sql").read_text()
     with pool.connection() as conn:
+        # "anything else": a table the test owns, so it doesn't depend on `copilot kb index`
+        # having created kb_chunks (CI never runs it). Created before the role SQL.
+        conn.execute("CREATE TABLE IF NOT EXISTS monitoring_test_other (secret text)")
         conn.execute(sql)
         conn.execute("DROP TABLE IF EXISTS tickets_test CASCADE")
     store = PgTicketStore(pool, table="tickets_test")  # creates the views + grants grafana_ro
@@ -65,7 +68,7 @@ def test_grafana_role_reads_the_views(ticket):
         "SELECT masked FROM tickets_test",  # the masked message
         "SELECT result FROM tickets_test",  # the draft
         "SELECT * FROM pii_vault_test",  # encrypted real values
-        "SELECT * FROM kb_chunks",  # anything else
+        "SELECT * FROM monitoring_test_other",  # anything else (e.g. kb_chunks)
     ],
 )
 def test_grafana_role_cannot_read_text_or_the_vault(ticket, query):
